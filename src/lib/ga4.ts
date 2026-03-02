@@ -1,31 +1,22 @@
 import { BetaAnalyticsDataClient } from "@google-analytics/data";
 
-/**
- * Google Analytics 4 (GA4) Data API Client
- * 
- * Requirements:
- * 1. GA_PROPERTY_ID
- * 2. GA_CLIENT_EMAIL
- * 3. GA_PRIVATE_KEY
- */
-
 const propertyId = process.env.GA_PROPERTY_ID;
 const clientEmail = process.env.GA_CLIENT_EMAIL;
 const privateKey = process.env.GA_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
-export const gaClient = new BetaAnalyticsDataClient({
-    credentials: {
-        client_email: clientEmail,
-        private_key: privateKey,
-    },
-});
+// Lazy init to avoid errors when GA vars are missing (e.g. Netlify 4KB limit)
+let _gaClient: BetaAnalyticsDataClient | null = null;
+function getGaClient(): BetaAnalyticsDataClient | null {
+    if (!clientEmail || !privateKey) return null;
+    if (!_gaClient) _gaClient = new BetaAnalyticsDataClient({ credentials: { client_email: clientEmail, private_key: privateKey } });
+    return _gaClient;
+}
 
 export async function getTrafficMetrics(days: number = 7) {
-    if (!propertyId || !clientEmail || !privateKey) {
-        console.warn("GA4 credentials missing. Returning mock data.");
+    const gaClient = getGaClient();
+    if (!propertyId || !gaClient) {
         return null;
     }
-
     try {
         const [response] = await gaClient.runReport({
             property: `properties/${propertyId}`,
@@ -73,8 +64,8 @@ export async function getTrafficMetrics(days: number = 7) {
 }
 
 export async function getTrafficSources(days: number = 30) {
-    if (!propertyId || !clientEmail || !privateKey) return null;
-
+    const gaClient = getGaClient();
+    if (!propertyId || !gaClient) return null;
     try {
         const [response] = await gaClient.runReport({
             property: `properties/${propertyId}`,
@@ -107,8 +98,8 @@ export async function getTrafficSources(days: number = 30) {
 }
 
 export async function getCoreMetrics(days: number = 7) {
-    if (!propertyId || !clientEmail || !privateKey) return null;
-
+    const gaClient = getGaClient();
+    if (!propertyId || !gaClient) return null;
     try {
         const [response] = await gaClient.runReport({
             property: `properties/${propertyId}`,
