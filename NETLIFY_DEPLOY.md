@@ -30,10 +30,10 @@ In **Site settings** → **Environment variables**, add:
 | `AUTH_URL` | **Required:** Your Netlify URL, e.g. `https://your-site-name.netlify.app` (NextAuth v5 uses this) |
 | `NEXT_PUBLIC_FIREBASE_*` | All 7 Firebase public vars from `.env` |
 | `FIREBASE_SERVICE_ACCOUNT_KEY` | Full JSON string (use Netlify’s “Insert variable” → “Load from .env” or paste) |
-| `FIREBASE_PROJECT_ID` | `afcrashpad-crm-6c216` |
+| `FIREBASE_PROJECT_ID` | Your Firebase project ID |
 | `FIREBASE_CLIENT_EMAIL` | Firebase admin client email |
 | `FIREBASE_PRIVATE_KEY` | Firebase admin private key (keep newlines as `\n`) |
-| `FIREBASE_DATABASE_ID` | `afcrashpadcrm` |
+| `FIREBASE_DATABASE_ID` | Your Firestore database ID |
 | `WEBHOOK_API_KEY` | Webhook auth key |
 | `NEXT_PUBLIC_GA_ID`, `GA_PROPERTY_ID`, `GA_CLIENT_EMAIL`, `GA_PRIVATE_KEY` | If using analytics |
 

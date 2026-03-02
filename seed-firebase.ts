@@ -20,7 +20,7 @@ if (!admin.apps.length) {
     }
 }
 
-const db = getFirestore(admin.app(), process.env.FIREBASE_DATABASE_ID || 'afcrashpadcrm');
+const db = getFirestore(admin.app(), process.env.FIREBASE_DATABASE_ID);
 
 async function seed() {
     console.log("Seeding Firebase database...");

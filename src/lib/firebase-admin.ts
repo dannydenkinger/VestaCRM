@@ -15,5 +15,5 @@ if (!admin.apps.length) {
     }
 }
 
-export const adminDb = getFirestore(admin.app(), process.env.FIREBASE_DATABASE_ID || 'afcrashpadcrm');
+export const adminDb = getFirestore(admin.app(), process.env.FIREBASE_DATABASE_ID);
 export const adminAuth = admin.auth();
