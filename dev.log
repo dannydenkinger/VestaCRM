@@ -1,0 +1,913 @@
+
+> afcrashpad-crm@0.1.0 dev
+> next dev
+
+⚠ Port 3000 is in use by process 12095, using available port 3001 instead.
+⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of /Users/dannydenkinger/package-lock.json as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles: 
+   * /Users/dannydenkinger/Desktop/AFCrashpad CRM/package-lock.json
+
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:3001
+- Network:       http://192.168.0.26:3001
+- Environments: .env
+
+✓ Starting...
+✓ Ready in 729ms
+○ Compiling /tools ...
+ GET /tools 200 in 3.7s (compile: 3.5s, render: 189ms)
+ GET /tools 200 in 127ms (compile: 60ms, render: 67ms)
+ GET /api/auth/session 200 in 1728ms (compile: 1710ms, render: 18ms)
+ GET /api/auth/session 200 in 9ms (compile: 4ms, render: 5ms)
+✓ Compiled in 298ms
+✓ Compiled in 132ms
+✓ Compiled in 231ms
+ GET /tools 200 in 305ms (compile: 216ms, render: 90ms)
+ GET /tools 200 in 302ms (compile: 14ms, render: 288ms)
+✓ Compiled in 317ms
+✓ Compiled in 71ms
+✓ Compiled in 199ms
+✓ Compiled in 140ms
+✓ Compiled in 239ms
+✓ Compiled in 103ms
+✓ Compiled in 55ms
+✓ Compiled in 127ms
+ GET /tools 200 in 90ms (compile: 31ms, render: 59ms)
+✓ Compiled in 289ms
+✓ Compiled in 186ms
+✓ Compiled in 645ms
+ GET /tools 200 in 279ms (compile: 205ms, render: 74ms)
+✓ Compiled in 282ms
+✓ Compiled in 179ms
+ GET /tools 200 in 77ms (compile: 26ms, render: 52ms)
+ GET /tools 200 in 261ms (compile: 18ms, render: 243ms)
+ GET /api/auth/session 200 in 79ms (compile: 52ms, render: 27ms)
+ GET /api/auth/session 200 in 7ms (compile: 3ms, render: 4ms)
+ GET /tools 200 in 47ms (compile: 13ms, render: 34ms)
+ POST /tools 200 in 541ms (compile: 6ms, render: 535ms)
+ GET /automations 200 in 724ms (compile: 695ms, render: 29ms)
+ GET /tools 200 in 14ms (compile: 3ms, render: 11ms)
+✓ Compiled in 324ms
+✓ Compiled in 340ms
+✓ Compiled in 168ms
+ GET /tools 200 in 204ms (compile: 65ms, render: 139ms)
+ GET /api/auth/session 200 in 105ms (compile: 90ms, render: 15ms)
+ GET /api/auth/session 200 in 4ms (compile: 1216µs, render: 3ms)
+ POST /tools 200 in 1229ms (compile: 8ms, render: 1222ms)
+ GET /tools 200 in 52ms (compile: 18ms, render: 34ms)
+ GET /automations 200 in 26ms (compile: 7ms, render: 20ms)
+ GET /tools 200 in 31ms (compile: 9ms, render: 23ms)
+ POST /tools 200 in 899ms (compile: 17ms, render: 882ms)
+✓ Compiled in 185ms
+ GET /tools 200 in 183ms (compile: 78ms, render: 106ms)
+ GET /api/auth/session 200 in 33ms (compile: 12ms, render: 21ms)
+ GET /api/auth/session 200 in 4ms (compile: 1519µs, render: 3ms)
+ GET /automations 200 in 34ms (compile: 10ms, render: 24ms)
+ GET /tools 200 in 28ms (compile: 6ms, render: 22ms)
+ GET /tools 200 in 80ms (compile: 8ms, render: 72ms)
+ GET /api/auth/session 200 in 10ms (compile: 4ms, render: 7ms)
+ GET /api/auth/session 200 in 11ms (compile: 6ms, render: 5ms)
+ GET /contacts 200 in 1461ms (compile: 1430ms, render: 32ms)
+ POST /contacts 200 in 24ms (compile: 6ms, render: 19ms)
+ POST /contacts 200 in 8ms (compile: 3ms, render: 5ms)
+ GET /tools 200 in 57ms (compile: 13ms, render: 44ms)
+✓ Compiled in 157ms
+ GET /tools 200 in 408ms (compile: 287ms, render: 121ms)
+✓ Compiled in 70ms
+✓ Compiled in 97ms
+ GET /tools 200 in 384ms (compile: 157ms, render: 227ms)
+ GET /api/auth/session 200 in 34ms (compile: 27ms, render: 7ms)
+ GET /api/auth/session 200 in 7ms (compile: 1964µs, render: 5ms)
+✓ Compiled in 917ms
+ GET /tools 200 in 777ms (compile: 478ms, render: 300ms)
+ GET /api/auth/session 200 in 29ms (compile: 11ms, render: 18ms)
+ GET /api/auth/session 200 in 6ms (compile: 1489µs, render: 5ms)
+✓ Compiled in 261ms
+✓ Compiled in 169ms
+ GET /tools 200 in 337ms (compile: 176ms, render: 161ms)
+ GET /api/auth/session 200 in 167ms (compile: 23ms, render: 144ms)
+ GET /api/auth/session 200 in 8ms (compile: 1828µs, render: 6ms)
+✓ Compiled in 778ms
+✓ Compiled in 228ms
+✓ Compiled in 188ms
+ GET /tools 200 in 569ms (compile: 271ms, render: 298ms)
+ GET /api/auth/session 200 in 74ms (compile: 69ms, render: 5ms)
+ GET /api/auth/session 200 in 3ms (compile: 1203µs, render: 2ms)
+✓ Compiled in 234ms
+ GET /tools 200 in 53ms (compile: 22ms, render: 31ms)
+ GET /tools 200 in 539ms (compile: 318ms, render: 220ms)
+ GET /tools 200 in 523ms (compile: 217ms, render: 306ms)
+ GET /api/auth/session 200 in 34ms (compile: 27ms, render: 7ms)
+ GET /api/auth/session 200 in 8ms (compile: 4ms, render: 4ms)
+✓ Compiled in 241ms
+ GET /tools 200 in 39ms (compile: 5ms, render: 34ms)
+ GET /contacts 404 in 1161ms (compile: 1056ms, render: 106ms)
+ GET /contacts 200 in 398ms (compile: 116ms, render: 282ms)
+ POST /contacts 200 in 84ms (compile: 4ms, render: 79ms)
+ GET /api/auth/session 200 in 22ms (compile: 6ms, render: 15ms)
+ GET /api/auth/session 200 in 6ms (compile: 1333µs, render: 4ms)
+ GET /tools 200 in 62ms (compile: 19ms, render: 43ms)
+ GET /automations 200 in 81ms (compile: 44ms, render: 37ms)
+ GET /marketing 200 in 3.0s (compile: 3.0s, render: 52ms)
+ GET /marketing 200 in 15ms (compile: 3ms, render: 12ms)
+ POST /marketing 200 in 1592ms (compile: 4ms, render: 1588ms)
+ POST /marketing 200 in 2.1s (compile: 1888µs, render: 2.1s)
+ GET /reporting 200 in 486ms (compile: 444ms, render: 42ms)
+ GET /pipeline 200 in 646ms (compile: 624ms, render: 22ms)
+✓ Compiled in 705ms
+ GET /pipeline 200 in 116ms (compile: 65ms, render: 51ms)
+✓ Compiled in 309ms
+✓ Compiled in 220ms
+✓ Compiled in 141ms
+✓ Compiled in 372ms
+ POST /pipeline 200 in 90ms (compile: 9ms, render: 81ms)
+ GET /pipeline 200 in 459ms (compile: 276ms, render: 183ms)
+ GET /contacts 200 in 343ms (compile: 272ms, render: 71ms)
+ POST /contacts 200 in 75ms (compile: 10ms, render: 65ms)
+ POST /contacts 200 in 6ms (compile: 1796µs, render: 5ms)
+⚠ Fast Refresh had to perform a full reload when ./Desktop/AFCrashpad CRM/src/app/contacts/page.tsx changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ GET /contacts 200 in 401ms (compile: 250ms, render: 150ms)
+ POST /contacts 200 in 58ms (compile: 39ms, render: 20ms)
+ POST /contacts 200 in 24ms (compile: 5ms, render: 19ms)
+ GET /contacts 200 in 97ms (compile: 3ms, render: 94ms)
+ POST /contacts 200 in 20ms (compile: 4ms, render: 16ms)
+ GET /api/auth/session 200 in 84ms (compile: 55ms, render: 28ms)
+ GET /api/auth/session 200 in 8ms (compile: 3ms, render: 5ms)
+ GET /contacts 200 in 217ms (compile: 147ms, render: 70ms)
+⚠ Fast Refresh had to perform a full reload when ./Desktop/AFCrashpad CRM/src/app/contacts/page.tsx changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ GET /contacts 200 in 264ms (compile: 6ms, render: 258ms)
+ GET /api/auth/session 200 in 15ms (compile: 6ms, render: 9ms)
+ POST /contacts 200 in 22ms (compile: 5ms, render: 17ms)
+ GET /api/auth/session 200 in 5ms (compile: 1820µs, render: 3ms)
+ GET /pipeline 200 in 69ms (compile: 28ms, render: 41ms)
+ POST /pipeline 200 in 13ms (compile: 3ms, render: 10ms)
+ POST /pipeline 200 in 5ms (compile: 1641µs, render: 4ms)
+ GET /tasks 200 in 1438ms (compile: 1365ms, render: 74ms)
+ POST /tasks 200 in 1034ms (compile: 6ms, render: 1028ms)
+ POST /tasks 200 in 16ms (compile: 9ms, render: 8ms)
+✓ Compiled in 278ms
+ GET /tasks 200 in 60ms (compile: 12ms, render: 49ms)
+✓ Compiled in 285ms
+✓ Compiled in 509ms
+ GET /tasks 200 in 145ms (compile: 18ms, render: 127ms)
+ GET /tasks 200 in 250ms (compile: 129ms, render: 121ms)
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+✓ Compiled in 310ms
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+⨯ ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx:6:1
+Module not found: Can't resolve '@/components/ui/textarea'
+[0m [90m 4 |[39m [36mimport[39m { [33mButton[39m } [36mfrom[39m [32m"@/components/ui/button"[39m
+ [90m 5 |[39m [36mimport[39m { [33mInput[39m } [36mfrom[39m [32m"@/components/ui/input"[39m
+[31m[1m>[22m[39m[90m 6 |[39m [36mimport[39m { [33mTextarea[39m } [36mfrom[39m [32m"@/components/ui/textarea"[39m
+ [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 7 |[39m [36mimport[39m {
+ [90m 8 |[39m     [33mDialog[39m[33m,[39m
+ [90m 9 |[39m     [33mDialogContent[39m[33m,[39m[0m
+
+Import map: aliased to relative './src/components/ui/textarea' inside of [project]/Desktop/AFCrashpad CRM
+
+
+Import traces:
+  Client Component Browser:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component Browser]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./Desktop/AFCrashpad CRM/src/components/ui/CreateTaskDialog.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Client Component SSR]
+    ./Desktop/AFCrashpad CRM/src/app/tasks/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+✓ Compiled in 387ms
+ POST /tasks 200 in 366ms (compile: 90ms, render: 277ms)
+ GET /tasks 200 in 1119ms (compile: 290ms, render: 829ms)
+ GET /pipeline 200 in 1269ms (compile: 1071ms, render: 198ms)
+ POST /pipeline 200 in 277ms (compile: 15ms, render: 263ms)
+ POST /pipeline 200 in 8ms (compile: 2ms, render: 6ms)
+ GET /pipeline 200 in 299ms (compile: 19ms, render: 280ms)
+ POST /pipeline 200 in 29ms (compile: 3ms, render: 26ms)
+ GET /api/auth/session 200 in 21ms (compile: 7ms, render: 15ms)
+ GET /api/auth/session 200 in 7ms (compile: 1795µs, render: 6ms)
+✓ Compiled in 181ms
+ POST /pipeline 200 in 323ms (compile: 237ms, render: 86ms)
+✓ Compiled in 231ms
+ POST /pipeline 200 in 451ms (compile: 262ms, render: 190ms)
+ POST /pipeline 200 in 15ms (compile: 1748µs, render: 13ms)
+ POST /pipeline 200 in 18ms (compile: 2ms, render: 16ms)
+ POST /pipeline 200 in 14ms (compile: 1587µs, render: 12ms)
+ POST /pipeline 200 in 15ms (compile: 1504µs, render: 13ms)
+ POST /pipeline 200 in 13ms (compile: 2ms, render: 11ms)
+ POST /pipeline 200 in 23ms (compile: 11ms, render: 12ms)
+Direct DB Query Error: Error [LibsqlError]: SQLITE_ERROR: no such table: main.new_Pipeline
+    at query (src/lib/db.ts:20:33)
+    at deletePipelineStage (src/app/pipeline/actions.ts:161:20)
+  18 | export async function query(sql: string, params: any[] = []) {
+  19 |     try {
+> 20 |         const rs = await client.execute({ sql, args: params });
+     |                                 ^
+  21 |         return rs.rows;
+  22 |     } catch (error) {
+  23 |         console.error("Direct DB Query Error:", error); {
+  code: 'SQLITE_ERROR',
+  extendedCode: 'SQLITE_ERROR',
+  rawCode: 1,
+  [cause]: SqliteError: no such table: main.new_Pipeline
+      at query (src/lib/db.ts:20:33)
+      at deletePipelineStage (src/app/pipeline/actions.ts:161:20)
+    18 | export async function query(sql: string, params: any[] = []) {
+    19 |     try {
+  > 20 |         const rs = await client.execute({ sql, args: params });
+       |                                 ^
+    21 |         return rs.rows;
+    22 |     } catch (error) {
+    23 |         console.error("Direct DB Query Error:", error); {
+    code: 'SQLITE_ERROR',
+    rawCode: 1
+  }
+}
+Failed to delete pipeline stage: Error [LibsqlError]: SQLITE_ERROR: no such table: main.new_Pipeline
+    at query (src/lib/db.ts:20:33)
+    at deletePipelineStage (src/app/pipeline/actions.ts:161:20)
+  18 | export async function query(sql: string, params: any[] = []) {
+  19 |     try {
+> 20 |         const rs = await client.execute({ sql, args: params });
+     |                                 ^
+  21 |         return rs.rows;
+  22 |     } catch (error) {
+  23 |         console.error("Direct DB Query Error:", error); {
+  code: 'SQLITE_ERROR',
+  extendedCode: 'SQLITE_ERROR',
+  rawCode: 1,
+  [cause]: SqliteError: no such table: main.new_Pipeline
+      at query (src/lib/db.ts:20:33)
+      at deletePipelineStage (src/app/pipeline/actions.ts:161:20)
+    18 | export async function query(sql: string, params: any[] = []) {
+    19 |     try {
+  > 20 |         const rs = await client.execute({ sql, args: params });
+       |                                 ^
+    21 |         return rs.rows;
+    22 |     } catch (error) {
+    23 |         console.error("Direct DB Query Error:", error); {
+    code: 'SQLITE_ERROR',
+    rawCode: 1
+  }
+}
+ POST /pipeline 200 in 1329ms (compile: 17ms, render: 1312ms)
+ POST /pipeline 200 in 42ms (compile: 10ms, render: 32ms)
+ POST /pipeline 200 in 10ms (compile: 1713µs, render: 8ms)
+Direct DB Query Error: Error [LibsqlError]: SQLITE_ERROR: no such table: main.new_Pipeline
+    at query (src/lib/db.ts:20:33)
+    at deletePipelineStage (src/app/pipeline/actions.ts:161:20)
+  18 | export async function query(sql: string, params: any[] = []) {
+  19 |     try {
+> 20 |         const rs = await client.execute({ sql, args: params });
+     |                                 ^
+  21 |         return rs.rows;
+  22 |     } catch (error) {
+  23 |         console.error("Direct DB Query Error:", error); {
+  code: 'SQLITE_ERROR',
+  extendedCode: 'SQLITE_ERROR',
+  rawCode: 1,
+  [cause]: SqliteError: no such table: main.new_Pipeline
+      at query (src/lib/db.ts:20:33)
+      at deletePipelineStage (src/app/pipeline/actions.ts:161:20)
+    18 | export async function query(sql: string, params: any[] = []) {
+    19 |     try {
+  > 20 |         const rs = await client.execute({ sql, args: params });
+       |                                 ^
+    21 |         return rs.rows;
+    22 |     } catch (error) {
+    23 |         console.error("Direct DB Query Error:", error); {
+    code: 'SQLITE_ERROR',
+    rawCode: 1
+  }
+}
+Failed to delete pipeline stage: Error [LibsqlError]: SQLITE_ERROR: no such table: main.new_Pipeline
+    at query (src/lib/db.ts:20:33)
+    at deletePipelineStage (src/app/pipeline/actions.ts:161:20)
+  18 | export async function query(sql: string, params: any[] = []) {
+  19 |     try {
+> 20 |         const rs = await client.execute({ sql, args: params });
+     |                                 ^
+  21 |         return rs.rows;
+  22 |     } catch (error) {
+  23 |         console.error("Direct DB Query Error:", error); {
+  code: 'SQLITE_ERROR',
+  extendedCode: 'SQLITE_ERROR',
+  rawCode: 1,
+  [cause]: SqliteError: no such table: main.new_Pipeline
+      at query (src/lib/db.ts:20:33)
+      at deletePipelineStage (src/app/pipeline/actions.ts:161:20)
+    18 | export async function query(sql: string, params: any[] = []) {
+    19 |     try {
+  > 20 |         const rs = await client.execute({ sql, args: params });
+       |                                 ^
+    21 |         return rs.rows;
+    22 |     } catch (error) {
+    23 |         console.error("Direct DB Query Error:", error); {
+    code: 'SQLITE_ERROR',
+    rawCode: 1
+  }
+}
+ POST /pipeline 200 in 749ms (compile: 15ms, render: 734ms)
+ POST /pipeline 200 in 33ms (compile: 10ms, render: 24ms)
+ POST /pipeline 200 in 7ms (compile: 1672µs, render: 6ms)
+✓ Compiled in 333ms
+ GET /pipeline 200 in 556ms (compile: 440ms, render: 117ms)
+ GET /pipeline 200 in 274ms (compile: 195ms, render: 79ms)
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+✓ Compiled in 144ms
+Each child in a list should have a unique "key" prop.
+
+Check the render method of `PipelinePage`. See https://react.dev/link/warning-keys for more information.
+ POST /pipeline 200 in 632ms (compile: 210ms, render: 421ms)
+ GET /pipeline 200 in 1173ms (compile: 164ms, render: 1009ms)
+ GET /api/auth/session 200 in 167ms (compile: 86ms, render: 81ms)
+ POST /pipeline 200 in 155ms (compile: 34ms, render: 121ms)
+ GET /api/auth/session 200 in 6ms (compile: 3ms, render: 3ms)
+⨯ Failed to generate static paths for /api/auth/[...nextauth]:
+Error [PrismaClientConstructorValidationError]: "adapter" property can only be provided to PrismaClient constructor when "driverAdapters" preview feature is enabled.
+Read more at https://pris.ly/d/client-constructor
+    at prismaClientSingleton (src/lib/prisma.ts:20:12)
+    at <unknown> (src/lib/prisma.ts:32:50)
+  18 | const prismaClientSingleton = () => {
+  19 |     // Try to use the standard client but with explicit adapter
+> 20 |     return new PrismaClient({ adapter })
+     |            ^
+  21 | }
+  22 |
+  23 | declare global { {
+  type: 'PrismaClientConstructorValidationError'
+}
+⨯ Failed to generate static paths for /api/auth/[...nextauth]:
+Error [PrismaClientConstructorValidationError]: "adapter" property can only be provided to PrismaClient constructor when "driverAdapters" preview feature is enabled.
+Read more at https://pris.ly/d/client-constructor
+    at prismaClientSingleton (src/lib/prisma.ts:20:12)
+    at <unknown> (src/lib/prisma.ts:32:50)
+  18 | const prismaClientSingleton = () => {
+  19 |     // Try to use the standard client but with explicit adapter
+> 20 |     return new PrismaClient({ adapter })
+     |            ^
+  21 | }
+  22 |
+  23 | declare global { {
+  type: 'PrismaClientConstructorValidationError'
+}
+✓ Compiled in 156ms
+✓ Compiled in 593ms
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+Each child in a list should have a unique "key" prop.
+
+Check the render method of `PipelinePage`. See https://react.dev/link/warning-keys for more information.
+ POST /pipeline 200 in 100ms (compile: 9ms, render: 91ms)
+ GET /pipeline 200 in 842ms (compile: 380ms, render: 463ms)
+ POST /pipeline 200 in 43ms (compile: 12ms, render: 31ms)
+⨯ Error [PrismaClientConstructorValidationError]: "adapter" property can only be provided to PrismaClient constructor when "driverAdapters" preview feature is enabled.
+Read more at https://pris.ly/d/client-constructor
+    at prismaClientSingleton (src/lib/prisma.ts:20:12)
+    at <unknown> (src/lib/prisma.ts:32:50)
+  18 | const prismaClientSingleton = () => {
+  19 |     // Try to use the standard client but with explicit adapter
+> 20 |     return new PrismaClient({ adapter })
+     |            ^
+  21 | }
+  22 |
+  23 | declare global { {
+  type: 'PrismaClientConstructorValidationError',
+  page: '/api/auth/session'
+}
+ GET /api/auth/session 500 in 2.2s (compile: 2.1s, render: 112ms)
+⨯ Error [PrismaClientConstructorValidationError]: "adapter" property can only be provided to PrismaClient constructor when "driverAdapters" preview feature is enabled.
+Read more at https://pris.ly/d/client-constructor
+    at prismaClientSingleton (src/lib/prisma.ts:20:12)
+    at <unknown> (src/lib/prisma.ts:32:50)
+  18 | const prismaClientSingleton = () => {
+  19 |     // Try to use the standard client but with explicit adapter
+> 20 |     return new PrismaClient({ adapter })
+     |            ^
+  21 | }
+  22 |
+  23 | declare global { {
+  type: 'PrismaClientConstructorValidationError',
+  page: '/api/auth/session'
+}
+ GET /api/auth/session 500 in 771ms (compile: 759ms, render: 12ms)
+✓ Compiled in 512ms
+✓ Finished filesystem cache database compaction in 12.7s
