@@ -655,7 +655,9 @@ function PipelineContent() {
             <PipelineManagerDialog
                 isOpen={isPipelineManagerOpen}
                 onClose={() => setIsPipelineManagerOpen(false)}
-                pipelines={pipelines}
+                pipelines={Object.fromEntries(
+                    Object.entries(pipelines).map(([id, data]) => [id, { id, name: data.name, stages: data.stages }])
+                )}
                 onPipelinesChange={fetchPipelines}
             />
 
