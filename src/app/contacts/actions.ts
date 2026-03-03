@@ -2,6 +2,7 @@
 
 import { adminDb } from "@/lib/firebase-admin";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
 import { createNotification } from "@/app/notifications/actions";
 
 export async function getContacts() {
@@ -30,8 +31,19 @@ export async function getContacts() {
             const opportunities = oppsSnapshot.docs.map(oppDoc => {
                 const d = oppDoc.data();
                 const o: Record<string, unknown> = { id: oppDoc.id, ...d };
-                if (d.createdAt?.toDate) o.createdAt = d.createdAt.toDate().toISOString();
-                if (d.updatedAt?.toDate) o.updatedAt = d.updatedAt.toDate().toISOString();
+                const toISO = (v: unknown) => {
+                    if (!v) return null;
+                    if (typeof v === "string") return v;
+                    if ((v as any)?.toDate) return (v as any).toDate().toISOString();
+                    return null;
+                };
+
+                if (d.createdAt) o.createdAt = toISO(d.createdAt);
+                if (d.updatedAt) o.updatedAt = toISO(d.updatedAt);
+                if (d.stayStartDate) o.stayStartDate = toISO(d.stayStartDate);
+                if (d.stayEndDate) o.stayEndDate = toISO(d.stayEndDate);
+                if (d.unreadAt) o.unreadAt = toISO(d.unreadAt);
+                if (d.lastSeenAt) o.lastSeenAt = toISO(d.lastSeenAt);
                 if (d.pipelineStageId && stageNamesMap[d.pipelineStageId]) o.stageName = stageNamesMap[d.pipelineStageId];
                 return o;
             });
@@ -85,15 +97,20 @@ export async function getContacts() {
     }
 }
 
-export async function createNote(contactId: string, content: string) {
+/** Create a note on the contact. Notes added from an opportunity are also visible on the contact (GHL-style). */
+export async function createNote(contactId: string, content: string, options?: { opportunityId?: string; source?: string }) {
     try {
-        await adminDb.collection('contacts').doc(contactId).collection('notes').add({
+        const data: Record<string, unknown> = {
             content,
             contactId,
             createdAt: new Date(),
-            updatedAt: new Date()
-        });
+            updatedAt: new Date(),
+        };
+        if (options?.opportunityId) data.opportunityId = options.opportunityId;
+        if (options?.source) data.source = options.source;
+        await adminDb.collection('contacts').doc(contactId).collection('notes').add(data);
         revalidatePath("/contacts");
+        revalidatePath("/pipeline");
         return { success: true };
     } catch (error) {
         console.error("Failed to create note:", error);
@@ -101,10 +118,16 @@ export async function createNote(contactId: string, content: string) {
     }
 }
 
+/** Convert any date-like value to ISO string for RSC serialization (plain objects + Timestamps). */
 function tsToISO(v: unknown): string | null {
-    if (!v) return null;
-    if (typeof v === 'string') return v;
-    if ((v as any)?.toDate) return (v as any).toDate().toISOString();
+    if (v == null) return null;
+    if (typeof v === "string" && (v.includes("T") || /^\d{4}-\d{2}-\d{2}/.test(v))) return v;
+    if (typeof v === "object" && typeof (v as any)._seconds === "number") {
+        const t = v as { _seconds: number; _nanoseconds?: number };
+        return new Date(t._seconds * 1000 + (t._nanoseconds || 0) / 1e6).toISOString();
+    }
+    if (v instanceof Date) return v.toISOString();
+    if (typeof (v as any)?.toDate === "function") return (v as any).toDate().toISOString();
     return null;
 }
 
@@ -129,6 +152,98 @@ export async function getNotes(contactId: string) {
     } catch (error) {
         console.error("Failed to fetch notes:", error);
         return { success: false, error: "Failed to fetch notes" };
+    }
+}
+
+/** Delete a note and record a "note_deleted" event in the contact timeline (includes who deleted it). */
+export async function deleteNote(contactId: string, noteId: string) {
+    try {
+        const session = await auth();
+        const deletedByName = session?.user?.name ?? session?.user?.email ?? "Unknown user";
+        const deletedById = (session?.user as any)?.id ?? null;
+
+        const noteRef = adminDb.collection('contacts').doc(contactId).collection('notes').doc(noteId);
+        const noteSnap = await noteRef.get();
+        if (!noteSnap.exists) return { success: false, error: "Note not found" };
+
+        const content = (noteSnap.data()?.content as string) || "";
+        const contentPreview = content.slice(0, 120) + (content.length > 120 ? "…" : "");
+
+        await noteRef.delete();
+        await adminDb.collection('contacts').doc(contactId).collection('timeline').add({
+            type: "note_deleted",
+            noteId,
+            contentPreview: contentPreview || null,
+            deletedById,
+            deletedByName,
+            createdAt: new Date(),
+        });
+
+        revalidatePath("/contacts");
+        revalidatePath("/pipeline");
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to delete note:", error);
+        return { success: false, error: "Failed to delete note" };
+    }
+}
+
+export type TimelineItem =
+    | { kind: "message"; id: string; type: string; direction?: string; content: string; createdAt: string }
+    | { kind: "note"; id: string; content: string; createdAt: string }
+    | { kind: "note_deleted"; id: string; noteId: string; contentPreview: string | null; deletedBy: string | null; createdAt: string };
+
+/** Fetch contact timeline: messages + notes + timeline events (e.g. note_deleted), sorted by date desc. */
+export async function getContactTimeline(contactId: string): Promise<{ success: boolean; timeline?: TimelineItem[]; error?: string }> {
+    try {
+        const contactRef = adminDb.collection('contacts').doc(contactId);
+        const [notesSnap, messagesSnap, timelineSnap] = await Promise.all([
+            contactRef.collection('notes').orderBy('createdAt', 'desc').get(),
+            contactRef.collection('messages').orderBy('createdAt', 'desc').get(),
+            contactRef.collection('timeline').orderBy('createdAt', 'desc').get(),
+        ]);
+
+        const items: TimelineItem[] = [];
+
+        notesSnap.docs.forEach(d => {
+            const data = d.data();
+            items.push({
+                kind: "note",
+                id: d.id,
+                content: data.content ?? "",
+                createdAt: tsToISO(data.createdAt) ?? new Date().toISOString(),
+            });
+        });
+        messagesSnap.docs.forEach(d => {
+            const data = d.data();
+            items.push({
+                kind: "message",
+                id: d.id,
+                type: data.type ?? "MESSAGE",
+                direction: data.direction,
+                content: data.content ?? "",
+                createdAt: tsToISO(data.createdAt) ?? new Date().toISOString(),
+            });
+        });
+        timelineSnap.docs.forEach(d => {
+            const data = d.data();
+            if (data.type === "note_deleted") {
+                items.push({
+                    kind: "note_deleted",
+                    id: d.id,
+                    noteId: data.noteId ?? "",
+                    contentPreview: data.contentPreview ?? null,
+                    deletedBy: data.deletedByName ?? data.deletedById ?? null,
+                    createdAt: tsToISO(data.createdAt) ?? new Date().toISOString(),
+                });
+            }
+        });
+
+        items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        return { success: true, timeline: items };
+    } catch (error) {
+        console.error("Failed to fetch contact timeline:", error);
+        return { success: false, error: "Failed to fetch contact timeline" };
     }
 }
 
@@ -159,6 +274,15 @@ export async function createContact(data: any) {
 
         await newContactRef.set(contactData);
         revalidatePath("/contacts");
+
+        // Fire a notification for the team
+        await createNotification({
+            title: "New contact created",
+            message: contactData.name || contactData.email || "New contact",
+            type: "contact",
+            linkUrl: "/contacts"
+        });
+
         return { success: true, id: newContactRef.id };
     } catch (error) {
         console.error("Failed to create contact:", error);
@@ -176,8 +300,13 @@ export async function updateContact(id: string, data: any) {
         for (const k of allowedKeys) {
             if (otherData[k] !== undefined) {
                 let val = otherData[k];
-                if ((k === 'stayStartDate' || k === 'stayEndDate') && val && typeof val === 'string') {
-                    val = new Date(val).toISOString();
+                if (k === 'stayStartDate' || k === 'stayEndDate') {
+                    if (val == null || (typeof val === 'string' && !val.trim())) {
+                        val = null;
+                    } else if (typeof val === 'string') {
+                        const d = new Date(val);
+                        val = isNaN(d.getTime()) ? null : d.toISOString();
+                    }
                 }
                 updateData[k] = val;
             }
@@ -199,6 +328,27 @@ export async function updateContact(id: string, data: any) {
     }
 }
 
+/** Lightweight list for contact picker (e.g. pipeline "Add opportunity → Select existing contact"). */
+export async function getContactsList() {
+    try {
+        const snapshot = await adminDb.collection('contacts').orderBy('createdAt', 'desc').limit(500).get();
+        const contacts = snapshot.docs.map(doc => {
+            const d = doc.data();
+            return {
+                id: doc.id,
+                name: d.name ?? "",
+                email: d.email ?? "",
+                phone: d.phone ?? "",
+                militaryBase: d.militaryBase ?? ""
+            };
+        });
+        return { success: true, contacts };
+    } catch (error) {
+        console.error("Failed to fetch contacts list:", error);
+        return { success: false, contacts: [] };
+    }
+}
+
 export async function getContactDetail(id: string) {
     try {
         const doc = await adminDb.collection('contacts').doc(id).get();
@@ -206,25 +356,35 @@ export async function getContactDetail(id: string) {
 
         const data = doc.data() || {};
         
-        // Fetch subcollections
-        const [notesSnap, tasksSnap, messagesSnap, docsSnap, oppsSnap] = await Promise.all([
+        // Fetch subcollections (timeline = events like note_deleted)
+        const [notesSnap, tasksSnap, messagesSnap, docsSnap, oppsSnap, timelineSnap] = await Promise.all([
             doc.ref.collection('notes').orderBy('createdAt', 'desc').get(),
             doc.ref.collection('tasks').orderBy('dueDate', 'asc').get(),
             doc.ref.collection('messages').orderBy('createdAt', 'desc').get(),
             doc.ref.collection('documents').orderBy('createdAt', 'desc').get(),
-            adminDb.collection('opportunities').where('contactId', '==', id).get()
+            adminDb.collection('opportunities').where('contactId', '==', id).get(),
+            doc.ref.collection('timeline').orderBy('createdAt', 'desc').get(),
         ]);
 
         const contact: any = {
             id: doc.id,
-            ...data,
+            name: data.name ?? null,
+            email: data.email ?? null,
+            phone: data.phone ?? null,
+            militaryBase: data.militaryBase ?? null,
+            businessName: data.businessName ?? null,
+            status: data.status ?? null,
+            stayStartDate: tsToISO(data.stayStartDate),
+            stayEndDate: tsToISO(data.stayEndDate),
+            createdAt: tsToISO(data.createdAt),
+            updatedAt: tsToISO(data.updatedAt),
             notes: notesSnap.docs.map(d => {
                 const nd = d.data();
                 return { id: d.id, content: nd.content, contactId: nd.contactId, createdAt: tsToISO(nd.createdAt), updatedAt: tsToISO(nd.updatedAt) };
             }),
             tasks: tasksSnap.docs.map(d => {
                 const td = d.data();
-                return { id: d.id, ...td, dueDate: tsToISO(td.dueDate), createdAt: tsToISO(td.createdAt), updatedAt: tsToISO(td.updatedAt) };
+                return { id: d.id, title: td.title, description: td.description, dueDate: tsToISO(td.dueDate), priority: td.priority, completed: td.completed, contactId: td.contactId, opportunityId: td.opportunityId, createdAt: tsToISO(td.createdAt), updatedAt: tsToISO(td.updatedAt) };
             }),
             messages: messagesSnap.docs.map(d => {
                 const md = d.data();
@@ -236,17 +396,47 @@ export async function getContactDetail(id: string) {
             }),
             opportunities: oppsSnap.docs.map(d => {
                 const od = d.data();
-                return { id: d.id, ...od, createdAt: tsToISO(od.createdAt), updatedAt: tsToISO(od.updatedAt) };
+                return {
+                    id: d.id,
+                    contactId: od.contactId ?? null,
+                    pipelineStageId: od.pipelineStageId ?? null,
+                    name: od.name ?? null,
+                    priority: od.priority ?? null,
+                    opportunityValue: od.opportunityValue ?? null,
+                    estimatedProfit: od.estimatedProfit ?? null,
+                    source: od.source ?? null,
+                    militaryBase: od.militaryBase ?? null,
+                    notes: od.notes ?? null,
+                    reasonForStay: od.reasonForStay ?? null,
+                    specialAccommodationId: od.specialAccommodationId ?? null,
+                    specialAccommodationLabels: Array.isArray(od.specialAccommodationLabels) ? od.specialAccommodationLabels : [],
+                    unread: od.unread ?? false,
+                    unreadAt: tsToISO(od.unreadAt),
+                    lastSeenBy: od.lastSeenBy ?? null,
+                    lastSeenAt: tsToISO(od.lastSeenAt),
+                    stayStartDate: tsToISO(od.stayStartDate),
+                    stayEndDate: tsToISO(od.stayEndDate),
+                    assigneeId: od.assigneeId ?? null,
+                    leadSourceId: od.leadSourceId ?? null,
+                    tags: Array.isArray(od.tags) ? od.tags.map((t: any) => ({ tagId: t?.tagId ?? null, name: t?.name ?? null, color: t?.color ?? null })) : [],
+                    createdAt: tsToISO(od.createdAt),
+                    updatedAt: tsToISO(od.updatedAt),
+                };
+            }),
+            timelineEvents: timelineSnap.docs.map(d => {
+                const td = d.data();
+                return {
+                    id: d.id,
+                    type: td.type ?? null,
+                    noteId: td.noteId ?? null,
+                    contentPreview: td.contentPreview ?? null,
+                    deletedBy: td.deletedByName ?? td.deletedById ?? null,
+                    createdAt: tsToISO(td.createdAt),
+                };
             }),
             tags: data.tags || [],
             formTracking: data.formTracking || null,
         };
-
-        // Format dates
-        if (contact.stayStartDate && contact.stayStartDate.toDate) contact.stayStartDate = contact.stayStartDate.toDate().toISOString();
-        if (contact.stayEndDate && contact.stayEndDate.toDate) contact.stayEndDate = contact.stayEndDate.toDate().toISOString();
-        if (contact.createdAt?.toDate) contact.createdAt = contact.createdAt.toDate().toISOString();
-        if (contact.updatedAt?.toDate) contact.updatedAt = contact.updatedAt.toDate().toISOString();
 
         return { success: true, contact };
     } catch (error) {
@@ -278,7 +468,7 @@ export async function deleteContact(id: string) {
         const batch = adminDb.batch();
 
         // Delete subcollections
-        const subcollections = ['notes', 'tasks', 'messages', 'documents'];
+        const subcollections = ['notes', 'tasks', 'messages', 'documents', 'timeline'];
         for (const col of subcollections) {
             const snap = await contactRef.collection(col).get();
             snap.docs.forEach(d => batch.delete(d.ref));

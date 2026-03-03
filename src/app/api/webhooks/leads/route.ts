@@ -86,8 +86,50 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // 2. Parse and Validate Payload
-        const body = await req.json();
+        // 2. Parse and Normalize Payload (support both Elementor + Fluent Forms-style keys)
+        const raw = await req.json();
+
+        const body: any = {
+            ...raw,
+            // Names
+            first_name: raw.first_name ?? raw.firstName ?? raw.FirstName ?? raw.fname ?? null,
+            last_name: raw.last_name ?? raw.lastName ?? raw.LastName ?? raw.lname ?? null,
+            // Core contact fields
+            email: raw.email ?? raw.Email ?? null,
+            phone: raw.phone ?? raw.Phone ?? raw.phone_number ?? raw.phoneNumber ?? null,
+            // Dates – support multiple possible field IDs
+            startDate:
+                raw.startDate ??
+                raw.estimated_arrival_date ??
+                raw.estimatedArrivalDate ??
+                raw.arrival_date ??
+                raw.arrivalDate ??
+                null,
+            endDate:
+                raw.endDate ??
+                raw.estimated_departure_date ??
+                raw.estimatedDepartureDate ??
+                raw.departure_date ??
+                raw.departureDate ??
+                null,
+            // Base / location
+            base: raw.base ?? raw.Base ?? raw.location ?? raw.Location ?? null,
+            // Notes/message
+            notes: raw.notes ?? raw.message ?? raw.Message ?? raw.comment ?? raw.Comment ?? null,
+            // Special accommodations + reason
+            special_accommodations:
+                raw.special_accommodations ??
+                raw.specialAccommodation ??
+                raw.special_accommodation ??
+                null,
+            reason_for_stay:
+                raw.reason_for_stay ??
+                raw.reasonForStay ??
+                raw.reason_for_stay ?? // duplicate key safe
+                raw.reason ??
+                null,
+        };
+
         const parseResult = webhookSchema.safeParse(body);
 
         if (!parseResult.success) {

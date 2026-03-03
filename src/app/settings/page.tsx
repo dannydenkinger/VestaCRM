@@ -14,6 +14,7 @@ import { TagManager } from "./tags/TagManager"
 import { StatusManager } from "./system-properties/StatusManager"
 import { SpecialAccommodationsManager } from "./system-properties/SpecialAccommodationsManager"
 import AutomationsContent from "./automations/AutomationsTab"
+import { PipelinePrioritySettings } from "./pipeline/PipelinePrioritySettings"
 
 export default async function SettingsPage() {
     const session = await auth()
@@ -133,6 +134,8 @@ export default async function SettingsPage() {
                                     </div>
                                 </CardContent>
                             </Card>
+
+                            <PipelinePrioritySettings />
 
                             <div className="space-y-6">
                                 <div>

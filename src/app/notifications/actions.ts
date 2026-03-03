@@ -2,19 +2,38 @@
 
 import { adminDb } from "@/lib/firebase-admin";
 
+function toISO(val: unknown): string | null {
+    if (!val) return null;
+    if (typeof val === "string") return val;
+    if (val instanceof Date) return val.toISOString();
+    if (typeof (val as any)?.toDate === "function") return (val as any).toDate().toISOString();
+    return null;
+}
+
 export async function getNotifications(limit: number = 20) {
     try {
+        // Single orderBy avoids requiring a Firestore composite index
         const snapshot = await adminDb.collection('notifications')
-            .orderBy('isRead', 'asc')
             .orderBy('createdAt', 'desc')
             .limit(limit)
             .get();
 
-        const notifications = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt?.toDate ? doc.data().createdAt.toDate().toISOString() : doc.data().createdAt
-        }));
+        const notifications = snapshot.docs.map(doc => {
+            const d = doc.data();
+            return {
+                id: doc.id,
+                title: d.title ?? "",
+                message: d.message ?? "",
+                type: d.type ?? "",
+                linkUrl: d.linkUrl ?? null,
+                taskId: d.taskId ?? null,
+                isRead: d.isRead === true,
+                createdAt: toISO(d.createdAt),
+            };
+        });
+
+        // Unread first for display
+        notifications.sort((a, b) => (a.isRead === b.isRead ? 0 : a.isRead ? 1 : -1));
 
         const unreadSnapshot = await adminDb.collection('notifications')
             .where('isRead', '==', false)

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, Suspense } from "react"
 import { Button } from "@/components/ui/button"
-import { Search, Plus, ListFilter, Calendar as CalendarIcon, DollarSign, MapPin, Phone, Mail, FileText, CheckCircle2, MoreVertical, Settings, Send, ChevronDown, MessageSquare, Tag, CheckSquare, LayoutGrid, List as ListIcon, ArrowUpDown, Calculator, Info, Clock, ChevronRight, User, Building2, Layers, Upload, Edit2, Trash2 } from "lucide-react"
+import { Search, Plus, ListFilter, Calendar as CalendarIcon, DollarSign, MapPin, Phone, Mail, FileText, CheckCircle2, MoreVertical, Settings, Send, ChevronDown, ChevronUp, MessageSquare, Tag, CheckSquare, LayoutGrid, List as ListIcon, ArrowUpDown, Calculator, Info, Clock, ChevronRight, User, Building2, Layers, Upload, Edit2, Trash2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -26,11 +26,14 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { getPipelines, bulkCreateOpportunities, deleteOpportunity, updateOpportunity, getBaseNames, getUsers, createNewDeal, markOpportunitySeen } from "./actions"
+import { getContactsList, getContactTimeline, createNote, deleteNote, type TimelineItem } from "@/app/contacts/actions"
 import { getSpecialAccommodations } from "@/app/settings/system-properties/actions"
+import { getPipelinePrioritySettings } from "@/app/settings/pipeline/actions"
 import { CSVImportDialog } from "@/components/ui/CSVImportDialog"
 import { PipelineManagerDialog } from "@/components/ui/PipelineManagerDialog"
-import { useEffect } from "react"
-import { useSearchParams } from "next/navigation"
+import { DocumentManager } from "@/app/contacts/documents/DocumentManager"
+import { useEffect, useRef } from "react"
+import { useSearchParams, useRouter, usePathname } from "next/navigation"
 import { lodgingData } from "@/lib/calculators/on-base"
 import { useSession } from "next-auth/react"
 import { getCurrentUserRole } from "@/app/settings/users/actions"
@@ -42,8 +45,19 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { LeadSourceSelector } from "@/components/ui/LeadSourceSelector"
 import { TagPicker } from "@/components/ui/TagPicker"
+import { Skeleton } from "@/components/ui/skeleton"
 import dynamic from "next/dynamic"
 
 const OffBaseLodgingCalculator = dynamic(() => import("@/components/calculators/OffBaseLodgingCalculator"), {
@@ -57,37 +71,6 @@ const OnBaseLodgingCalculator = dynamic(() => import("@/components/calculators/O
     loading: () => <div className="h-[300px] flex items-center justify-center">Loading On-Base Calculator...</div>
 })
 
-const initialPipelines = {
-    traveler: {
-        name: "Traveler Placement",
-        stages: [
-            "On Hold", "New Lead", "Contacted", "Finding Properties", "Selecting Property",
-            "Travel Started", "Lease Sent", "Lease Signed", "Move-in Scheduled",
-            "Current Tenant", "Move-out Scheduled", "Review/Referral", "Closed Won",
-            "Closed Lost", "Archive"
-        ],
-        deals: [
-            { id: 1, name: "Capt. John Doe", email: "john.doe@usaf.mil", phone: "(555) 123-4567", base: "Luke AFB", bin: "73521", stage: "New Lead", priority: "HIGH", startDate: "Oct 12, 2026", endDate: "Apr 12, 2027", value: 18000, margin: 4500, assignee: "JD", forms: { lease: false, tc: false, auth: false }, notes: "Needs a place close to base, bringing his golden retriever." },
-            { id: 2, name: "Lt. Jane Smith", email: "jane.s@usaf.mil", phone: "(555) 987-6543", base: "Nellis AFB", bin: "89191", stage: "Contacted", priority: "MEDIUM", startDate: "Jan 05, 2027", endDate: "Jun 05, 2027", value: 15200, margin: 3800, assignee: "AW", forms: { lease: false, tc: true, auth: false }, notes: "Called her yesterday. She wants to confirm the per diem rates with her commander." },
-            { id: 3, name: "Maj. Mike Johnson", email: "michael.j@usaf.mil", phone: "(555) 456-7890", base: "Randolph AFB", bin: "78148", stage: "Lease Sent", priority: "LOW", startDate: "Nov 20, 2026", endDate: "Mar 20, 2027", value: 12000, margin: 3000, assignee: "JD", forms: { lease: true, tc: true, auth: false }, notes: "Waiting on the payment auth form to arrive." },
-            { id: 4, name: "Capt. Sarah Williams", email: "sarah.w@usaf.mil", phone: "(555) 234-5678", base: "Luke AFB", bin: "73521", stage: "Move-in Scheduled", priority: "MEDIUM", startDate: "Dec 01, 2026", endDate: "Feb 28, 2027", value: 8900, margin: 2200, assignee: "MK", forms: { lease: true, tc: true, auth: true }, notes: "All set. Move-in scheduled." },
-        ]
-    },
-    marketing: {
-        name: "Marketing Flow",
-        stages: ["Idea", "Drafting", "Review", "Scheduled", "Published"],
-        deals: [
-            { id: 5, name: "Base Housing Guide Video", email: "marketing@usaf.mil", phone: "-", base: "All Bases", stage: "Drafting", priority: "HIGH", startDate: "Nov 01, 2026", endDate: "Nov 15, 2026", value: 0, margin: 0, assignee: "AW", forms: { lease: false, tc: false, auth: false }, notes: "Drafting the script for the TikTok/Reels video explaining the non-availability letter process." }
-        ]
-    },
-    projects: {
-        name: "Projects Flow",
-        stages: ["Backlog", "To Do", "In Progress", "Review", "Done"],
-        deals: [
-            { id: 6, name: "Website Redesign", email: "dev@usaf.mil", phone: "-", base: "-", stage: "In Progress", priority: "MEDIUM", startDate: "Oct 15, 2026", endDate: "Dec 01, 2026", value: 0, margin: 0, assignee: "MK", forms: { lease: false, tc: false, auth: false }, notes: "Updating the landing page for higher conversion rates." }
-        ]
-    }
-}
 
 function getLengthOfStay(start: string, end: string) {
     const startDate = new Date(start)
@@ -119,8 +102,8 @@ function PipelineContent() {
     const { data: session } = useSession()
     const [userRole, setUserRole] = useState("AGENT")
 
-    const [pipelines, setPipelines] = useState<any>(initialPipelines)
-    const [activePipelineKey, setActivePipelineKey] = useState<string>("traveler")
+    const [pipelines, setPipelines] = useState<Record<string, { name: string; stages: any[]; deals: any[] }>>({})
+    const [activePipelineKey, setActivePipelineKey] = useState<string>("")
     const [selectedDeal, setSelectedDeal] = useState<any>(null)
     const [activeTab, setActiveTab] = useState("details")
     const [isCalculatorOpen, setIsCalculatorOpen] = useState(false)
@@ -132,8 +115,19 @@ function PipelineContent() {
     const [baseNames, setBaseNames] = useState<string[]>([])
     const [allUsers, setAllUsers] = useState<any[]>([])
     const [specialAccommodations, setSpecialAccommodations] = useState<{ id: string; name: string }[]>([])
+    const [priorityRanges, setPriorityRanges] = useState({ urgentDays: 14, soonDays: 30 })
     const [draggedDealId, setDraggedDealId] = useState<string | null>(null)
     const [dragOverStageId, setDragOverStageId] = useState<string | null>(null)
+    const [isContactPickerOpen, setIsContactPickerOpen] = useState(false)
+    const [contactList, setContactList] = useState<{ id: string; name: string; email: string; phone: string; militaryBase: string }[]>([])
+    const [contactSearch, setContactSearch] = useState("")
+    const [contactTimeline, setContactTimeline] = useState<TimelineItem[] | null>(null)
+    const [timelineLoading, setTimelineLoading] = useState(false)
+    const [expandedNoteIds, setExpandedNoteIds] = useState<Set<string>>(new Set())
+    const [noteToDelete, setNoteToDelete] = useState<{ contactId: string; noteId: string } | null>(null)
+    const [isDeletingNote, setIsDeletingNote] = useState(false)
+    const [opportunityNoteContent, setOpportunityNoteContent] = useState("")
+    const [isSavingOpportunityNote, setIsSavingOpportunityNote] = useState(false)
 
     const handleDragStart = (e: React.DragEvent, dealId: string) => {
         e.dataTransfer.setData("dealId", dealId)
@@ -183,18 +177,20 @@ function PipelineContent() {
         fetchPipelines()
     }
 
-    const fetchPipelines = async () => {
+    const fetchPipelines = async (): Promise<Record<string, any> | null> => {
         setIsLoading(true);
         const res = await getPipelines();
         if (res.success && res.pipelines) {
             setPipelines(res.pipelines);
-            // Auto-select first pipeline if current is invalid
             if (!activePipelineKey || !res.pipelines[activePipelineKey]) {
                 const keys = Object.keys(res.pipelines);
                 if (keys.length > 0) setActivePipelineKey(keys[0]);
             }
+            setIsLoading(false);
+            return res.pipelines;
         }
         setIsLoading(false);
+        return null;
     };
 
     useEffect(() => {
@@ -202,28 +198,39 @@ function PipelineContent() {
         getBaseNames().then(setBaseNames);
         getUsers().then(res => { if (res.success) setAllUsers(res.users || []); });
         getSpecialAccommodations().then(res => { if (res.success) setSpecialAccommodations(res.items || []); });
+        getPipelinePrioritySettings().then(res => { if (res.success && res.settings) setPriorityRanges(res.settings); });
     }, []);
 
-    // Auto-open deal from ?deal= query param (calendar navigation)
+    // Auto-open deal from ?deal= query param (notification/calendar link) — only once per dealId, then clear URL
     const searchParams = useSearchParams();
+    const router = useRouter();
+    const pathname = usePathname();
+    const openedDealIdFromUrl = useRef<string | null>(null);
+
     useEffect(() => {
         const dealId = searchParams.get('deal');
-        if (dealId && !isLoading) {
-            // Search across all pipelines for the deal
-            for (const key of Object.keys(pipelines)) {
-                const p = pipelines[key];
-                const deal = p.deals?.find((d: any) => d.id === dealId);
-                if (deal) {
-                    setActivePipelineKey(key);
-                    setActiveTab('details');
-                    setSelectedDeal(deal);
-                    // Best-effort: clear "new/unread" indicator when opened
-                    markOpportunitySeen(dealId);
-                    break;
-                }
+        if (!dealId || isLoading) return;
+        // Only auto-open once per dealId so we don't re-open when pipelines updates (which would trap the user)
+        if (openedDealIdFromUrl.current === dealId) return;
+
+        for (const key of Object.keys(pipelines)) {
+            const p = pipelines[key];
+            const deal = p.deals?.find((d: any) => d.id === dealId);
+            if (deal) {
+                openedDealIdFromUrl.current = dealId;
+                setActivePipelineKey(key);
+                setActiveTab('details');
+                setSelectedDeal(deal);
+                markOpportunitySeen(dealId);
+                // Clear ?deal= from URL so closing the sheet isn't overridden when effect re-runs (e.g. pipelines update)
+                const params = new URLSearchParams(searchParams.toString());
+                params.delete('deal');
+                const q = params.toString();
+                router.replace(q ? `${pathname}?${q}` : pathname);
+                break;
             }
         }
-    }, [searchParams, pipelines, isLoading]);
+    }, [searchParams, pipelines, isLoading, pathname, router]);
 
     useEffect(() => {
         async function fetchRole() {
@@ -234,6 +241,61 @@ function PipelineContent() {
         }
         fetchRole();
     }, [session]);
+
+    // Load contact timeline when opportunity has a linked contact (Notes + Timeline tabs, GHL-style)
+    const refetchContactTimeline = () => {
+        const cid = selectedDeal?.contactId;
+        if (!cid) return;
+        getContactTimeline(cid).then((res) => {
+            setContactTimeline(res.success ? (res.timeline ?? null) : null);
+        });
+    };
+
+    useEffect(() => {
+        const cid = selectedDeal?.contactId;
+        if (!cid) {
+            setContactTimeline(null);
+            return;
+        }
+        setTimelineLoading(true);
+        getContactTimeline(cid).then((res) => {
+            setContactTimeline(res.success ? (res.timeline ?? null) : null);
+            setTimelineLoading(false);
+        }).catch(() => setTimelineLoading(false));
+    }, [selectedDeal?.contactId]);
+
+    const toggleNoteExpanded = (noteId: string) => {
+        setExpandedNoteIds(prev => {
+            const next = new Set(prev);
+            if (next.has(noteId)) next.delete(noteId);
+            else next.add(noteId);
+            return next;
+        });
+    };
+
+    const handleAddOpportunityNote = async () => {
+        const cid = selectedDeal?.contactId;
+        if (!cid || !opportunityNoteContent.trim()) return;
+        setIsSavingOpportunityNote(true);
+        const res = await createNote(cid, opportunityNoteContent.trim(), {
+            opportunityId: selectedDeal?.id !== "new" ? selectedDeal?.id : undefined,
+            source: "opportunity",
+        });
+        if (res.success) {
+            setOpportunityNoteContent("");
+            refetchContactTimeline();
+        }
+        setIsSavingOpportunityNote(false);
+    };
+
+    const handleDeleteOpportunityNote = async () => {
+        if (!noteToDelete) return;
+        setIsDeletingNote(true);
+        const res = await deleteNote(noteToDelete.contactId, noteToDelete.noteId);
+        if (res.success) refetchContactTimeline();
+        setNoteToDelete(null);
+        setIsDeletingNote(false);
+    };
 
     const openDeal = (deal: any) => {
         setActiveTab("details");
@@ -247,7 +309,7 @@ function PipelineContent() {
                 if (!p?.deals) return prev;
                 next[activePipelineKey] = {
                     ...p,
-                    deals: p.deals.map((d: any) => d.id === deal.id ? { ...d, unread: false, lastSeenAt: new Date() } : d)
+                    deals: p.deals.map((d: any) => d.id === deal.id ? { ...d, unread: false, lastSeenAt: new Date().toISOString() } : d)
                 };
                 return next;
             });
@@ -278,24 +340,49 @@ function PipelineContent() {
         setIsCalculatorOpen(false);
     };
 
-    const handleAddOpportunity = () => {
-        setSelectedDeal({
-            id: 'new',
-            name: 'New Deal',
-            email: '',
-            phone: '',
-            base: '',
-            stage: currentPipeline.stages[0]?.name || 'New Lead',
-            priority: 'MEDIUM',
-            startDate: '',
-            endDate: '',
-            value: 0,
-            margin: 0,
-            notes: '',
-            assigneeId: null,
-            specialAccommodationId: null,
-            assignee: session?.user?.name ? session.user.name.split(" ").map((w: string) => w[0]).join("").toUpperCase() : "—"
+    const newDealTemplate = () => ({
+        id: 'new',
+        name: '',
+        email: '',
+        phone: '',
+        base: '',
+        stage: currentPipeline.stages[0]?.name || 'New Lead',
+        priority: 'MEDIUM',
+        startDate: '',
+        endDate: '',
+        value: 0,
+        margin: 0,
+        notes: '',
+        assigneeId: null,
+        specialAccommodationId: null,
+        contactId: null as string | null,
+        assignee: session?.user?.name ? session.user.name.split(" ").map((w: string) => w[0]).join("").toUpperCase() : "—"
+    });
+
+    const handleAddNewContactOpportunity = () => {
+        setSelectedDeal({ ...newDealTemplate(), name: 'New Lead' });
+        setActiveTab("details");
+    };
+
+    const handleOpenContactPicker = () => {
+        setContactSearch("");
+        getContactsList().then(res => {
+            if (res.success) setContactList(res.contacts || []);
+            else setContactList([]);
         });
+        setIsContactPickerOpen(true);
+    };
+
+    const handleSelectContactForOpportunity = (c: { id: string; name: string; email: string; phone: string; militaryBase: string }) => {
+        setSelectedDeal({
+            ...newDealTemplate(),
+            contactId: c.id,
+            name: c.name || "New Lead",
+            email: c.email || "",
+            phone: c.phone || "",
+            base: c.militaryBase || ""
+        });
+        setIsContactPickerOpen(false);
         setActiveTab("details");
     };
 
@@ -315,6 +402,7 @@ function PipelineContent() {
         try {
             if (selectedDeal.id === 'new') {
                 const res = await createNewDeal({
+                    contactId: selectedDeal.contactId || undefined,
                     name: selectedDeal.name,
                     email: selectedDeal.email,
                     phone: selectedDeal.phone,
@@ -339,31 +427,46 @@ function PipelineContent() {
                     console.error('Save failed:', res);
                 }
             } else {
-                // Map stage name → stageId from the current pipeline
                 const matchedStage = currentPipeline.stages.find((s: any) => {
                     const stageName = typeof s === 'string' ? s : s.name;
                     return stageName === selectedDeal.stage;
                 });
                 const pipelineStageId = typeof matchedStage === 'string' ? undefined : matchedStage?.id;
 
-                const res = await updateOpportunity(String(selectedDeal.id), {
-                    ...(pipelineStageId ? { pipelineStageId } : {}),
-                    name: selectedDeal.name,
-                    value: selectedDeal.value,
-                    margin: selectedDeal.margin,
-                    priority: selectedDeal.priority,
-                    startDate: selectedDeal.startDate || "",
-                    endDate: selectedDeal.endDate || "",
-                    base: selectedDeal.base || undefined,
-                    notes: selectedDeal.notes,
-                    contactId: selectedDeal.contactId,
-                    assigneeId: selectedDeal.assigneeId || null,
-                    specialAccommodationId: selectedDeal.specialAccommodationId || null,
-                });
+                // Build a plain serializable payload to avoid "Failed to fetch" from server action
+                const payload: any = {
+                    name: selectedDeal.name != null ? String(selectedDeal.name) : "",
+                    email: selectedDeal.email != null ? String(selectedDeal.email) : "",
+                    phone: selectedDeal.phone != null ? String(selectedDeal.phone) : "",
+                    value: Number(selectedDeal.value) || 0,
+                    margin: Number(selectedDeal.margin) || 0,
+                    priority: selectedDeal.priority != null ? String(selectedDeal.priority) : "MEDIUM",
+                    startDate: selectedDeal.startDate ? String(selectedDeal.startDate) : "",
+                    endDate: selectedDeal.endDate ? String(selectedDeal.endDate) : "",
+                    assigneeId: selectedDeal.assigneeId ?? null,
+                    specialAccommodationId: selectedDeal.specialAccommodationId ?? null,
+                };
+                if (pipelineStageId) payload.pipelineStageId = String(pipelineStageId);
+                if (selectedDeal.base != null && selectedDeal.base !== "") payload.base = String(selectedDeal.base);
+                if (selectedDeal.notes != null) payload.notes = String(selectedDeal.notes);
+                if (selectedDeal.contactId != null) payload.contactId = String(selectedDeal.contactId);
+                if (Array.isArray(selectedDeal.tags)) payload.tagIds = selectedDeal.tags.map((t: any) => String(t.tagId || t.id));
+
+                const res = await updateOpportunity(String(selectedDeal.id), payload);
 
                 if (res.success) {
                     setSaveStatus('success');
-                    await fetchPipelines();
+                    const savedId = String(selectedDeal.id);
+                    const nextPipelines = await fetchPipelines();
+                    if (nextPipelines) {
+                        for (const key of Object.keys(nextPipelines)) {
+                            const deal = nextPipelines[key].deals?.find((d: any) => String(d.id) === savedId);
+                            if (deal) {
+                                setSelectedDeal(deal);
+                                break;
+                            }
+                        }
+                    }
                 } else {
                     setSaveStatus('error');
                     console.error('Save failed:', res);
@@ -390,7 +493,8 @@ function PipelineContent() {
     const [showLengthOfStay, setShowLengthOfStay] = useState(false)
     const [showQuickActions, setShowQuickActions] = useState(true)
 
-    const currentPipeline = pipelines[activePipelineKey] || { name: "Loading...", stages: [], deals: [] }
+    const currentPipeline = pipelines[activePipelineKey] || { name: "", stages: [], deals: [] }
+    const pipelineKeys = Object.keys(pipelines)
 
     const sortedDeals = useMemo(() => {
         const sortableDeals = [...currentPipeline.deals];
@@ -430,15 +534,19 @@ function PipelineContent() {
                     <h2 className="text-3xl font-bold tracking-tight">Opportunities</h2>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" className="gap-2 h-8 mt-1 border border-border/60 bg-muted/20 font-medium text-muted-foreground hover:text-foreground">
-                                {currentPipeline.name}
+                            <Button variant="outline" size="sm" className="gap-2 h-8 mt-1 border border-border/60 bg-muted/20 font-medium text-muted-foreground hover:text-foreground" disabled={isLoading}>
+                                {isLoading ? (
+                                    <Skeleton className="h-4 w-24" />
+                                ) : (
+                                    <span>{currentPipeline.name || (pipelineKeys.length ? "Select pipeline" : "No pipeline")}</span>
+                                )}
                                 <ChevronDown className="h-3.5 w-3.5 opacity-70" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" className="w-56">
                             <DropdownMenuLabel className="text-xs uppercase text-muted-foreground tracking-wider">Select Pipeline</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            {Object.keys(pipelines).map((key) => (
+                            {pipelineKeys.map((key) => (
                                 <DropdownMenuItem
                                     key={key}
                                     onClick={() => { setActivePipelineKey(key); setSelectedDeal(null); }}
@@ -506,10 +614,27 @@ function PipelineContent() {
                             <Upload className="mr-2 h-4 w-4" />
                             Import CSV
                         </Button>
-                        <Button size="sm" onClick={handleAddOpportunity}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Add Opportunity
-                        </Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button size="sm">
+                                    <Plus className="mr-2 h-4 w-4" />
+                                    Add Opportunity
+                                    <ChevronDown className="ml-2 h-3.5 w-3.5 opacity-70" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuLabel className="text-xs uppercase text-muted-foreground tracking-wider">Add opportunity</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={handleAddNewContactOpportunity} className="cursor-pointer gap-2">
+                                    <User className="h-4 w-4" />
+                                    New contact + opportunity
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleOpenContactPicker} className="cursor-pointer gap-2">
+                                    <Building2 className="h-4 w-4" />
+                                    Select existing contact
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
                 </div>
             </div>
@@ -534,6 +659,60 @@ function PipelineContent() {
                 onPipelinesChange={fetchPipelines}
             />
 
+            <Dialog open={isContactPickerOpen} onOpenChange={setIsContactPickerOpen}>
+                <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col p-0 gap-0">
+                    <DialogHeader className="p-4 pb-2">
+                        <DialogTitle>Select contact</DialogTitle>
+                        <p className="text-sm text-muted-foreground">Choose a contact to create an opportunity for.</p>
+                    </DialogHeader>
+                    <div className="px-4 pb-2">
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Search by name, email, or phone..."
+                                value={contactSearch}
+                                onChange={(e) => setContactSearch(e.target.value)}
+                                className="pl-8 h-9"
+                            />
+                        </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto border-t min-h-[200px] max-h-[360px]">
+                        {contactList.length === 0 && !contactSearch && (
+                            <div className="p-6 text-center text-sm text-muted-foreground">Loading contacts…</div>
+                        )}
+                        {contactList.length === 0 && contactSearch && (
+                            <div className="p-6 text-center text-sm text-muted-foreground">No contacts found.</div>
+                        )}
+                        {contactList
+                            .filter(c => {
+                                const q = contactSearch.toLowerCase().trim();
+                                if (!q) return true;
+                                return (c.name || "").toLowerCase().includes(q) ||
+                                    (c.email || "").toLowerCase().includes(q) ||
+                                    (c.phone || "").replace(/\D/g, "").includes(q.replace(/\D/g, ""));
+                            })
+                            .map(c => (
+                                <div
+                                    key={c.id}
+                                    onClick={() => handleSelectContactForOpportunity(c)}
+                                    className="flex items-center gap-3 px-4 py-3 hover:bg-muted/60 cursor-pointer border-b border-border/30 last:border-0"
+                                >
+                                    <Avatar className="h-9 w-9 shrink-0">
+                                        <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
+                                            {(c.name || "?").slice(0, 2).toUpperCase()}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="font-medium truncate">{c.name || "Unnamed"}</div>
+                                        <div className="text-xs text-muted-foreground truncate">{c.email || c.phone || "—"}</div>
+                                    </div>
+                                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                                </div>
+                            ))}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
             <div className="flex items-center mb-6">
                 <div className="relative w-72">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -542,7 +721,67 @@ function PipelineContent() {
             </div>
 
             <div className={`flex-1 overflow-x-auto ${viewMode === "kanban" ? "overflow-y-hidden" : ""}`}>
-                {viewMode === "kanban" ? (
+                {isLoading ? (
+                    viewMode === "kanban" ? (
+                        <div className="flex h-[calc(100vh-220px)] gap-4 pb-4 w-max">
+                            {[1, 2, 3, 4, 5].map((i) => (
+                                <div key={i} className="flex flex-col w-[340px] shrink-0 bg-muted/40 rounded-xl border h-full overflow-hidden">
+                                    <div className="p-4 border-b bg-muted/60 flex items-center justify-between">
+                                        <Skeleton className="h-4 w-24" />
+                                        <Skeleton className="h-5 w-8 rounded-full" />
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                                        {[1, 2, 3].map((j) => (
+                                            <div key={j} className="rounded-xl border bg-card p-4 space-y-3">
+                                                <div className="flex items-start justify-between pl-1">
+                                                    <div className="flex items-center gap-3">
+                                                        <Skeleton className="h-9 w-9 rounded-full shrink-0" />
+                                                        <div className="space-y-2">
+                                                            <Skeleton className="h-4 w-32" />
+                                                            <Skeleton className="h-3 w-24" />
+                                                        </div>
+                                                    </div>
+                                                    <Skeleton className="h-6 w-6 rounded-full shrink-0" />
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2 pl-1">
+                                                    <Skeleton className="h-10 w-full" />
+                                                    <Skeleton className="h-10 w-full" />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="rounded-md border bg-card/50">
+                            <Table>
+                                <TableHeader className="bg-muted/50">
+                                    <TableRow>
+                                        <TableHead>Contact</TableHead>
+                                        <TableHead>Stage</TableHead>
+                                        <TableHead>Location</TableHead>
+                                        <TableHead>Priority</TableHead>
+                                        <TableHead>Value</TableHead>
+                                        <TableHead>Assignee</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+                                        <TableRow key={i}>
+                                            <TableCell><div className="flex items-center gap-2"><Skeleton className="h-4 w-28" /><Skeleton className="h-3 w-40" /></div></TableCell>
+                                            <TableCell><Skeleton className="h-5 w-16 rounded-sm" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                                            <TableCell><Skeleton className="h-5 w-14 rounded-sm" /></TableCell>
+                                            <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                                            <TableCell><Skeleton className="h-6 w-6 rounded-full" /></TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )
+                ) : viewMode === "kanban" ? (
                     <div className="flex h-[calc(100vh-220px)] gap-4 pb-4 w-max">
                         {currentPipeline.stages.map((stage: any, index: number) => {
                             const isString = typeof stage === 'string';
@@ -569,21 +808,17 @@ function PipelineContent() {
                                     <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
                                         {stageDeals.map((deal: any) => {
                                             const isNewInquiry = deal.unread === true;
-                                                // Priority color mapping based on days from now until start date
-                                                let priorityColorClass = "bg-blue-500"; // default to blue (>45 days)
+                                                // Priority color mapping based on days from now until start date (settings: urgentDays, soonDays)
+                                                let priorityColorClass = "bg-blue-500";
                                                 if (deal.startDate && deal.startDate !== "-") {
                                                     const start = new Date(deal.startDate);
                                                     const now = new Date();
                                                     const diffTime = start.getTime() - now.getTime();
                                                     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                                                    
-                                                    if (diffDays <= 14) {
-                                                        priorityColorClass = "bg-red-500";
-                                                    } else if (diffDays <= 30) {
-                                                        priorityColorClass = "bg-yellow-500";
-                                                    } else {
-                                                        priorityColorClass = "bg-blue-500";
-                                                    }
+                                                    const { urgentDays, soonDays } = priorityRanges;
+                                                    if (diffDays <= urgentDays) priorityColorClass = "bg-red-500";
+                                                    else if (diffDays <= soonDays) priorityColorClass = "bg-yellow-500";
+                                                    else priorityColorClass = "bg-blue-500";
                                                 }
 
                                             return (
@@ -756,11 +991,12 @@ function PipelineContent() {
                                         {showPriority && <TableCell>
                                             <Badge variant="outline" className={`text-[10px] font-bold tracking-wider rounded-sm
                                                 ${(() => {
+                                                    const { urgentDays, soonDays } = priorityRanges;
                                                     let color = "";
                                                     if (deal.startDate && deal.startDate !== "-") {
                                                         const diffDays = Math.ceil((new Date(deal.startDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                                                        if (diffDays <= 14) color = "bg-red-500/10 text-red-600 border-red-500/20";
-                                                        else if (diffDays <= 30) color = "bg-amber-500/10 text-amber-600 border-amber-500/20";
+                                                        if (diffDays <= urgentDays) color = "bg-red-500/10 text-red-600 border-red-500/20";
+                                                        else if (diffDays <= soonDays) color = "bg-amber-500/10 text-amber-600 border-amber-500/20";
                                                         else color = "bg-blue-500/10 text-blue-600 border-blue-500/20";
                                                     } else {
                                                         if (deal.priority === "HIGH") color = "bg-red-500/10 text-red-600 border-red-500/20";
@@ -773,8 +1009,9 @@ function PipelineContent() {
                                                 {(() => {
                                                     if (deal.startDate && deal.startDate !== "-") {
                                                         const diffDays = Math.ceil((new Date(deal.startDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                                                        if (diffDays <= 14) return "URGENT";
-                                                        if (diffDays <= 30) return "SOON";
+                                                        const { urgentDays, soonDays } = priorityRanges;
+                                                        if (diffDays <= urgentDays) return "URGENT";
+                                                        if (diffDays <= soonDays) return "SOON";
                                                         return "PLANNED";
                                                     }
                                                     return deal.priority;
@@ -806,7 +1043,23 @@ function PipelineContent() {
             </div>
 
             {/* Slide-over Deal Detail Pane */}
-            <Sheet open={!!selectedDeal} onOpenChange={() => setSelectedDeal(null)}>
+            <Sheet
+                open={!!selectedDeal}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setSelectedDeal(null);
+                        // Clear ?deal= from URL so effect won't re-open the sheet
+                        const dealId = searchParams.get('deal');
+                        if (dealId) {
+                            openedDealIdFromUrl.current = null;
+                            const params = new URLSearchParams(searchParams.toString());
+                            params.delete('deal');
+                            const q = params.toString();
+                            router.replace(q ? `${pathname}?${q}` : pathname);
+                        }
+                    }
+                }}
+            >
                 <SheetContent className="sm:max-w-xl w-full p-0 flex flex-col gap-0 border-l border-border/50 shadow-2xl">
                     {selectedDeal && (
                         <>
@@ -814,10 +1067,10 @@ function PipelineContent() {
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center gap-4">
                                         <Avatar className="h-16 w-16 border-2 border-background shadow-sm">
-                                            <AvatarFallback className="text-xl bg-primary/10 text-primary">{selectedDeal.name.charAt(6)}</AvatarFallback>
+                                            <AvatarFallback className="text-xl bg-primary/10 text-primary">{(selectedDeal.name || "?").slice(0, 2).toUpperCase()}</AvatarFallback>
                                         </Avatar>
                                         <div>
-                                            <SheetTitle className="text-2xl">{selectedDeal.name}</SheetTitle>
+                                            <SheetTitle className="text-2xl">{selectedDeal.name || "New opportunity"}</SheetTitle>
                                             <SheetDescription className="flex items-center gap-2 mt-1">
                                                 <Badge variant="outline" className="font-normal">{selectedDeal.stage}</Badge>
                                                 <span className="text-xs text-muted-foreground">in Pipeline</span>
@@ -846,7 +1099,8 @@ function PipelineContent() {
                                     <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-6 h-12">
                                         <TabsTrigger value="details" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 h-full">Details</TabsTrigger>
                                         <TabsTrigger value="notes" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 h-full">Notes</TabsTrigger>
-                                        <TabsTrigger value="forms" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 h-full">Forms</TabsTrigger>
+                                        <TabsTrigger value="timeline" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 h-full">Timeline</TabsTrigger>
+                                        <TabsTrigger value="documents" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 h-full">Documents</TabsTrigger>
                                     </TabsList>
 
                                     <TabsContent value="details" className="flex-1 p-6 m-0 outline-none space-y-8 overflow-y-auto">
@@ -1103,14 +1357,14 @@ function PipelineContent() {
                                             <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 space-y-3">
                                                 <div className="flex items-center justify-between text-sm">
                                                     <span className="text-muted-foreground">Opportunity Value</span>
-                                                    <span className="font-mono font-medium">${selectedDeal.value.toLocaleString()}</span>
+                                                    <span className="font-mono font-medium">${(Number(selectedDeal.value) || 0).toLocaleString()}</span>
                                                 </div>
                                                 <div className="flex items-center justify-between text-sm">
                                                     <div className="flex flex-col">
                                                         <span className="text-muted-foreground">Expected Profit Margin</span>
                                                         <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-tighter">(25% DEFAULT)</span>
                                                     </div>
-                                                    <span className="font-mono font-medium text-emerald-600 dark:text-emerald-400 font-bold">${selectedDeal.margin.toLocaleString()}</span>
+                                                    <span className="font-mono font-medium text-emerald-600 dark:text-emerald-400 font-bold">${(Number(selectedDeal.margin) || 0).toLocaleString()}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -1138,35 +1392,175 @@ function PipelineContent() {
                                     </TabsContent>
 
                                     <TabsContent value="notes" className="flex-1 p-6 m-0 outline-none flex flex-col h-full">
-                                        <div className="space-y-4 flex-1">
-                                            <div className="flex items-start gap-3 p-4 rounded-lg border bg-muted/20">
-                                                <Avatar className="h-8 w-8">
-                                                    <AvatarFallback className="text-[10px]">{selectedDeal.assignee}</AvatarFallback>
-                                                </Avatar>
-                                                <div className="space-y-1">
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="text-sm font-semibold">You</span>
-                                                        <span className="text-xs text-muted-foreground">Added yesterday</span>
-                                                    </div>
-                                                    <p className="text-sm text-muted-foreground leading-relaxed">
-                                                        {selectedDeal.notes}
-                                                    </p>
-                                                </div>
+                                        {!selectedDeal.contactId ? (
+                                            <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
+                                                <FileText className="h-10 w-10 opacity-50" />
+                                                <p className="text-sm font-medium">Link a contact to view and add notes</p>
+                                                <p className="text-xs">Notes added here appear on the contact (same as GoHighLevel).</p>
                                             </div>
-                                        </div>
+                                        ) : timelineLoading ? (
+                                            <div className="py-8 text-sm text-muted-foreground">Loading notes...</div>
+                                        ) : (
+                                            <>
+                                                <div className="space-y-4 flex-1 overflow-y-auto pr-2">
+                                                    {(() => {
+                                                        const noteItems = (contactTimeline ?? []).filter((item) => item.kind === "note");
+                                                        if (noteItems.length === 0) {
+                                                            return (
+                                                                <div className="flex flex-col items-center justify-center py-12 gap-3 opacity-50">
+                                                                    <FileText className="h-10 w-10" />
+                                                                    <p className="text-xs font-bold uppercase tracking-widest text-center">No notes yet</p>
+                                                                </div>
+                                                            );
+                                                        }
+                                                        return noteItems.map((item) => {
+                                                            const isExpanded = expandedNoteIds.has(item.id);
+                                                            const lineCount = (item.content || "").split(/\n/).length;
+                                                            const isLong = lineCount > 3 || (item.content || "").length > 200;
+                                                            return (
+                                                                <div key={item.id} className="flex items-start gap-3 p-4 rounded-xl border border-border/50 bg-muted/20 shadow-sm">
+                                                                    <Avatar className="h-8 w-8 shrink-0 border border-background">
+                                                                        <AvatarFallback className="text-[10px] bg-primary/10 text-primary">OP</AvatarFallback>
+                                                                    </Avatar>
+                                                                    <div className="space-y-1 flex-1 min-w-0">
+                                                                        <div className="flex items-center justify-between gap-2">
+                                                                            <span className="text-xs font-bold text-foreground">Internal Note</span>
+                                                                            <div className="flex items-center gap-1 shrink-0">
+                                                                                <span className="text-[10px] text-muted-foreground font-medium">{new Date(item.createdAt).toLocaleDateString()}</span>
+                                                                                <Button
+                                                                                    variant="ghost"
+                                                                                    size="icon"
+                                                                                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                                                                    onClick={() => setNoteToDelete({ contactId: selectedDeal.contactId, noteId: item.id })}
+                                                                                >
+                                                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                                                </Button>
+                                                                            </div>
+                                                                        </div>
+                                                                        <p className={`text-sm text-muted-foreground leading-relaxed whitespace-pre-line ${!isExpanded && isLong ? "line-clamp-3" : ""}`}>
+                                                                            {item.content}
+                                                                        </p>
+                                                                        {isLong && (
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="sm"
+                                                                                className="h-7 text-xs text-primary px-0"
+                                                                                onClick={() => toggleNoteExpanded(item.id)}
+                                                                            >
+                                                                                {isExpanded ? <><ChevronUp className="h-3.5 w-3.5 mr-1" /> Show less</> : <><ChevronDown className="h-3.5 w-3.5 mr-1" /> Show more</>}
+                                                                            </Button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        });
+                                                    })()}
+                                                </div>
+                                                <div className="mt-6 pt-6 border-t relative group">
+                                                    <textarea
+                                                        placeholder="Type a new internal note (saved to contact)..."
+                                                        className="w-full min-h-[100px] p-4 rounded-xl bg-muted/30 border-border/50 text-sm focus:outline-none focus:ring-1 focus:ring-primary/30 transition-all resize-none"
+                                                        value={opportunityNoteContent}
+                                                        onChange={(e) => setOpportunityNoteContent(e.target.value)}
+                                                    />
+                                                    <Button
+                                                        size="sm"
+                                                        className="absolute right-4 bottom-4 h-8 gap-2 shadow-lg shadow-primary/20 transition-all active:scale-95"
+                                                        onClick={handleAddOpportunityNote}
+                                                        disabled={isSavingOpportunityNote || !opportunityNoteContent.trim()}
+                                                    >
+                                                        <Send className="h-3.5 w-3.5" />
+                                                        {isSavingOpportunityNote ? "Saving..." : "Save Note"}
+                                                    </Button>
+                                                </div>
+                                            </>
+                                        )}
+                                    </TabsContent>
 
-                                        <div className="mt-8 relative hidden sm:block">
-                                            <Input placeholder="Type a new note..." className="pr-10" />
-                                            <Button size="icon" variant="ghost" className="absolute right-0 top-0 h-9 w-9 text-muted-foreground hover:text-primary">
-                                                <Send className="h-4 w-4" />
-                                            </Button>
+                                    <TabsContent value="timeline" className="flex-1 p-6 m-0 outline-none overflow-y-auto">
+                                        <div className="relative space-y-6 before:absolute before:inset-0 before:ml-5 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-border before:via-border before:to-transparent">
+                                            {!selectedDeal.contactId ? (
+                                                <div className="ml-14 py-8 text-sm text-muted-foreground">Link a contact to this opportunity to see the timeline.</div>
+                                            ) : timelineLoading ? (
+                                                <div className="ml-14 py-8 text-sm text-muted-foreground">Loading timeline...</div>
+                                            ) : !contactTimeline?.length ? (
+                                                <div className="ml-14 py-8 text-sm text-muted-foreground">No timeline activity yet.</div>
+                                            ) : (
+                                                contactTimeline.map((item) => {
+                                                    if (item.kind === "message") {
+                                                        return (
+                                                            <div key={item.id} className="relative flex items-center gap-4">
+                                                                <div className="absolute left-0 mt-1 flex h-10 w-10 items-center justify-center rounded-full border bg-background shadow-sm z-10">
+                                                                    {item.type === "EMAIL" && <Mail className="h-4 w-4 text-blue-500" />}
+                                                                    {item.type === "SMS" && <MessageSquare className="h-4 w-4 text-emerald-500" />}
+                                                                    {item.type === "CALL" && <Phone className="h-4 w-4 text-amber-500" />}
+                                                                </div>
+                                                                <div className="ml-14 flex-1 space-y-1">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <span className="text-sm font-bold">
+                                                                            {item.direction === "INBOUND" ? "Received " : "Sent "}
+                                                                            {(item.type || "").toLowerCase()}
+                                                                        </span>
+                                                                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                                                                            {new Date(item.createdAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="p-3 rounded-xl border bg-muted/30 text-sm text-muted-foreground leading-relaxed">
+                                                                        {item.content}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    if (item.kind === "note") {
+                                                        return (
+                                                            <div key={item.id} className="relative flex items-center gap-4">
+                                                                <div className="absolute left-0 mt-1 flex h-10 w-10 items-center justify-center rounded-full border bg-background shadow-sm z-10">
+                                                                    <FileText className="h-4 w-4 text-primary" />
+                                                                </div>
+                                                                <div className="ml-14 flex-1 space-y-1">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <span className="text-sm font-bold">Internal note</span>
+                                                                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                                                                            {new Date(item.createdAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="p-3 rounded-xl border bg-muted/30 text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+                                                                        {item.content}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return (
+                                                        <div key={item.id} className="relative flex items-center gap-4">
+                                                            <div className="absolute left-0 mt-1 flex h-10 w-10 items-center justify-center rounded-full border bg-background shadow-sm z-10">
+                                                                <Trash2 className="h-4 w-4 text-muted-foreground" />
+                                                            </div>
+                                                            <div className="ml-14 flex-1 space-y-1">
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="text-sm font-bold text-muted-foreground">
+                                                                        Note deleted{item.deletedBy ? ` by ${item.deletedBy}` : ""}
+                                                                    </span>
+                                                                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                                                                        {new Date(item.createdAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="p-3 rounded-xl border border-dashed bg-muted/20 text-sm text-muted-foreground italic">
+                                                                    {item.contentPreview ? `"${item.contentPreview}"` : "A note was removed."}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
                                         </div>
                                     </TabsContent>
 
-                                    <TabsContent value="forms" className="flex-1 p-6 m-0 outline-none space-y-6">
+                                    <TabsContent value="documents" className="flex-1 p-6 m-0 outline-none overflow-y-auto space-y-6">
                                         <div className="space-y-4">
                                             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Required Documentation</h3>
-
+                                            <p className="text-xs text-muted-foreground">Track the status of the three mandatory forms required for booking.</p>
                                             <div className="space-y-3">
                                                 <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
                                                     <div className="flex items-center gap-3">
@@ -1182,7 +1576,6 @@ function PipelineContent() {
                                                         {selectedDeal.forms?.lease ? "View" : "Send"}
                                                     </Button>
                                                 </div>
-
                                                 <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
                                                     <div className="flex items-center gap-3">
                                                         <div className={`flex items-center justify-center h-8 w-8 rounded-full ${selectedDeal.forms?.tc ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"}`}>
@@ -1197,7 +1590,6 @@ function PipelineContent() {
                                                         {selectedDeal.forms?.tc ? "View" : "Send"}
                                                     </Button>
                                                 </div>
-
                                                 <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
                                                     <div className="flex items-center gap-3">
                                                         <div className={`flex items-center justify-center h-8 w-8 rounded-full ${selectedDeal.forms?.payment ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"}`}>
@@ -1214,6 +1606,12 @@ function PipelineContent() {
                                                 </div>
                                             </div>
                                         </div>
+                                        <Separator />
+                                        {selectedDeal.contactId ? (
+                                            <DocumentManager contactId={selectedDeal.contactId} />
+                                        ) : (
+                                            <div className="py-8 text-sm text-muted-foreground">Link a contact to this opportunity to upload or view documents.</div>
+                                        )}
                                     </TabsContent>
                                 </Tabs>
                             </div>
@@ -1221,6 +1619,26 @@ function PipelineContent() {
                     )}
                 </SheetContent>
             </Sheet>
+
+            <AlertDialog open={!!noteToDelete} onOpenChange={(open) => !open && setNoteToDelete(null)}>
+                <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this note?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This note will be removed. The deletion will be recorded in the contact timeline.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={(e) => { e.preventDefault(); handleDeleteOpportunityNote(); }}
+                        >
+                            {isDeletingNote ? "Deleting..." : "Delete"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -12,7 +12,8 @@ import {
     Loader2,
     Calendar,
     CheckCircle2,
-    Clock
+    Clock,
+    Upload
 } from "lucide-react"
 import { getContactDocuments, addDocument, deleteDocument, updateDocumentStatus } from "./actions"
 
@@ -31,6 +32,9 @@ export function DocumentManager({ contactId }: { contactId: string }) {
     const [newName, setNewName] = useState("")
     const [newUrl, setNewUrl] = useState("")
     const [isSaving, setIsSaving] = useState(false)
+    const [isUploading, setIsUploading] = useState(false)
+    const [uploadError, setUploadError] = useState<string | null>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
 
     const fetchDocs = async () => {
         setIsLoading(true)
@@ -61,9 +65,36 @@ export function DocumentManager({ contactId }: { contactId: string }) {
     }
 
     const handleDelete = async (id: string) => {
-        if (!confirm("Remove this document link?")) return
+        if (!confirm("Remove this document?")) return
         const res = await deleteDocument(contactId, id)
         if (res.success) fetchDocs()
+    }
+
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        e.target.value = ""
+        setIsUploading(true)
+        setUploadError(null)
+        const formData = new FormData()
+        formData.append("file", file)
+        formData.append("name", file.name)
+        try {
+            const res = await fetch(`/api/contacts/${contactId}/documents/upload`, {
+                method: "POST",
+                body: formData,
+            })
+            const data = await res.json()
+            if (!res.ok) {
+                setUploadError(data.error || "Upload failed")
+                return
+            }
+            fetchDocs()
+        } catch {
+            setUploadError("Upload failed")
+        } finally {
+            setIsUploading(false)
+        }
     }
 
     const toggleStatus = async (doc: Document) => {
@@ -90,17 +121,40 @@ export function DocumentManager({ contactId }: { contactId: string }) {
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Upload & Links</h3>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50/50"
-                    onClick={() => setIsAdding(!isAdding)}
-                >
-                    {isAdding ? "Cancel" : <><Plus className="h-3.5 w-3.5 mr-1" /> Add New</>}
-                </Button>
+                <div className="flex items-center gap-2">
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="hidden"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,image/*"
+                        onChange={handleFileSelect}
+                    />
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs gap-1.5"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                    >
+                        {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                        {isUploading ? "Uploading..." : "Upload file"}
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50/50"
+                        onClick={() => { setIsAdding(!isAdding); setUploadError(null); }}
+                    >
+                        {isAdding ? "Cancel" : <><Plus className="h-3.5 w-3.5 mr-1" /> Add link</>}
+                    </Button>
+                </div>
             </div>
+
+            {uploadError && (
+                <p className="text-sm text-destructive">{uploadError}</p>
+            )}
 
             {isAdding && (
                 <form onSubmit={handleAdd} className="p-4 rounded-xl border border-blue-200/20 bg-blue-50/5 space-y-3 animate-in fade-in slide-in-from-top-2">
@@ -138,8 +192,8 @@ export function DocumentManager({ contactId }: { contactId: string }) {
                 ) : documents.length === 0 ? (
                     <div className="text-center py-10 px-4 border border-dashed rounded-xl bg-muted/5">
                         <FileText className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
-                        <p className="text-sm text-muted-foreground">No custom documents linked yet.</p>
-                        <p className="text-xs text-muted-foreground/60 mt-1">Add orders, itineraries, or waivers here.</p>
+                        <p className="text-sm text-muted-foreground">No documents yet.</p>
+                        <p className="text-xs text-muted-foreground/60 mt-1">Upload a file or add a link (e.g. Google Drive, Dropbox).</p>
                     </div>
                 ) : (
                     documents.map((doc) => (

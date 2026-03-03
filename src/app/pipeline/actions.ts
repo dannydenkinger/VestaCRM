@@ -6,20 +6,27 @@ import { auth } from "@/auth";
 import { createNotification } from "@/app/notifications/actions";
 
 export async function getPipelines() {
-    // Converts any date string to YYYY-MM-DD for HTML date inputs
-    const toDateInput = (val: any): string => {
-        if (!val) return "";
-        if (val instanceof Date) {
-            return val.toISOString().split('T')[0];
-        }
-        // If it's a Firestore Timestamp
-        if (val && typeof val.toDate === 'function') {
-            return val.toDate().toISOString().split('T')[0];
+    // Normalize Firestore Timestamp/Date to ISO string (plain-object safe for RSC serialization)
+    const toISO = (val: any): string | null => {
+        if (val == null) return null;
+        if (typeof val === "string" && val.includes("T")) return val;
+        if (typeof val === "string" && /^\d{4}-\d{2}-\d{2}/.test(val)) return val.slice(0, 10);
+        if (val instanceof Date) return val.toISOString();
+        if (val && typeof val.toDate === "function") return val.toDate().toISOString();
+        // Firestore Timestamp sometimes appears as plain object { _seconds, _nanoseconds }
+        if (typeof val === "object" && typeof val._seconds === "number") {
+            return new Date(val._seconds * 1000 + (val._nanoseconds || 0) / 1e6).toISOString();
         }
         const s = String(val);
-        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-        if (s.includes('T')) return s.split('T')[0];
-        return s.slice(0, 10);
+        if (s.includes("T")) return s;
+        return s.slice(0, 10) || null;
+    };
+
+    // Converts any date-like value to YYYY-MM-DD for HTML date inputs
+    const toDateInput = (val: any): string => {
+        const iso = toISO(val);
+        if (!iso) return "";
+        return iso.split("T")[0];
     };
 
     try {
@@ -108,33 +115,34 @@ export async function getPipelines() {
 
             return {
                 id: doc.id,
-                pipelineId,
-                contactId: data.contactId,
-                name: contact?.name || "Unknown",
-                email: contact?.email || null,
-                phone: contact?.phone || null,
-                base,
-                stage: stageName,
-                value: data.opportunityValue || 0,
-                margin: data.estimatedProfit || 0,
+                pipelineId: pipelineId || null,
+                contactId: data.contactId || null,
+                name: contact?.name || data.name || "Unknown",
+                email: contact?.email || data.email || null,
+                phone: contact?.phone || data.phone || null,
+                base: base || null,
+                stage: stageName || "Unknown",
+                value: Number(data.opportunityValue) || 0,
+                margin: Number(data.estimatedProfit) || 0,
                 priority: data.priority || "MEDIUM",
-                startDate,
-                endDate,
+                startDate: startDate || null,
+                endDate: endDate || null,
                 assigneeId: data.assigneeId || null,
-                assignee: assignee ? assignee.name?.split(" ").map((w: string) => w[0]).join("").toUpperCase() : "—",
+                assignee: assignee && assignee.name ? assignee.name.split(" ").map((w: string) => w[0]).join("").toUpperCase() : "—",
                 assigneeName: assignee?.name || "Unassigned",
                 leadSourceId: data.leadSourceId || null,
-                tags: data.tags || [],
+                tags: Array.isArray(data.tags) ? data.tags.map((t: any) => ({ tagId: t.tagId || null, name: t.name || null, color: t.color || null })) : [],
                 specialAccommodationId: data.specialAccommodationId || null,
                 source: data.source || null,
                 unread: data.unread ?? false,
-                unreadAt: data.unreadAt?.toDate ? data.unreadAt.toDate() : data.unreadAt || null,
-                lastSeenAt: data.lastSeenAt?.toDate ? data.lastSeenAt.toDate() : data.lastSeenAt || null,
+                unreadAt: toISO(data.unreadAt),
+                lastSeenAt: toISO(data.lastSeenAt),
                 lastSeenBy: data.lastSeenBy || null,
-                notes,
+                notes: notes || null,
                 reasonForStay: data.reasonForStay || null,
-                specialAccommodationLabels: data.specialAccommodationLabels || [],
-                createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt
+                specialAccommodationLabels: Array.isArray(data.specialAccommodationLabels) ? data.specialAccommodationLabels : [],
+                createdAt: toISO(data.createdAt),
+                updatedAt: toISO(data.updatedAt)
             };
         });
 
@@ -455,6 +463,14 @@ export async function createNewDeal(data: any, pipelineId?: string) {
             updatedAt: new Date()
         });
 
+        // Notify team about the new opportunity
+        await createNotification({
+            title: "New opportunity created",
+            message: `${data.name || "New Lead"}${data.base ? ` • ${data.base}` : ""}`,
+            type: "opportunity",
+            linkUrl: `/pipeline?deal=${oppRef.id}`
+        });
+
         if (data.notes) {
             await adminDb.collection('contacts').doc(contactId).collection('notes').add({
                 content: data.notes,
@@ -475,6 +491,8 @@ export async function createNewDeal(data: any, pipelineId?: string) {
 export async function updateOpportunity(id: string, data: {
     pipelineStageId?: string;
     name?: string;
+    email?: string;
+    phone?: string;
     value?: number;
     margin?: number;
     priority?: string;
@@ -488,32 +506,44 @@ export async function updateOpportunity(id: string, data: {
     tagIds?: string[];
     specialAccommodationId?: string | null;
 }) {
+    console.log("SERVER ACTION: updateOpportunity called with id", id, data);
     try {
-        const updateData: any = { updatedAt: new Date() };
+        const oppId = id && String(id).trim();
+        if (!oppId) {
+            return { success: false, error: "Invalid opportunity id" };
+        }
+        const updateData: Record<string, unknown> = { updatedAt: new Date() };
 
         if (data.pipelineStageId !== undefined) updateData.pipelineStageId = data.pipelineStageId;
         if (data.name !== undefined) updateData.name = data.name;
-        if (data.value !== undefined) updateData.opportunityValue = data.value;
-        if (data.margin !== undefined) updateData.estimatedProfit = data.margin;
+        if (data.value !== undefined) updateData.opportunityValue = Number(data.value) || 0;
+        if (data.margin !== undefined) updateData.estimatedProfit = Number(data.margin) || 0;
         if (data.priority !== undefined) updateData.priority = data.priority;
         if (data.assigneeId !== undefined) updateData.assigneeId = data.assigneeId;
         if (data.leadSourceId !== undefined) updateData.leadSourceId = data.leadSourceId;
         if (data.specialAccommodationId !== undefined) updateData.specialAccommodationId = data.specialAccommodationId;
         if (data.base !== undefined) updateData.militaryBase = data.base || null;
-        if (data.startDate !== undefined) updateData.stayStartDate = data.startDate ? new Date(data.startDate).toISOString() : null;
-        if (data.endDate !== undefined) updateData.stayEndDate = data.endDate ? new Date(data.endDate).toISOString() : null;
-        if (data.notes !== undefined) updateData.notes = data.notes || null;
+        if (data.startDate !== undefined) updateData.stayStartDate = data.startDate && String(data.startDate).trim() ? new Date(data.startDate).toISOString() : null;
+        if (data.endDate !== undefined) updateData.stayEndDate = data.endDate && String(data.endDate).trim() ? new Date(data.endDate).toISOString() : null;
+        if (data.notes !== undefined) updateData.notes = data.notes != null ? String(data.notes) : null;
 
         if (data.tagIds !== undefined) {
             updateData.tags = await Promise.all(data.tagIds.map(async (tagId) => {
                 const tagDoc = await adminDb.collection('tags').doc(tagId).get();
-                return { tagId, name: tagDoc.data()?.name, color: tagDoc.data()?.color };
+                return { 
+                    tagId, 
+                    name: tagDoc.data()?.name || null, 
+                    color: tagDoc.data()?.color || null 
+                };
             }));
         }
 
-        if (Object.keys(updateData).length > 1) { // more than just updatedAt
-            await adminDb.collection('opportunities').doc(id).update(updateData);
+        const docRef = adminDb.collection('opportunities').doc(oppId);
+        const snap = await docRef.get();
+        if (!snap.exists) {
+            return { success: false, error: "Opportunity not found" };
         }
+        await docRef.update(updateData);
 
         if (data.contactId && data.notes !== undefined) {
             const content = data.notes ? String(data.notes).trim() : "";
@@ -521,7 +551,7 @@ export async function updateOpportunity(id: string, data: {
                 await adminDb.collection('contacts').doc(data.contactId).collection('notes').add({
                     content,
                     contactId: data.contactId,
-                    opportunityId: id,
+                    opportunityId: oppId,
                     source: "opportunity",
                     createdAt: new Date(),
                     updatedAt: new Date()
@@ -529,11 +559,14 @@ export async function updateOpportunity(id: string, data: {
             }
         }
 
-        if (data.contactId && (data.startDate !== undefined || data.endDate !== undefined || data.base !== undefined)) {
+        if (data.contactId && (data.startDate !== undefined || data.endDate !== undefined || data.base !== undefined || data.name !== undefined || data.email !== undefined || data.phone !== undefined)) {
             const contactUpdate: any = { updatedAt: new Date() };
-            if (data.startDate !== undefined) contactUpdate.stayStartDate = data.startDate ? new Date(data.startDate).toISOString() : null;
-            if (data.endDate !== undefined) contactUpdate.stayEndDate = data.endDate ? new Date(data.endDate).toISOString() : null;
+            if (data.startDate !== undefined) contactUpdate.stayStartDate = data.startDate && String(data.startDate).trim() ? new Date(data.startDate).toISOString() : null;
+            if (data.endDate !== undefined) contactUpdate.stayEndDate = data.endDate && String(data.endDate).trim() ? new Date(data.endDate).toISOString() : null;
             if (data.base !== undefined) contactUpdate.militaryBase = data.base || null;
+            if (data.name !== undefined) contactUpdate.name = data.name;
+            if (data.email !== undefined) contactUpdate.email = data.email;
+            if (data.phone !== undefined) contactUpdate.phone = data.phone;
 
             await adminDb.collection('contacts').doc(data.contactId).update(contactUpdate);
         }
@@ -541,9 +574,10 @@ export async function updateOpportunity(id: string, data: {
         revalidatePath("/pipeline");
         revalidatePath("/calendar");
         return { success: true };
-    } catch (error) {
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Failed to update opportunity";
         console.error("Failed to update opportunity:", error);
-        return { success: false, error: "Failed to update opportunity" };
+        return { success: false, error: String(message) };
     }
 }
 

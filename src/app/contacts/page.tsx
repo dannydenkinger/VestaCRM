@@ -1,13 +1,14 @@
 "use client"
 
 import { useState, useEffect, useRef, Suspense } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import {
     Phone, Mail, MoreVertical, Search, Filter, Plus, ChevronRight, LayoutGrid,
     List as ListIcon, Calendar as CalendarIcon, ArrowUp, ArrowDown, Calculator,
-    Send, FileText, MessageSquare, Clock, CheckCircle, Upload, Trash2, ListTodo
+    Send, FileText, MessageSquare, Clock, CheckCircle, Upload, Trash2, ListTodo,
+    ChevronDown, ChevronUp, Briefcase, ExternalLink
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import {
@@ -48,10 +49,10 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { getContacts, getContactDetail, createNote, updateContact, updateFormTracking, bulkCreateContacts, createContact, deleteContact, bulkDeleteContacts } from "./actions"
+import { getContacts, getContactDetail, createNote, deleteNote, updateContact, updateFormTracking, bulkCreateContacts, createContact, deleteContact, bulkDeleteContacts } from "./actions"
 import { sendMessage } from "@/app/communications/actions"
 import { getContactStatuses } from "@/app/settings/system-properties/actions"
-import { updateOpportunity, createNewDeal } from "@/app/pipeline/actions"
+import { createNewDeal } from "@/app/pipeline/actions"
 import { CSVImportDialog } from "@/components/ui/CSVImportDialog"
 import { CreateTaskDialog } from "@/components/ui/CreateTaskDialog"
 import { DocumentManager } from "./documents/DocumentManager"
@@ -91,6 +92,7 @@ export default function ContactsPage() {
 }
 
 function ContactsContent() {
+    const router = useRouter();
     const [allContacts, setAllContacts] = useState<any[]>([])
     const [selectedContact, setSelectedContact] = useState<any>(null)
     const [editingContact, setEditingContact] = useState<any>(null);
@@ -116,6 +118,9 @@ function ContactsContent() {
     const [isLoggingMessage, setIsLoggingMessage] = useState(false);
     const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
     const [contactStatuses, setContactStatuses] = useState<{ id: string; name: string }[]>([]);
+    const [expandedNoteIds, setExpandedNoteIds] = useState<Set<string>>(new Set());
+    const [noteToDelete, setNoteToDelete] = useState<{ contactId: string; noteId: string } | null>(null);
+    const [isDeletingNote, setIsDeletingNote] = useState(false);
 
     const fetchContactStatuses = async () => {
         const res = await getContactStatuses();
@@ -199,6 +204,28 @@ function ContactsContent() {
             fetchAllContacts();
         }
         setIsSavingNote(false);
+    };
+
+    const toggleNoteExpanded = (noteId: string) => {
+        setExpandedNoteIds(prev => {
+            const next = new Set(prev);
+            if (next.has(noteId)) next.delete(noteId);
+            else next.add(noteId);
+            return next;
+        });
+    };
+
+    const handleDeleteNote = async () => {
+        if (!noteToDelete) return;
+        setIsDeletingNote(true);
+        const res = await deleteNote(noteToDelete.contactId, noteToDelete.noteId);
+        if (res.success && selectedContact?.id === noteToDelete.contactId) {
+            const detailRes = await getContactDetail(noteToDelete.contactId);
+            if (detailRes.success) setSelectedContact(detailRes.contact);
+            fetchAllContacts();
+        }
+        setNoteToDelete(null);
+        setIsDeletingNote(false);
     };
 
     const toggleSelectContact = (id: string) => {
@@ -352,18 +379,6 @@ function ContactsContent() {
             }
         }
     };
-
-    const handleUpdateFinancials = async (oppId: string, data: Record<string, unknown>) => {
-        const res = await updateOpportunity(oppId, data);
-        if (res.success) {
-            const detailRes = await getContactDetail(selectedContact.id);
-            if (detailRes.success) {
-                setSelectedContact(detailRes.contact);
-            }
-            fetchAllContacts();
-        }
-    };
-
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -820,6 +835,14 @@ function ContactsContent() {
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuItem
+                                                    onClick={(e) => { e.stopPropagation(); if (contact.id !== 'new') setIsTaskDialogOpen(true); }}
+                                                    disabled={contact.id === 'new'}
+                                                >
+                                                    <ListTodo className="mr-2 h-4 w-4" />
+                                                    Add task for contact
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem
                                                     className="text-destructive focus:text-destructive"
                                                     onClick={(e) => { e.stopPropagation(); contact.id !== 'new' && setContactToDelete(contact.id); }}
                                                 >
@@ -828,6 +851,54 @@ function ContactsContent() {
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
+                                    </div>
+
+                                    {/* Opportunity attachment: show linked deal or create one */}
+                                    <div className="mt-4 p-3 rounded-xl border bg-background/60 space-y-2">
+                                        {contact.opportunities?.length > 0 ? (
+                                            <>
+                                                <div className="flex items-center gap-2">
+                                                    <Briefcase className="h-4 w-4 text-emerald-600" />
+                                                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Attached to opportunity</span>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                    <span className="text-sm font-medium truncate">{contact.opportunities[0].name || "Deal"}</span>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="secondary"
+                                                        className="shrink-0 gap-1.5 h-8"
+                                                        onClick={() => router.push(`/pipeline?deal=${contact.opportunities[0].id}`)}
+                                                    >
+                                                        <ExternalLink className="h-3.5 w-3.5" />
+                                                        View in Pipeline
+                                                    </Button>
+                                                </div>
+                                                {contact.opportunities[0].opportunityValue != null && (
+                                                    <p className="text-xs text-muted-foreground">Value: ${Number(contact.opportunities[0].opportunityValue).toLocaleString()}</p>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="flex items-center gap-2">
+                                                    <Briefcase className="h-4 w-4 text-muted-foreground" />
+                                                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">No opportunity</span>
+                                                </div>
+                                                {contact.id !== 'new' ? (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="w-full gap-1.5 h-8"
+                                                        onClick={handleCreateOpportunity}
+                                                        disabled={isSaving}
+                                                    >
+                                                        <Plus className="h-3.5 w-3.5" />
+                                                        {isSaving ? "Creating..." : "Create opportunity"}
+                                                    </Button>
+                                                ) : (
+                                                    <p className="text-xs text-muted-foreground">Save the contact first, then create an opportunity.</p>
+                                                )}
+                                            </>
+                                        )}
                                     </div>
 
                                     <div className="flex items-center gap-6 mt-6">
@@ -847,7 +918,7 @@ function ContactsContent() {
                                         <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-6 h-12">
                                             <TabsTrigger value="details" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 h-full">Details</TabsTrigger>
                                             <TabsTrigger value="notes" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 h-full">Notes</TabsTrigger>
-                                            <TabsTrigger value="docs" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 h-full">Documents</TabsTrigger>
+                                            <TabsTrigger value="documents" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 h-full">Documents</TabsTrigger>
                                             <TabsTrigger value="timeline" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 h-full">Timeline</TabsTrigger>
                                         </TabsList>
 
@@ -951,103 +1022,6 @@ function ContactsContent() {
                                                 <p className="text-xs text-muted-foreground">Stay dates are used when creating an opportunity and will pre-fill the deal form.</p>
                                             </div>
 
-                                            <Separator />
-
-                                            {/* Opportunities - Separate from contact; create deal and go to pipeline */}
-                                            <div className="space-y-4">
-                                                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Opportunities</h3>
-                                                <p className="text-xs text-muted-foreground">Contacts and opportunities are separate. Create an opportunity to track this contact&apos;s deal in the pipeline.</p>
-                                                {contact.opportunities?.[0] ? (
-                                                    <div className="p-5 rounded-2xl bg-emerald-500/5 border border-emerald-500/10 space-y-6">
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <div className="space-y-1.5">
-                                                                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Monthly Rent (Paid)</span>
-                                                                <div className="relative">
-                                                                    <span className="absolute left-3 top-2 text-sm text-muted-foreground">$</span>
-                                                                    <Input
-                                                                        type="number"
-                                                                        value={contact.opportunities[0].monthlyRent || ""}
-                                                                        onChange={(e) => handleUpdateFinancials(contact.opportunities[0].id, { monthlyRent: parseFloat(e.target.value) || 0 })}
-                                                                        className="h-9 pl-7 bg-background/50 border-none shadow-none text-sm"
-                                                                        placeholder="0"
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                            <div className="space-y-1.5">
-                                                                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Per Diem Rate (Daily)</span>
-                                                                <div className="relative">
-                                                                    <span className="absolute left-3 top-2 text-sm text-muted-foreground">$</span>
-                                                                    <Input
-                                                                        type="number"
-                                                                        value={contact.opportunities[0].perDiemRate || ""}
-                                                                        onChange={(e) => handleUpdateFinancials(contact.opportunities[0].id, { perDiemRate: parseFloat(e.target.value) || 0 })}
-                                                                        className="h-9 pl-7 bg-background/50 border-none shadow-none text-sm"
-                                                                        placeholder="0"
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                        </div>
-
-                                                        {(() => {
-                                                            const opp = contact.opportunities[0];
-                                                            const start = contact.stayStartDate ? new Date(contact.stayStartDate) : null;
-                                                            const end = contact.stayEndDate ? new Date(contact.stayEndDate) : null;
-                                                            let days = contact.lengthOfTrainingDays || 0;
-                                                            if (!days && start && end) {
-                                                                days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-                                                            }
-
-                                                            const totalRev = (opp.perDiemRate || 0) * days;
-                                                            const totalCost = (opp.monthlyRent || 0) * (days / 30.44); // Approx month
-                                                            const profit = totalRev - totalCost;
-                                                            const margin = totalRev > 0 ? (profit / totalRev) * 100 : 0;
-
-                                                            return (
-                                                                <div className="space-y-4 border-t border-emerald-500/10 pt-4">
-                                                                    <div className="flex items-center justify-between text-xs">
-                                                                        <span className="text-muted-foreground">Estimated Total Revenue ({days} days)</span>
-                                                                        <span className="font-mono font-bold">${totalRev.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                                                    </div>
-                                                                    <div className="flex items-center justify-between text-xs">
-                                                                        <span className="text-muted-foreground">Estimated Housing Cost</span>
-                                                                        <span className="font-mono text-destructive">-${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                                                    </div>
-                                                                    <div className="flex items-center justify-between py-3 px-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                                                                        <div className="flex flex-col">
-                                                                            <span className="text-[10px] font-bold uppercase text-emerald-600">Projected Profit</span>
-                                                                            <span className="text-lg font-mono font-black text-emerald-700">${profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                                                        </div>
-                                                                        <div className="text-right">
-                                                                            <span className="text-[10px] font-bold uppercase text-emerald-600">Margin</span>
-                                                                            <div className="text-lg font-mono font-black text-emerald-700">{margin.toFixed(1)}%</div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })()}
-                                                    </div>
-                                                ) : (
-                                                    <div className="p-8 rounded-2xl border border-dashed border-border/50 text-center space-y-3">
-                                                        <p className="text-sm text-muted-foreground">
-                                                            {contact.id === 'new'
-                                                                ? "Save the contact first, then create an opportunity."
-                                                                : "No opportunity for this contact yet."}
-                                                        </p>
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={handleCreateOpportunity}
-                                                            disabled={isSaving || contact.id === 'new'}
-                                                        >
-                                                            {isSaving ? "Creating..." : "Create Opportunity → Go to Pipeline"}
-                                                        </Button>
-                                                        {contact.id !== 'new' && (
-                                                            <p className="text-xs text-muted-foreground">Opens the pipeline with contact details pre-filled</p>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-
                                             <div className="pt-4 flex flex-col gap-3">
                                                 {selectedContact.id !== 'new' && (
                                                     <Button variant="outline" size="sm" onClick={() => setIsTaskDialogOpen(true)}>
@@ -1068,22 +1042,47 @@ function ContactsContent() {
                                         <TabsContent value="notes" className="flex-1 p-6 m-0 outline-none flex flex-col h-full bg-background">
                                             <div className="space-y-4 flex-1 overflow-y-auto pr-2">
                                                 {selectedContact.notes?.length > 0 ? (
-                                                    selectedContact.notes.map((note: any) => (
-                                                        <div key={note.id} className="flex items-start gap-3 p-4 rounded-xl border border-border/50 bg-muted/20 shadow-sm">
-                                                            <Avatar className="h-8 w-8 border border-background">
-                                                                <AvatarFallback className="text-[10px] bg-primary/10 text-primary">OP</AvatarFallback>
-                                                            </Avatar>
-                                                            <div className="space-y-1 flex-1">
-                                                                <div className="flex items-center justify-between">
-                                                                    <span className="text-xs font-bold text-foreground">Internal Note</span>
-                                                                    <span className="text-[10px] text-muted-foreground font-medium">{new Date(note.createdAt).toLocaleDateString()}</span>
+                                                    selectedContact.notes.map((note: any) => {
+                                                        const isExpanded = expandedNoteIds.has(note.id);
+                                                        const lineCount = (note.content || "").split(/\n/).length;
+                                                        const isLong = lineCount > 3 || (note.content || "").length > 200;
+                                                        return (
+                                                            <div key={note.id} className="flex items-start gap-3 p-4 rounded-xl border border-border/50 bg-muted/20 shadow-sm">
+                                                                <Avatar className="h-8 w-8 shrink-0 border border-background">
+                                                                    <AvatarFallback className="text-[10px] bg-primary/10 text-primary">OP</AvatarFallback>
+                                                                </Avatar>
+                                                                <div className="space-y-1 flex-1 min-w-0">
+                                                                    <div className="flex items-center justify-between gap-2">
+                                                                        <span className="text-xs font-bold text-foreground">Internal Note</span>
+                                                                        <div className="flex items-center gap-1 shrink-0">
+                                                                            <span className="text-[10px] text-muted-foreground font-medium">{new Date(note.createdAt).toLocaleDateString()}</span>
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                                                                onClick={() => setNoteToDelete({ contactId: selectedContact.id, noteId: note.id })}
+                                                                            >
+                                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                                            </Button>
+                                                                        </div>
+                                                                    </div>
+                                                                    <p className={`text-sm text-muted-foreground leading-relaxed whitespace-pre-line ${!isExpanded && isLong ? "line-clamp-3" : ""}`}>
+                                                                        {note.content}
+                                                                    </p>
+                                                                    {isLong && (
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="sm"
+                                                                            className="h-7 text-xs text-primary px-0"
+                                                                            onClick={() => toggleNoteExpanded(note.id)}
+                                                                        >
+                                                                            {isExpanded ? <><ChevronUp className="h-3.5 w-3.5 mr-1" /> Show less</> : <><ChevronDown className="h-3.5 w-3.5 mr-1" /> Show more</>}
+                                                                        </Button>
+                                                                    )}
                                                                 </div>
-                                                                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-                                                                    {note.content}
-                                                                </p>
                                                             </div>
-                                                        </div>
-                                                    ))
+                                                        );
+                                                    })
                                                 ) : (
                                                     <div className="flex flex-col items-center justify-center py-12 gap-3 opacity-30">
                                                         <FileText className="h-10 w-10" />
@@ -1110,7 +1109,7 @@ function ContactsContent() {
                                                 </Button>
                                             </div>
                                         </TabsContent>
-                                        <TabsContent value="docs" className="flex-1 p-6 m-0 outline-none space-y-6 overflow-y-auto">
+                                        <TabsContent value="documents" className="flex-1 p-6 m-0 outline-none space-y-6 overflow-y-auto">
                                             <div className="space-y-4">
                                                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Required Agreements</h3>
                                                 <p className="text-xs text-muted-foreground">Track the status of the three mandatory forms required for booking.</p>
@@ -1143,51 +1142,94 @@ function ContactsContent() {
                                         </TabsContent>
                                         <TabsContent value="timeline" className="flex-1 p-6 m-0 outline-none overflow-y-auto">
                                             <div className="relative space-y-6 before:absolute before:inset-0 before:ml-5 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-border before:via-border before:to-transparent">
-                                                {selectedContact.messages?.length > 0 ? (
-                                                    selectedContact.messages.map((msg: any) => (
-                                                        <div key={msg.id} className="relative flex items-center gap-4">
-                                                            <div className="absolute left-0 mt-1 flex h-10 w-10 items-center justify-center rounded-full border bg-background shadow-sm z-10">
-                                                                {msg.type === "EMAIL" && <Mail className="h-4 w-4 text-blue-500" />}
-                                                                {msg.type === "SMS" && <MessageSquare className="h-4 w-4 text-emerald-500" />}
-                                                                {msg.type === "CALL" && <Phone className="h-4 w-4 text-amber-500" />}
-                                                            </div>
-                                                            <div className="ml-14 flex-1 space-y-1">
-                                                                <div className="flex items-center justify-between">
-                                                                    <span className="text-sm font-bold">
-                                                                        {msg.direction === "INBOUND" ? "Received " : "Sent "}
-                                                                        {msg.type.toLowerCase()}
-                                                                    </span>
-                                                                    <span className="text-[10px] text-muted-foreground tabular-nums">
-                                                                        {new Date(msg.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
-                                                                    </span>
-                                                                </div>
-                                                                <div className="p-3 rounded-xl border bg-muted/30 text-sm text-muted-foreground leading-relaxed">
-                                                                    {msg.content}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    ))
-                                                ) : (
-                                                    <div className="relative flex items-center gap-4">
-                                                        <div className="absolute left-0 mt-1 flex h-10 w-10 items-center justify-center rounded-full border bg-background shadow-sm z-10">
-                                                            <Clock className="h-4 w-4 text-muted-foreground" />
-                                                        </div>
-                                                        <div className="ml-14 flex-1 space-y-1">
-                                                            <div className="text-sm font-bold text-muted-foreground">Lead Created</div>
-                                                            <p className="text-xs text-muted-foreground">System trace initialized for this record.</p>
-                                                        </div>
-                                                    </div>
-                                                )}
+                                                {(() => {
+                                                    const messages = selectedContact.messages ?? [];
+                                                    const notes = selectedContact.notes ?? [];
+                                                    const timelineEvents = selectedContact.timelineEvents ?? [];
+                                                    const merged: { id: string; type: 'message' | 'note' | 'note_deleted'; createdAt: string; data: any }[] = [
+                                                        ...messages.map((m: any) => ({ id: `msg-${m.id}`, type: 'message' as const, createdAt: m.createdAt ?? '', data: m })),
+                                                        ...notes.map((n: any) => ({ id: `note-${n.id}`, type: 'note' as const, createdAt: n.createdAt ?? '', data: n })),
+                                                        ...timelineEvents.filter((e: any) => e.type === 'note_deleted').map((e: any) => ({ id: `ev-${e.id}`, type: 'note_deleted' as const, createdAt: e.createdAt ?? '', data: e })),
+                                                    ];
+                                                    merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-                                                <div className="relative flex items-center gap-4 opacity-50">
-                                                    <div className="absolute left-0 mt-1 flex h-10 w-10 items-center justify-center rounded-full border bg-background shadow-sm z-10">
-                                                        <CheckCircle className="h-4 w-4 text-emerald-500" />
-                                                    </div>
-                                                    <div className="ml-14 flex-1 space-y-1">
-                                                        <div className="text-sm font-bold">Registration Complete</div>
-                                                        <p className="text-xs">Database synchronization active.</p>
-                                                    </div>
-                                                </div>
+                                                    if (merged.length === 0) {
+                                                        return (
+                                                            <div className="ml-14 py-8 text-sm text-muted-foreground">No timeline activity yet.</div>
+                                                        );
+                                                    }
+
+                                                    return merged.map((item) => {
+                                                        if (item.type === 'message') {
+                                                            const msg = item.data;
+                                                            return (
+                                                                <div key={item.id} className="relative flex items-center gap-4">
+                                                                    <div className="absolute left-0 mt-1 flex h-10 w-10 items-center justify-center rounded-full border bg-background shadow-sm z-10">
+                                                                        {msg.type === "EMAIL" && <Mail className="h-4 w-4 text-blue-500" />}
+                                                                        {msg.type === "SMS" && <MessageSquare className="h-4 w-4 text-emerald-500" />}
+                                                                        {msg.type === "CALL" && <Phone className="h-4 w-4 text-amber-500" />}
+                                                                    </div>
+                                                                    <div className="ml-14 flex-1 space-y-1">
+                                                                        <div className="flex items-center justify-between">
+                                                                            <span className="text-sm font-bold">
+                                                                                {msg.direction === "INBOUND" ? "Received " : "Sent "}
+                                                                                {(msg.type || "").toLowerCase()}
+                                                                            </span>
+                                                                            <span className="text-[10px] text-muted-foreground tabular-nums">
+                                                                                {new Date(item.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="p-3 rounded-xl border bg-muted/30 text-sm text-muted-foreground leading-relaxed">
+                                                                            {msg.content}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        }
+                                                        if (item.type === 'note') {
+                                                            const note = item.data;
+                                                            return (
+                                                                <div key={item.id} className="relative flex items-center gap-4">
+                                                                    <div className="absolute left-0 mt-1 flex h-10 w-10 items-center justify-center rounded-full border bg-background shadow-sm z-10">
+                                                                        <FileText className="h-4 w-4 text-primary" />
+                                                                    </div>
+                                                                    <div className="ml-14 flex-1 space-y-1">
+                                                                        <div className="flex items-center justify-between">
+                                                                            <span className="text-sm font-bold">Internal note</span>
+                                                                            <span className="text-[10px] text-muted-foreground tabular-nums">
+                                                                                {new Date(item.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="p-3 rounded-xl border bg-muted/30 text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+                                                                            {note.content}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        }
+                                                        const ev = item.data;
+                                                        return (
+                                                            <div key={item.id} className="relative flex items-center gap-4">
+                                                                <div className="absolute left-0 mt-1 flex h-10 w-10 items-center justify-center rounded-full border bg-background shadow-sm z-10">
+                                                                    <Trash2 className="h-4 w-4 text-muted-foreground" />
+                                                                </div>
+                                                                <div className="ml-14 flex-1 space-y-1">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <span className="text-sm font-bold text-muted-foreground">
+                                                                            Note deleted{ev.deletedBy ? ` by ${ev.deletedBy}` : ""}
+                                                                        </span>
+                                                                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                                                                            {new Date(item.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="p-3 rounded-xl border border-dashed bg-muted/20 text-sm text-muted-foreground italic">
+                                                                        {ev.contentPreview ? `"${ev.contentPreview}"` : "A note was removed."}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    });
+                                                })()}
 
                                                 <Separator className="my-6" />
 
@@ -1262,6 +1304,26 @@ function ContactsContent() {
                             }}
                         >
                             {isDeleting ? 'Deleting...' : 'Delete'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={!!noteToDelete} onOpenChange={(open) => !open && setNoteToDelete(null)}>
+                <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this note?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This note will be removed. The deletion will be recorded in the contact timeline.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={(e) => { e.preventDefault(); handleDeleteNote(); }}
+                        >
+                            {isDeletingNote ? 'Deleting...' : 'Delete'}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
