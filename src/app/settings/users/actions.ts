@@ -3,6 +3,7 @@
 import { adminDb } from "@/lib/firebase-admin"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
+import { FieldValue } from "firebase-admin/firestore"
 
 export async function getCurrentUserRole() {
     const session = await auth()
@@ -111,6 +112,74 @@ export async function disconnectGoogleCalendar() {
         console.error("Error disconnecting Google Calendar:", error);
         throw new Error("Failed to disconnect calendar");
     }
+}
+
+export async function getNotificationPreferences() {
+    const session = await auth()
+    if (!session?.user?.email) return null
+
+    try {
+        const usersSnap = await adminDb.collection('users').where('email', '==', session.user.email).limit(1).get()
+        if (usersSnap.empty) return null
+
+        const prefs = usersSnap.docs[0].data()?.notificationPreferences
+        return prefs || null
+    } catch (err) {
+        console.error("Error getting notification preferences:", err)
+        return null
+    }
+}
+
+export async function updateNotificationPreferences(prefs: Record<string, boolean>) {
+    const session = await auth()
+    if (!session?.user?.email) throw new Error("Unauthorized")
+
+    try {
+        const usersSnap = await adminDb.collection('users').where('email', '==', session.user.email).limit(1).get()
+        if (usersSnap.empty) throw new Error("User not found")
+
+        await adminDb.collection('users').doc(usersSnap.docs[0].id).update({
+            notificationPreferences: prefs,
+            updatedAt: new Date()
+        })
+
+        revalidatePath("/settings")
+        return { success: true }
+    } catch (error) {
+        console.error("Error updating notification preferences:", error)
+        throw new Error("Failed to update notification preferences")
+    }
+}
+
+export async function saveFcmToken(token: string) {
+    const session = await auth()
+    if (!session?.user?.email) throw new Error("Unauthorized")
+
+    const usersSnap = await adminDb.collection('users').where('email', '==', session.user.email).limit(1).get()
+    if (usersSnap.empty) throw new Error("User not found")
+
+    const userRef = adminDb.collection('users').doc(usersSnap.docs[0].id)
+    const existing: string[] = usersSnap.docs[0].data().fcmTokens || []
+
+    if (!existing.includes(token)) {
+        await userRef.update({ fcmTokens: FieldValue.arrayUnion(token) })
+    }
+
+    return { success: true }
+}
+
+export async function removeFcmToken(token: string) {
+    const session = await auth()
+    if (!session?.user?.email) throw new Error("Unauthorized")
+
+    const usersSnap = await adminDb.collection('users').where('email', '==', session.user.email).limit(1).get()
+    if (usersSnap.empty) throw new Error("User not found")
+
+    await adminDb.collection('users').doc(usersSnap.docs[0].id).update({
+        fcmTokens: FieldValue.arrayRemove(token),
+    })
+
+    return { success: true }
 }
 
 export async function createUser(data: { name: string, email: string, role: string }) {

@@ -4,6 +4,8 @@ import { useState } from "react"
 import { Sidebar } from "./Sidebar"
 import { TopNav } from "./TopNav"
 import { cn } from "@/lib/utils"
+import { Toaster } from "@/components/ui/sonner"
+import { PushNotificationListener } from "@/components/PushNotificationListener"
 
 export function AppShell({ children }: { children: React.ReactNode }) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -33,10 +35,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </aside>
             <div className="flex flex-1 flex-col h-full min-h-0 overflow-hidden w-full min-w-0">
                 <TopNav onMenuClick={() => setMobileMenuOpen(true)} />
-                <main className="flex-1 min-h-0 overflow-y-auto bg-muted/20">
+                <main className="flex-1 min-h-0 overflow-y-auto bg-muted/20 safe-bottom">
                     {children}
                 </main>
             </div>
+            <Toaster />
+            <PushNotificationListener />
         </>
     )
 }

@@ -1,6 +1,7 @@
 "use server"
 
 import { adminDb } from "@/lib/firebase-admin";
+import { sendEmailToEligibleUsers, sendPushToEligibleUsers } from "@/lib/notification-dispatch";
 
 function toISO(val: unknown): string | null {
     if (!val) return null;
@@ -86,17 +87,49 @@ export async function createNotification(data: {
     type: string;
     linkUrl?: string;
     taskId?: string;
+    dedupeKey?: string;
+    skipEmail?: boolean;
 }) {
     try {
+        // Dedupe check — if a dedupeKey is provided and a notification with the same key
+        // already exists, skip creation to prevent duplicate reminders
+        if (data.dedupeKey) {
+            const existing = await adminDb.collection('notifications')
+                .where('dedupeKey', '==', data.dedupeKey)
+                .limit(1)
+                .get();
+            if (!existing.empty) {
+                return { success: true, skipped: true };
+            }
+        }
+
         await adminDb.collection('notifications').add({
             title: data.title,
             message: data.message,
             type: data.type,
             linkUrl: data.linkUrl || null,
             taskId: data.taskId || null,
+            dedupeKey: data.dedupeKey || null,
             isRead: false,
             createdAt: new Date()
         });
+
+        const dispatchPayload = {
+            title: data.title,
+            message: data.message,
+            type: data.type,
+            linkUrl: data.linkUrl,
+        };
+
+        // Fire-and-forget email dispatch (non-blocking)
+        if (!data.skipEmail) {
+            sendEmailToEligibleUsers(dispatchPayload)
+                .catch(err => console.error("Email dispatch failed:", err));
+        }
+
+        // Fire-and-forget push dispatch (non-blocking)
+        sendPushToEligibleUsers(dispatchPayload)
+            .catch(err => console.error("Push dispatch failed:", err));
 
         return { success: true };
     } catch (error) {

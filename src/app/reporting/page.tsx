@@ -88,7 +88,7 @@ export default async function ReportingPage() {
                                     </div>
                                 ))
                             ) : (
-                                <div className="flex h-[300px] items-center justify-center border-2 border-dashed rounded-md bg-muted/10">
+                                <div className="flex h-[200px] sm:h-[300px] items-center justify-center border-2 border-dashed rounded-md bg-muted/10">
                                     <p className="text-sm text-muted-foreground">No base data available yet.</p>
                                 </div>
                             )}
@@ -118,7 +118,7 @@ export default async function ReportingPage() {
                                     </div>
                                 ))
                             ) : (
-                                <div className="flex h-[300px] items-center justify-center border-2 border-dashed rounded-md bg-muted/10">
+                                <div className="flex h-[200px] sm:h-[300px] items-center justify-center border-2 border-dashed rounded-md bg-muted/10">
                                     <p className="text-sm text-muted-foreground">No keyword data found.</p>
                                 </div>
                             )}

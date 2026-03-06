@@ -573,9 +573,9 @@ function EventDetailModal({ event, onClose, onNavigate }: {
                 onClick={onClose}
             />
             {/* Slide-over panel */}
-            <div className="fixed right-0 top-0 h-full w-[420px] z-50 flex flex-col bg-card border-l border-white/10 shadow-2xl animate-in slide-in-from-right duration-300">
+            <div className="fixed right-0 top-0 h-full w-full sm:w-[420px] z-50 flex flex-col bg-card border-l border-white/10 shadow-2xl animate-in slide-in-from-right duration-300">
                 {/* Header */}
-                <div className="p-6 border-b border-white/10 flex items-start justify-between gap-4">
+                <div className="p-4 sm:p-6 border-b border-white/10 flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 min-w-0">
                         <div
                             className="mt-1 h-3 w-3 rounded-full shrink-0"
@@ -591,14 +591,14 @@ function EventDetailModal({ event, onClose, onNavigate }: {
                     </div>
                     <button
                         onClick={onClose}
-                        className="h-7 w-7 rounded-lg flex items-center justify-center hover:bg-white/10 transition-colors shrink-0"
+                        className="h-10 w-10 sm:h-7 sm:w-7 rounded-lg flex items-center justify-center hover:bg-white/10 transition-colors shrink-0"
                     >
                         <X className="h-4 w-4 text-muted-foreground" />
                     </button>
                 </div>
 
                 {/* Body */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
                     {/* Date & Time */}
                     <div className="rounded-2xl bg-muted/20 border border-white/5 p-4 space-y-3">
                         <div className="flex items-center gap-3">
@@ -644,7 +644,7 @@ function EventDetailModal({ event, onClose, onNavigate }: {
 
                 {/* Footer with navigation action */}
                 {event.navigationUrl && (
-                    <div className="p-6 border-t border-white/10">
+                    <div className="p-4 sm:p-6 border-t border-white/10">
                         <Button
                             className="w-full h-11 gap-3 font-black tracking-wide shadow-lg"
                             style={{ backgroundColor: event.color, color: "white" }}

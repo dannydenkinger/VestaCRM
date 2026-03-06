@@ -25,7 +25,8 @@ import {
 } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
-import { getPipelines, bulkCreateOpportunities, deleteOpportunity, updateOpportunity, getBaseNames, getUsers, createNewDeal, markOpportunitySeen } from "./actions"
+import { getPipelines, bulkCreateOpportunities, deleteOpportunity, updateOpportunity, getBaseNames, getUsers, createNewDeal, markOpportunitySeen, updateRequiredDocs, moveToLeaseSigned, autoAdvanceOpportunities, runStayReminders } from "./actions"
+import { getAutomationSettings } from "@/app/settings/automations/actions"
 import { getContactsList, getContactTimeline, createNote, deleteNote, type TimelineItem } from "@/app/contacts/actions"
 import { getSpecialAccommodations } from "@/app/settings/system-properties/actions"
 import { getPipelinePrioritySettings } from "@/app/settings/pipeline/actions"
@@ -199,6 +200,19 @@ function PipelineContent() {
         getUsers().then(res => { if (res.success) setAllUsers(res.users || []); });
         getSpecialAccommodations().then(res => { if (res.success) setSpecialAccommodations(res.items || []); });
         getPipelinePrioritySettings().then(res => { if (res.success && res.settings) setPriorityRanges(res.settings); });
+
+        // Auto-advance opportunities if enabled
+        getAutomationSettings().then(async (res) => {
+            if (res.success && res.settings?.autoAdvanceEnabled) {
+                const advRes = await autoAdvanceOpportunities();
+                if (advRes.success && advRes.advancedCount && advRes.advancedCount > 0) {
+                    fetchPipelines(); // Refresh to show moved deals
+                }
+            }
+        });
+
+        // Check-in/check-out reminders
+        runStayReminders();
     }, []);
 
     // Auto-open deal from ?deal= query param (notification/calendar link) — only once per dealId, then clear URL
@@ -482,6 +496,7 @@ function PipelineContent() {
     }
 
     const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban")
+    const [mobileSelectedStage, setMobileSelectedStage] = useState<string>("")
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null)
 
     // View Options State
@@ -495,6 +510,14 @@ function PipelineContent() {
 
     const currentPipeline = pipelines[activePipelineKey] || { name: "", stages: [], deals: [] }
     const pipelineKeys = Object.keys(pipelines)
+
+    // Default mobile stage to first stage when pipeline loads
+    useEffect(() => {
+        if (currentPipeline.stages.length > 0 && !mobileSelectedStage) {
+            const first = currentPipeline.stages[0];
+            setMobileSelectedStage(typeof first === 'string' ? first : first.name);
+        }
+    }, [currentPipeline.stages, mobileSelectedStage]);
 
     const sortedDeals = useMemo(() => {
         const sortableDeals = [...currentPipeline.deals];
@@ -535,7 +558,7 @@ function PipelineContent() {
                         <h2 className="text-2xl sm:text-3xl font-bold tracking-tight truncate">Opportunities</h2>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" className="gap-2 h-8 mt-1 border border-border/60 bg-muted/20 font-medium text-muted-foreground hover:text-foreground" disabled={isLoading}>
+                            <Button variant="outline" size="sm" className="gap-2 h-8 min-h-[44px] sm:min-h-0 mt-1 border border-border/60 bg-muted/20 font-medium text-muted-foreground hover:text-foreground" disabled={isLoading}>
                                 {isLoading ? (
                                     <Skeleton className="h-4 w-24" />
                                 ) : (
@@ -567,12 +590,13 @@ function PipelineContent() {
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 overflow-x-auto no-scrollbar">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" className="touch-manipulation">
+                            <Button variant="outline" size="sm" className="touch-manipulation min-h-[44px] sm:min-h-0 shrink-0">
                                 <ListFilter className="mr-2 h-4 w-4" />
-                                View Options
+                                <span className="hidden sm:inline">View Options</span>
+                                <span className="sm:hidden">View</span>
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
@@ -602,24 +626,25 @@ function PipelineContent() {
                         </DropdownMenuContent>
                     </DropdownMenu>
 
-                    <div className="flex bg-muted/60 p-1 rounded-md items-center">
-                        <Button variant={viewMode === "kanban" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("kanban")} className="h-7 px-2.5 shadow-none">
+                    <div className="flex bg-muted/60 p-1 rounded-md items-center shrink-0">
+                        <Button variant={viewMode === "kanban" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("kanban")} className="h-9 sm:h-7 px-3 sm:px-2.5 min-h-[44px] sm:min-h-0 shadow-none">
                             <LayoutGrid className="h-4 w-4" />
                         </Button>
-                        <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("list")} className="h-7 px-2.5 shadow-none">
+                        <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("list")} className="h-9 sm:h-7 px-3 sm:px-2.5 min-h-[44px] sm:min-h-0 shadow-none">
                             <ListIcon className="h-4 w-4" />
                         </Button>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setIsImportDialogOpen(true)}>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <Button variant="outline" size="sm" onClick={() => setIsImportDialogOpen(true)} className="hidden sm:flex">
                             <Upload className="mr-2 h-4 w-4" />
                             Import CSV
                         </Button>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button size="sm">
+                                <Button size="sm" className="min-h-[44px] sm:min-h-0">
                                     <Plus className="mr-2 h-4 w-4" />
-                                    Add Opportunity
+                                    <span className="hidden sm:inline">Add Opportunity</span>
+                                    <span className="sm:hidden">Add</span>
                                     <ChevronDown className="ml-2 h-3.5 w-3.5 opacity-70" />
                                 </Button>
                             </DropdownMenuTrigger>
@@ -785,7 +810,72 @@ function PipelineContent() {
                         </div>
                     )
                 ) : viewMode === "kanban" ? (
-                    <div className="flex min-h-[400px] sm:min-h-[calc(100vh-220px)] h-[400px] sm:h-[calc(100vh-220px)] gap-3 sm:gap-4 pb-4 w-max">
+                    <>
+                    {/* Mobile kanban: stage pill selector + card list */}
+                    <div className="md:hidden flex flex-col h-full min-h-0">
+                        <div className="flex gap-2 overflow-x-auto no-scrollbar px-1 py-2 shrink-0">
+                            {currentPipeline.stages.map((stage: any) => {
+                                const stageName = typeof stage === 'string' ? stage : stage.name;
+                                const stageDeals = currentPipeline.deals.filter((d: any) => d.stage === stageName);
+                                return (
+                                    <button
+                                        key={stageName}
+                                        onClick={() => setMobileSelectedStage(stageName)}
+                                        className={`shrink-0 px-4 py-2 rounded-full text-xs font-semibold min-h-[44px] touch-manipulation transition-colors ${mobileSelectedStage === stageName
+                                            ? "bg-primary text-primary-foreground"
+                                            : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}
+                                    >
+                                        {stageName}
+                                        <span className="ml-1.5 text-[10px] opacity-70">({stageDeals.length})</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div className="flex-1 overflow-y-auto px-1 space-y-3 pb-4">
+                            {currentPipeline.deals
+                                .filter((d: any) => d.stage === mobileSelectedStage)
+                                .map((deal: any) => {
+                                    const isNewInquiry = deal.unread === true;
+                                    return (
+                                        <div
+                                            key={deal.id}
+                                            onClick={() => openDeal(deal)}
+                                            className={`bg-card border rounded-xl p-4 shadow-sm flex flex-col gap-3 touch-manipulation active:scale-[0.98] transition-all ${isNewInquiry ? "border-primary/80 ring-2 ring-primary bg-primary/10" : "border-border/60"}`}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <Avatar className="h-10 w-10 border-2 border-background shadow-sm shrink-0">
+                                                        <AvatarFallback className="bg-gradient-to-br from-slate-700 to-slate-900 text-white text-xs font-medium">{(deal.name || "?").slice(0, 2).toUpperCase()}</AvatarFallback>
+                                                    </Avatar>
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-semibold text-sm truncate">{deal.name}</span>
+                                                            {isNewInquiry && <Badge className="shrink-0 text-[10px] font-bold bg-primary text-primary-foreground border-0 px-1.5 py-0">New</Badge>}
+                                                        </div>
+                                                        {showBase && <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><MapPin className="h-3 w-3" />{deal.base}</span>}
+                                                    </div>
+                                                </div>
+                                                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                                            </div>
+                                            {(showValue || showDates) && (
+                                                <div className="flex items-center justify-between text-xs text-muted-foreground border-t border-border/50 pt-2">
+                                                    {showValue && <span className="font-mono font-semibold text-foreground">${deal.value.toLocaleString()}</span>}
+                                                    {showDates && <span>{formatDisplayDate(deal.startDate)}{showEndDate ? ` — ${formatDisplayDate(deal.endDate)}` : ""}</span>}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            {currentPipeline.deals.filter((d: any) => d.stage === mobileSelectedStage).length === 0 && (
+                                <div className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-muted-foreground/20 rounded-xl text-muted-foreground bg-muted/10">
+                                    <span className="text-xs font-medium">No deals in this stage</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Desktop kanban */}
+                    <div className="hidden md:flex min-h-[calc(100vh-220px)] h-[calc(100vh-220px)] gap-4 pb-4 w-max">
                         {currentPipeline.stages.map((stage: any, index: number) => {
                             const isString = typeof stage === 'string';
                             const stageName = isString ? stage : stage.name;
@@ -961,8 +1051,49 @@ function PipelineContent() {
                             )
                         })}
                     </div>
+                    </>
                 ) : (
-                    <div className="rounded-md border bg-card/50">
+                    <>
+                    {/* Mobile list: card view */}
+                    <div className="md:hidden space-y-2">
+                        {sortedDeals.map((deal: any) => {
+                            const isNewInquiry = deal.unread === true;
+                            return (
+                                <div
+                                    key={deal.id}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => openDeal(deal)}
+                                    className={`flex items-center gap-3 p-4 rounded-xl border bg-card min-h-[56px] touch-manipulation active:bg-muted/50 transition-colors ${isNewInquiry ? "border-primary/60 bg-primary/5" : "border-border/60"}`}
+                                >
+                                    <Avatar className="h-10 w-10 shrink-0">
+                                        <AvatarFallback className="text-sm bg-primary/10 text-primary font-bold">
+                                            {(deal.name || "?").slice(0, 2).toUpperCase()}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-medium truncate">{deal.name}</span>
+                                            {isNewInquiry && <Badge className="shrink-0 text-[10px] bg-primary text-primary-foreground border-0 px-1.5 py-0">New</Badge>}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground truncate">
+                                            {deal.base || "No base"} &bull; ${deal.value.toLocaleString()}
+                                        </p>
+                                    </div>
+                                    <Badge variant="secondary" className="shrink-0 text-[10px]">{deal.stage}</Badge>
+                                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                                </div>
+                            );
+                        })}
+                        {sortedDeals.length === 0 && (
+                            <div className="flex items-center justify-center h-24 border-2 border-dashed rounded-xl text-muted-foreground text-xs font-medium">
+                                No deals found in this pipeline.
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Desktop list: table view */}
+                    <div className="hidden md:block rounded-md border bg-card/50">
                         <Table>
                             <TableHeader className="bg-muted/50">
                                 <TableRow>
@@ -1042,6 +1173,7 @@ function PipelineContent() {
                             </TableBody>
                         </Table>
                     </div>
+                    </>
                 )}
             </div>
 
@@ -1066,14 +1198,14 @@ function PipelineContent() {
                 <SheetContent className="sm:max-w-xl w-full p-0 flex flex-col gap-0 border-l border-border/50 shadow-2xl">
                     {selectedDeal && (
                         <>
-                            <div className="p-6 bg-muted/30 border-b">
+                            <div className="p-4 sm:p-6 bg-muted/30 border-b">
                                 <div className="flex items-start justify-between mb-4">
-                                    <div className="flex items-center gap-4">
-                                        <Avatar className="h-16 w-16 border-2 border-background shadow-sm">
-                                            <AvatarFallback className="text-xl bg-primary/10 text-primary">{(selectedDeal.name || "?").slice(0, 2).toUpperCase()}</AvatarFallback>
+                                    <div className="flex items-center gap-3 sm:gap-4">
+                                        <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-background shadow-sm">
+                                            <AvatarFallback className="text-lg sm:text-xl bg-primary/10 text-primary">{(selectedDeal.name || "?").slice(0, 2).toUpperCase()}</AvatarFallback>
                                         </Avatar>
                                         <div>
-                                            <SheetTitle className="text-2xl">{selectedDeal.name || "New opportunity"}</SheetTitle>
+                                            <SheetTitle className="text-xl sm:text-2xl">{selectedDeal.name || "New opportunity"}</SheetTitle>
                                             <SheetDescription className="flex items-center gap-2 mt-1">
                                                 <Badge variant="outline" className="font-normal">{selectedDeal.stage}</Badge>
                                                 <span className="text-xs text-muted-foreground">in Pipeline</span>
@@ -1085,7 +1217,7 @@ function PipelineContent() {
                                     </Button>
                                 </div>
 
-                                <div className="flex items-center gap-6 mt-6">
+                                <div className="flex items-center gap-3 sm:gap-6 mt-4 sm:mt-6">
                                     <Button size="sm" className="w-full">
                                         <Phone className="mr-2 h-4 w-4" />
                                         Call
@@ -1099,21 +1231,21 @@ function PipelineContent() {
 
                             <div className="flex-1 overflow-y-auto">
                                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full h-full flex flex-col">
-                                    <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-6 h-12">
-                                        <TabsTrigger value="details" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 h-full">Details</TabsTrigger>
-                                        <TabsTrigger value="notes" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 h-full">Notes</TabsTrigger>
-                                        <TabsTrigger value="timeline" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 h-full">Timeline</TabsTrigger>
-                                        <TabsTrigger value="documents" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 h-full">Documents</TabsTrigger>
+                                    <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-3 sm:px-6 h-12">
+                                        <TabsTrigger value="details" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-2.5 sm:px-4 h-full text-xs sm:text-sm">Details</TabsTrigger>
+                                        <TabsTrigger value="notes" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-2.5 sm:px-4 h-full text-xs sm:text-sm">Notes</TabsTrigger>
+                                        <TabsTrigger value="timeline" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-2.5 sm:px-4 h-full text-xs sm:text-sm">Timeline</TabsTrigger>
+                                        <TabsTrigger value="documents" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-2.5 sm:px-4 h-full text-xs sm:text-sm">Docs</TabsTrigger>
                                     </TabsList>
 
-                                    <TabsContent value="details" className="flex-1 p-6 m-0 outline-none space-y-8 overflow-y-auto">
+                                    <TabsContent value="details" className="flex-1 p-4 sm:p-6 m-0 outline-none space-y-8 overflow-y-auto">
                                         {/* Contact Info */}
                                         <div className="space-y-4">
                                             <div className="flex items-center justify-between">
                                                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Contact Information</h3>
                                                 <Button variant="outline" size="sm">Edit</Button>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-4 sm:gap-x-8 text-sm">
                                                 <div className="space-y-1 col-span-2">
                                                     <span className="text-muted-foreground text-xs">Full Name</span>
                                                     <Input 
@@ -1166,7 +1298,7 @@ function PipelineContent() {
                                             <div className="flex items-center justify-between">
                                                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Stay Details</h3>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-4 sm:gap-x-8 text-sm">
                                                 <div className="space-y-1">
                                                     <span className="text-muted-foreground text-xs">Check-in Date</span>
                                                     <div className="relative">
@@ -1394,7 +1526,7 @@ function PipelineContent() {
                                         </div>
                                     </TabsContent>
 
-                                    <TabsContent value="notes" className="flex-1 p-6 m-0 outline-none flex flex-col h-full">
+                                    <TabsContent value="notes" className="flex-1 p-4 sm:p-6 m-0 outline-none flex flex-col h-full">
                                         {!selectedDeal.contactId ? (
                                             <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
                                                 <FileText className="h-10 w-10 opacity-50" />
@@ -1480,7 +1612,7 @@ function PipelineContent() {
                                         )}
                                     </TabsContent>
 
-                                    <TabsContent value="timeline" className="flex-1 p-6 m-0 outline-none overflow-y-auto">
+                                    <TabsContent value="timeline" className="flex-1 p-4 sm:p-6 m-0 outline-none overflow-y-auto">
                                         <div className="relative space-y-6 before:absolute before:inset-0 before:ml-5 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-border before:via-border before:to-transparent">
                                             {!selectedDeal.contactId ? (
                                                 <div className="ml-14 py-8 text-sm text-muted-foreground">Link a contact to this opportunity to see the timeline.</div>
@@ -1560,54 +1692,62 @@ function PipelineContent() {
                                         </div>
                                     </TabsContent>
 
-                                    <TabsContent value="documents" className="flex-1 p-6 m-0 outline-none overflow-y-auto space-y-6">
+                                    <TabsContent value="documents" className="flex-1 p-4 sm:p-6 m-0 outline-none overflow-y-auto space-y-6">
                                         <div className="space-y-4">
                                             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Required Documentation</h3>
-                                            <p className="text-xs text-muted-foreground">Track the status of the three mandatory forms required for booking.</p>
+                                            <p className="text-xs text-muted-foreground">Check off each document once it has been uploaded and verified.</p>
                                             <div className="space-y-3">
-                                                <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`flex items-center justify-center h-8 w-8 rounded-full ${selectedDeal.forms?.lease ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"}`}>
-                                                            {selectedDeal.forms?.lease ? <CheckCircle2 className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm font-medium">Homeowner Lease</p>
-                                                            <p className="text-xs text-muted-foreground">{selectedDeal.forms?.lease ? "Signed" : "Awaiting signature"}</p>
-                                                        </div>
-                                                    </div>
-                                                    <Button size="sm" variant={selectedDeal.forms?.lease ? "outline" : "default"}>
-                                                        {selectedDeal.forms?.lease ? "View" : "Send"}
-                                                    </Button>
-                                                </div>
-                                                <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`flex items-center justify-center h-8 w-8 rounded-full ${selectedDeal.forms?.tc ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"}`}>
-                                                            {selectedDeal.forms?.tc ? <CheckCircle2 className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm font-medium">Terms & Conditions</p>
-                                                            <p className="text-xs text-muted-foreground">{selectedDeal.forms?.tc ? "Signed" : "Awaiting signature"}</p>
-                                                        </div>
-                                                    </div>
-                                                    <Button size="sm" variant={selectedDeal.forms?.tc ? "outline" : "default"}>
-                                                        {selectedDeal.forms?.tc ? "View" : "Send"}
-                                                    </Button>
-                                                </div>
-                                                <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`flex items-center justify-center h-8 w-8 rounded-full ${selectedDeal.forms?.payment ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"}`}>
-                                                            {selectedDeal.forms?.payment ? <CheckCircle2 className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm font-medium">Payment Authorization</p>
-                                                            <p className="text-xs text-muted-foreground">{selectedDeal.forms?.payment ? "Signed" : "Awaiting signature"}</p>
-                                                        </div>
-                                                    </div>
-                                                    <Button size="sm" variant={selectedDeal.forms?.payment ? "outline" : "default"}>
-                                                        {selectedDeal.forms?.payment ? "View" : "Send"}
-                                                    </Button>
-                                                </div>
+                                                {[
+                                                    { key: "lease" as const, label: "Homeowner Lease" },
+                                                    { key: "tc" as const, label: "Terms & Conditions" },
+                                                    { key: "payment" as const, label: "Payment Authorization" },
+                                                ].map((doc) => {
+                                                    const isChecked = selectedDeal.requiredDocs?.[doc.key] ?? false;
+                                                    return (
+                                                        <label key={doc.key} className="flex items-center gap-3 p-4 rounded-lg border bg-card cursor-pointer hover:bg-muted/30 transition-colors">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isChecked}
+                                                                onChange={async (e) => {
+                                                                    const val = e.target.checked;
+                                                                    setSelectedDeal((prev: any) => prev ? {
+                                                                        ...prev,
+                                                                        requiredDocs: { ...prev.requiredDocs, [doc.key]: val }
+                                                                    } : null);
+                                                                    if (selectedDeal.id !== "new") {
+                                                                        await updateRequiredDocs(selectedDeal.id, doc.key, val);
+                                                                    }
+                                                                }}
+                                                                className="h-5 w-5 rounded border-2 border-muted-foreground/30 text-primary accent-primary cursor-pointer"
+                                                            />
+                                                            <div className="flex items-center gap-3 flex-1">
+                                                                <div className={`flex items-center justify-center h-8 w-8 rounded-full ${isChecked ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"}`}>
+                                                                    {isChecked ? <CheckCircle2 className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+                                                                </div>
+                                                                <div>
+                                                                    <p className={`text-sm font-medium ${isChecked ? "line-through text-muted-foreground" : ""}`}>{doc.label}</p>
+                                                                    <p className="text-xs text-muted-foreground">{isChecked ? "Uploaded" : "Awaiting upload"}</p>
+                                                                </div>
+                                                            </div>
+                                                        </label>
+                                                    );
+                                                })}
                                             </div>
+                                            {selectedDeal.requiredDocs?.lease && selectedDeal.requiredDocs?.tc && selectedDeal.requiredDocs?.payment && selectedDeal.id !== "new" && (
+                                                <Button
+                                                    className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                                                    onClick={async () => {
+                                                        const res = await moveToLeaseSigned(selectedDeal.id);
+                                                        if (res.success) {
+                                                            setSelectedDeal((prev: any) => prev ? { ...prev, stage: "Lease Signed" } : null);
+                                                            fetchPipelines();
+                                                        }
+                                                    }}
+                                                >
+                                                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                                                    Move to Lease Signed
+                                                </Button>
+                                            )}
                                         </div>
                                         <Separator />
                                         {selectedDeal.contactId ? (

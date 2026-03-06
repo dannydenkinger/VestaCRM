@@ -145,7 +145,7 @@ export default function CommunicationsPage() {
                                     placeholder="Search conversations..."
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
-                                    className="h-8 pl-8 text-sm"
+                                    className="h-8 pl-8 text-sm min-h-[44px] sm:min-h-0"
                                 />
                             </div>
                             <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={startNewConversation}>

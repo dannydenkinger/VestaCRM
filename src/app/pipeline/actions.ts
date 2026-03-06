@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebase-admin";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { createNotification } from "@/app/notifications/actions";
+import { checkStayReminders } from "@/lib/reminders";
 
 export async function getPipelines() {
     // Normalize Firestore Timestamp/Date to ISO string (plain-object safe for RSC serialization)
@@ -116,6 +117,7 @@ export async function getPipelines() {
             return {
                 id: doc.id,
                 pipelineId: pipelineId || null,
+                pipelineStageId: data.pipelineStageId || null,
                 contactId: data.contactId || null,
                 name: contact?.name || data.name || "Unknown",
                 email: contact?.email || data.email || null,
@@ -141,6 +143,11 @@ export async function getPipelines() {
                 notes: notes || null,
                 reasonForStay: data.reasonForStay || null,
                 specialAccommodationLabels: Array.isArray(data.specialAccommodationLabels) ? data.specialAccommodationLabels : [],
+                requiredDocs: {
+                    lease: data.requiredDocs?.lease ?? false,
+                    tc: data.requiredDocs?.tc ?? false,
+                    payment: data.requiredDocs?.payment ?? false,
+                },
                 createdAt: toISO(data.createdAt),
                 updatedAt: toISO(data.updatedAt)
             };
@@ -625,5 +632,142 @@ export async function getUsers() {
         return { success: true, users };
     } catch {
         return { success: true, users: [] };
+    }
+}
+
+export async function updateRequiredDocs(opportunityId: string, field: "lease" | "tc" | "payment", value: boolean) {
+    try {
+        await adminDb.collection('opportunities').doc(opportunityId).update({
+            [`requiredDocs.${field}`]: value,
+            updatedAt: new Date()
+        });
+        revalidatePath("/pipeline");
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to update required docs:", error);
+        return { success: false, error: "Failed to update required docs" };
+    }
+}
+
+export async function moveToLeaseSigned(opportunityId: string) {
+    try {
+        // Find the opportunity to get its pipeline
+        const oppDoc = await adminDb.collection('opportunities').doc(opportunityId).get();
+        if (!oppDoc.exists) return { success: false, error: "Opportunity not found" };
+
+        const oppData = oppDoc.data()!;
+        const currentStageId = oppData.pipelineStageId;
+
+        // Find which pipeline this belongs to
+        const pipelines = await adminDb.collection('pipelines').get();
+        let leaseSignedStageId: string | null = null;
+
+        for (const pDoc of pipelines.docs) {
+            const stages = await pDoc.ref.collection('stages').get();
+            const hasCurrentStage = stages.docs.some(s => s.id === currentStageId);
+            if (hasCurrentStage) {
+                const leaseStage = stages.docs.find(s => s.data().name === "Lease Signed");
+                if (leaseStage) leaseSignedStageId = leaseStage.id;
+                break;
+            }
+        }
+
+        if (!leaseSignedStageId) return { success: false, error: "Lease Signed stage not found in this pipeline" };
+
+        await adminDb.collection('opportunities').doc(opportunityId).update({
+            pipelineStageId: leaseSignedStageId,
+            updatedAt: new Date()
+        });
+
+        revalidatePath("/pipeline");
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to move to Lease Signed:", error);
+        return { success: false, error: "Failed to move to Lease Signed" };
+    }
+}
+
+export async function autoAdvanceOpportunities() {
+    try {
+        const now = new Date();
+        const today = now.toISOString().split("T")[0];
+
+        // Get all pipelines and find "Lease Signed", "Move In Scheduled", and "Current Tenant" stages
+        const pipelinesSnap = await adminDb.collection('pipelines').get();
+
+        let advancedCount = 0;
+
+        for (const pDoc of pipelinesSnap.docs) {
+            const stagesSnap = await pDoc.ref.collection('stages').get();
+            const stageMap = new Map<string, { id: string; name: string }>();
+            stagesSnap.docs.forEach(s => stageMap.set(s.id, { id: s.id, name: s.data().name }));
+
+            const triggerStageIds = new Set<string>();
+            let currentTenantStageId: string | null = null;
+
+            for (const [id, stage] of stageMap) {
+                const nameLower = stage.name.toLowerCase();
+                if (nameLower === "lease signed" || nameLower === "move in scheduled") {
+                    triggerStageIds.add(id);
+                }
+                if (nameLower === "current tenant") {
+                    currentTenantStageId = id;
+                }
+            }
+
+            if (triggerStageIds.size === 0 || !currentTenantStageId) continue;
+
+            // Find opportunities in these stages
+            for (const stageId of triggerStageIds) {
+                const oppsSnap = await adminDb.collection('opportunities')
+                    .where('pipelineStageId', '==', stageId)
+                    .get();
+
+                for (const oppDoc of oppsSnap.docs) {
+                    const data = oppDoc.data();
+                    let startDate = data.stayStartDate;
+
+                    // Try contact fallback if no direct start date
+                    if (!startDate && data.contactId) {
+                        const contactDoc = await adminDb.collection('contacts').doc(data.contactId).get();
+                        if (contactDoc.exists) {
+                            startDate = contactDoc.data()?.stayStartDate;
+                        }
+                    }
+
+                    if (!startDate) continue;
+
+                    // Normalize to YYYY-MM-DD for comparison
+                    const startStr = typeof startDate === 'string'
+                        ? startDate.split("T")[0]
+                        : startDate.toDate ? startDate.toDate().toISOString().split("T")[0]
+                        : null;
+
+                    if (startStr && startStr <= today) {
+                        await oppDoc.ref.update({
+                            pipelineStageId: currentTenantStageId,
+                            updatedAt: new Date()
+                        });
+                        advancedCount++;
+                    }
+                }
+            }
+        }
+
+        revalidatePath("/pipeline");
+        return { success: true, advancedCount };
+    } catch (error) {
+        console.error("Failed to auto-advance opportunities:", error);
+        return { success: false, error: "Failed to auto-advance opportunities" };
+    }
+}
+
+export async function runStayReminders() {
+    try {
+        const result = await checkStayReminders();
+        return { success: true, ...result };
+    } catch (error) {
+        console.error("Failed to run stay reminders:", error);
+        return { success: false };
     }
 }

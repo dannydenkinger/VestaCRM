@@ -97,7 +97,7 @@ export function CreateTaskDialog({ isOpen, onClose, onSaved, initialData, initia
             dueDate: dueDate ? new Date(dueDate) : undefined,
             priority
         }
-        if (contactId) taskData.contactId = contactId
+        if (contactId && contactId !== "none") taskData.contactId = contactId
         else taskData.contactId = null
 
         try {
@@ -173,7 +173,7 @@ export function CreateTaskDialog({ isOpen, onClose, onSaved, initialData, initia
                                 <SelectValue placeholder="None" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">None</SelectItem>
+                                <SelectItem value="none">None</SelectItem>
                                 {contacts.map(c => (
                                     <SelectItem key={c.id} value={c.id}>{c.name} {c.email ? `(${c.email})` : ''}</SelectItem>
                                 ))}

@@ -84,10 +84,10 @@ export function TopNav({ onMenuClick }: { onMenuClick?: () => void }) {
     }
 
     return (
-        <header className="flex h-14 sm:h-16 items-center gap-2 sm:gap-4 border-b bg-background px-3 sm:px-6">
+        <header className="flex h-14 sm:h-16 items-center gap-2 sm:gap-4 border-b bg-background px-3 sm:px-6 safe-top">
             <div className="flex flex-1 items-center gap-2 sm:gap-4 min-w-0">
                 {onMenuClick && (
-                    <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 md:hidden touch-manipulation" onClick={onMenuClick} aria-label="Open menu">
+                    <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0 md:hidden touch-manipulation" onClick={onMenuClick} aria-label="Open menu">
                         <Menu className="h-5 w-5" />
                     </Button>
                 )}
@@ -101,7 +101,7 @@ export function TopNav({ onMenuClick }: { onMenuClick?: () => void }) {
 
                 <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="relative">
+                        <Button variant="ghost" size="icon" className="relative h-11 w-11">
                             <Bell className="h-5 w-5" />
                             {unreadCount > 0 && (
                                 <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center">
@@ -114,7 +114,7 @@ export function TopNav({ onMenuClick }: { onMenuClick?: () => void }) {
                             <span className="sr-only">Toggle notifications</span>
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-96">
+                    <DropdownMenuContent align="end" className="w-[calc(100vw-2rem)] sm:w-96">
                         <div className="flex items-center justify-between px-3 py-2">
                             <DropdownMenuLabel className="p-0">Notifications</DropdownMenuLabel>
                             {unreadCount > 0 && (

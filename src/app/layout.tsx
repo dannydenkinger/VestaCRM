@@ -11,6 +11,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "AFCrashpad CRM",
   description: "Custom GoHighLevel-style CRM for Air Force Crashpad",
+  manifest: "/manifest.json",
 };
 
 export const viewport: Viewport = {

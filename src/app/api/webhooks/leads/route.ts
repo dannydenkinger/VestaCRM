@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
+import { sendEmail } from '@/lib/email';
+import { createNotification } from '@/app/notifications/actions';
 import * as z from 'zod';
 import { calculateOnBaseLodging, lodgingData } from '@/lib/calculators/on-base';
 
@@ -284,23 +286,89 @@ export async function POST(req: Request) {
             });
         }
 
-        // 8. Create a notification
-        await adminDb.collection('notifications').add({
+        // 8. Create a notification (in-app + email dispatch)
+        await createNotification({
             title: "New Website Inquiry",
             message: `${finalName}${baseName ? ` • ${baseName}` : ""}`,
             type: "opportunity",
             linkUrl: `/pipeline?deal=${oppRef.id}`,
-            taskId: null,
-            isRead: false,
-            createdAt: new Date(),
-            updatedAt: new Date()
         });
 
-        return NextResponse.json({ 
-            success: true, 
+        // 9. Auto-reply email if enabled
+        let autoReplySent = false;
+        try {
+            const settingsDoc = await adminDb.collection('settings').doc('automations').get();
+            const autoSettings = settingsDoc.exists ? settingsDoc.data() : null;
+
+            if (autoSettings?.autoReplyEnabled && autoSettings?.autoReplyTemplateId && data.email) {
+                const templateDoc = await adminDb.collection('email_templates').doc(autoSettings.autoReplyTemplateId).get();
+                if (templateDoc.exists) {
+                    const template = templateDoc.data()!;
+                    // Replace template variables
+                    const replyBody = (template.body || "")
+                        .replace(/\{\{name\}\}/g, finalName)
+                        .replace(/\{\{base\}\}/g, baseName || "your requested location");
+                    const replySubject = (template.subject || "")
+                        .replace(/\{\{name\}\}/g, finalName)
+                        .replace(/\{\{base\}\}/g, baseName || "your requested location");
+
+                    // Build original inquiry summary for the email
+                    const inquiryParts: string[] = [];
+                    if (finalName) inquiryParts.push(`<strong>Name:</strong> ${finalName}`);
+                    inquiryParts.push(`<strong>Email:</strong> ${data.email}`);
+                    if (data.phone) inquiryParts.push(`<strong>Phone:</strong> ${data.phone}`);
+                    if (baseName) inquiryParts.push(`<strong>Base:</strong> ${baseName}`);
+                    if (startYmd) inquiryParts.push(`<strong>Arrival:</strong> ${startYmd}`);
+                    if (endYmd) inquiryParts.push(`<strong>Departure:</strong> ${endYmd}`);
+                    if (data.reason_for_stay) inquiryParts.push(`<strong>Reason for Stay:</strong> ${data.reason_for_stay}`);
+                    if (data.notes) inquiryParts.push(`<strong>Notes:</strong> ${data.notes}`);
+
+                    const replyBodyHtml = replyBody.replace(/\n/g, "<br>");
+
+                    const emailHtml = `
+                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                            <div style="padding: 24px;">
+                                ${replyBodyHtml}
+                            </div>
+                            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+                            <div style="padding: 16px 24px; background-color: #f9fafb; border-radius: 8px; margin: 0 24px 24px;">
+                                <p style="margin: 0 0 12px; font-weight: 600; color: #374151;">Your Original Inquiry:</p>
+                                <div style="font-size: 14px; color: #6b7280; line-height: 1.6;">
+                                    ${inquiryParts.join("<br>")}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    // Send the actual email via Resend
+                    await sendEmail({
+                        to: data.email,
+                        subject: replySubject,
+                        html: emailHtml,
+                    });
+
+                    // Log the auto-reply as an outbound message in the contact's communications
+                    await adminDb.collection('contacts').doc(contactId).collection('messages').add({
+                        type: "email",
+                        direction: "OUTBOUND",
+                        content: `Subject: ${replySubject}\n\n${replyBody}\n\n--- Original Inquiry ---\n${inquiryParts.map(p => p.replace(/<[^>]*>/g, "")).join("\n")}`,
+                        source: "auto-reply",
+                        createdAt: new Date(),
+                    });
+
+                    autoReplySent = true;
+                }
+            }
+        } catch (autoReplyErr) {
+            console.error("Auto-reply failed (non-blocking):", autoReplyErr);
+        }
+
+        return NextResponse.json({
+            success: true,
             message: 'Lead created successfully',
             contactId: contactId,
-            opportunityId: oppRef.id
+            opportunityId: oppRef.id,
+            autoReplySent,
         }, { status: 200 });
 
     } catch (error: any) {

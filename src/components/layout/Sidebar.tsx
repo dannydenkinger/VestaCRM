@@ -71,7 +71,7 @@ export function Sidebar({ onNavigate, className, mobileCollapsed }: SidebarProps
     const widthClass = showCollapsed ? "w-[72px] px-2 py-6" : "w-64 px-4 py-6"
 
     return (
-        <div className={cn("relative flex flex-col h-full bg-background transition-all duration-300", widthClass, className)}>
+        <div className={cn("relative flex flex-col h-full bg-background transition-all duration-300 safe-top safe-bottom", widthClass, className)}>
             {/* Mobile: close button; Desktop: collapse toggle */}
             {onNavigate ? (
                 <Button variant="ghost" size="icon" className="absolute right-2 top-6 h-10 w-10 md:hidden touch-manipulation" onClick={onNavigate} aria-label="Close menu">

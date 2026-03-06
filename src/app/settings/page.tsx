@@ -15,6 +15,7 @@ import { StatusManager } from "./system-properties/StatusManager"
 import { SpecialAccommodationsManager } from "./system-properties/SpecialAccommodationsManager"
 import AutomationsContent from "./automations/AutomationsTab"
 import { PipelinePrioritySettings } from "./pipeline/PipelinePrioritySettings"
+import { NotificationPreferences } from "./NotificationPreferences"
 
 export default async function SettingsPage() {
     const session = await auth()
@@ -51,11 +52,18 @@ export default async function SettingsPage() {
     let users: any[] = [];
     if (isOwnerOrAdmin) {
         const usersSnap = await adminDb.collection('users').orderBy('createdAt', 'desc').get();
-        users = usersSnap.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt?.toDate ? doc.data().createdAt.toDate() : doc.data().createdAt
-        }));
+        users = usersSnap.docs.map(doc => {
+            const d = doc.data();
+            const ts = d.createdAt;
+            const createdAt = ts?.toDate ? ts.toDate().toISOString() : (ts instanceof Date ? ts.toISOString() : ts || null);
+            return {
+                id: doc.id,
+                name: d.name || null,
+                email: d.email || '',
+                role: d.role || 'AGENT',
+                createdAt,
+            };
+        });
     }
 
     return (
@@ -69,26 +77,26 @@ export default async function SettingsPage() {
                 </div>
 
                 <Tabs defaultValue="profile" className="w-full space-y-6">
-                    <TabsList className="bg-muted/50 p-1 flex flex-wrap h-auto gap-1">
-                    <TabsTrigger value="profile" className="flex items-center gap-2 px-6">
+                    <TabsList className="bg-muted/50 p-1 flex overflow-x-auto no-scrollbar flex-nowrap sm:flex-wrap h-auto gap-1">
+                    <TabsTrigger value="profile" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm">
                         <User className="w-4 h-4" />
                         My Profile
                     </TabsTrigger>
                     {isOwnerOrAdmin && (
                         <>
-                            <TabsTrigger value="workspace" className="flex items-center gap-2 px-6">
+                            <TabsTrigger value="workspace" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm">
                                 <BriefcaseBusiness className="w-4 h-4" />
-                                Workspace Options
+                                Workspace
                             </TabsTrigger>
-                            <TabsTrigger value="integrations" className="flex items-center gap-2 px-6">
+                            <TabsTrigger value="integrations" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm">
                                 <Link className="w-4 h-4" />
                                 Integrations
                             </TabsTrigger>
-                            <TabsTrigger value="users" className="flex items-center gap-2 px-6">
+                            <TabsTrigger value="users" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm">
                                 <ShieldCheck className="w-4 h-4" />
-                                User Management
+                                Users
                             </TabsTrigger>
-                            <TabsTrigger value="automations" className="flex items-center gap-2 px-6">
+                            <TabsTrigger value="automations" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm">
                                 <Workflow className="w-4 h-4" />
                                 Automations
                             </TabsTrigger>
@@ -113,6 +121,8 @@ export default async function SettingsPage() {
                             />
                         </CardContent>
                     </Card>
+
+                    <NotificationPreferences initialPrefs={dbUser.notificationPreferences || null} />
                 </TabsContent>
 
                 {isOwnerOrAdmin && (

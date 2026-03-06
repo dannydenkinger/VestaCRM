@@ -423,6 +423,7 @@ export default function BlogDashboard() {
                             )}
                         </div>
                     ) : (
+                        <div className="overflow-x-auto -mx-4 sm:mx-0">
                         <Table>
                             <TableHeader>
                                 <TableRow className="hover:bg-transparent">
@@ -515,6 +516,7 @@ export default function BlogDashboard() {
                                 ))}
                             </TableBody>
                         </Table>
+                        </div>
                     )}
                 </CardContent>
             </Card>

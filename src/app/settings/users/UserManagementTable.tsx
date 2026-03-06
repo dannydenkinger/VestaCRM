@@ -37,7 +37,7 @@ interface User {
     name: string | null
     email: string
     role: string
-    createdAt: Date
+    createdAt: string | null
 }
 
 export function UserManagementTable({ initialUsers, currentUserId }: { initialUsers: User[], currentUserId: string }) {
