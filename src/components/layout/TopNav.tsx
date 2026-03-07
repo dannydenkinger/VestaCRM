@@ -96,7 +96,7 @@ export function TopNav({ onMenuClick }: { onMenuClick?: () => void }) {
                 </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4 shrink-0">
                 <ModeToggle />
 
                 <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>

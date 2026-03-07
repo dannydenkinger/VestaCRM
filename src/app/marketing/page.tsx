@@ -11,7 +11,7 @@ export default function MarketingPage() {
     const [activeTab, setActiveTab] = useState("analytics")
 
     return (
-        <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
             <div className="space-y-6 sm:space-y-8 p-4 sm:p-6 lg:p-8 pt-4 sm:pt-6 pb-8">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
@@ -23,16 +23,16 @@ export default function MarketingPage() {
                 </div>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
-                    <TabsList className="bg-muted/50 p-1 flex flex-wrap h-auto gap-1">
-                        <TabsTrigger value="analytics" className="flex items-center gap-2 px-6">
+                    <TabsList className="bg-muted/50 p-1 flex overflow-x-auto no-scrollbar scroll-fade-x flex-nowrap sm:flex-wrap h-auto gap-1">
+                        <TabsTrigger value="analytics" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm min-h-[44px] sm:min-h-0 touch-manipulation">
                             <TrendingUp className="w-4 h-4" />
                             Traffic
                         </TabsTrigger>
-                        <TabsTrigger value="seo" className="flex items-center gap-2 px-6">
+                        <TabsTrigger value="seo" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm min-h-[44px] sm:min-h-0 touch-manipulation">
                             <Search className="w-4 h-4" />
                             SEO
                         </TabsTrigger>
-                        <TabsTrigger value="blog" className="flex items-center gap-2 px-6">
+                        <TabsTrigger value="blog" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm min-h-[44px] sm:min-h-0 touch-manipulation">
                             <FileText className="w-4 h-4" />
                             Blog CMS
                         </TabsTrigger>

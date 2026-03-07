@@ -629,11 +629,11 @@ function PipelineContent() {
                         </DropdownMenuContent>
                     </DropdownMenu>
 
-                    <div className="flex bg-muted/60 p-1 rounded-md items-center shrink-0">
-                        <Button variant={viewMode === "kanban" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("kanban")} className="h-9 sm:h-7 px-3 sm:px-2.5 min-h-[44px] sm:min-h-0 shadow-none">
+                    <div className="flex bg-muted/60 p-0.5 sm:p-1 rounded-md items-center shrink-0 h-[44px] sm:h-auto">
+                        <Button variant={viewMode === "kanban" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("kanban")} className="h-full sm:h-7 px-3 sm:px-2.5 shadow-none">
                             <LayoutGrid className="h-4 w-4" />
                         </Button>
-                        <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("list")} className="h-9 sm:h-7 px-3 sm:px-2.5 min-h-[44px] sm:min-h-0 shadow-none">
+                        <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("list")} className="h-full sm:h-7 px-3 sm:px-2.5 shadow-none">
                             <ListIcon className="h-4 w-4" />
                         </Button>
                     </div>

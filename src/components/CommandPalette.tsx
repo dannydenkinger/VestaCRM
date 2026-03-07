@@ -81,10 +81,10 @@ export function CommandPalette() {
             <button
                 type="button"
                 onClick={() => setOpen(true)}
-                className="flex flex-1 sm:flex-initial items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors sm:w-[300px] md:w-[400px] lg:w-[500px]"
+                className="flex flex-1 sm:flex-initial items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors sm:w-[300px] md:w-[400px] lg:w-[500px] min-w-0"
             >
                 <Search className="h-4 w-4 shrink-0" />
-                <span>Search contacts, deals, notes...</span>
+                <span className="truncate">Search contacts, deals, notes...</span>
                 <kbd className="pointer-events-none ml-auto hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium sm:flex">
                     <span className="text-xs">⌘</span>K
                 </kbd>

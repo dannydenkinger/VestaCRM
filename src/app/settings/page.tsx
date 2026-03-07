@@ -68,8 +68,8 @@ export default async function SettingsPage() {
     }
 
     return (
-        <div className="flex-1 min-h-0 overflow-y-auto">
-            <div className="space-y-6 sm:space-y-8 p-4 sm:p-6 lg:p-8 pt-4 sm:pt-6 pb-8">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+            <div className="space-y-6 sm:space-y-8 p-4 sm:p-6 lg:p-8 pt-4 sm:pt-6 pb-8 max-w-full">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
                         <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Settings</h2>

@@ -644,9 +644,9 @@ function ContactsContent() {
             <Card>
                 <CardHeader className="py-4 px-4 sm:px-6 space-y-0">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div className="flex flex-1 flex-wrap items-center gap-2 min-w-0">
-                            <div className="relative w-full sm:w-72 flex-1 min-w-0">
-                                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 w-full">
+                            <div className="relative w-full sm:w-72 sm:flex-1 sm:min-w-0">
+                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
                                     placeholder="Search all contacts..."
                                     className="h-9 min-h-[44px] sm:min-h-0 pl-8"
@@ -654,9 +654,10 @@ function ContactsContent() {
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                             </div>
+                            <div className="flex items-center gap-2 flex-wrap">
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" size="sm" className="h-9">
+                                    <Button variant="outline" size="sm" className="h-9 min-h-[44px] sm:min-h-0">
                                         <Filter className="mr-2 h-4 w-4" />
                                         Filter {statusFilter.length > 0 && `(${statusFilter.length})`}
                                     </Button>
@@ -691,7 +692,7 @@ function ContactsContent() {
 
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" size="sm" className="h-9">
+                                    <Button variant="outline" size="sm" className="h-9 min-h-[44px] sm:min-h-0">
                                         <ArrowDown className="mr-2 h-4 w-4" />
                                         Sort
                                     </Button>
@@ -726,7 +727,7 @@ function ContactsContent() {
 
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" size="sm" className="h-9">
+                                    <Button variant="outline" size="sm" className="h-9 min-h-[44px] sm:min-h-0">
                                         <LayoutGrid className="mr-2 h-4 w-4" />
                                         Columns
                                     </Button>
@@ -799,6 +800,7 @@ function ContactsContent() {
                                     </Button>
                                 )
                             )}
+                        </div>
                         </div>
 
                         {/* Saved filter presets */}

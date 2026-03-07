@@ -39,7 +39,7 @@ export function BookingCalendar() {
     const [data, setData] = useState<BookingsData | null>(null)
     const [loading, setLoading] = useState(true)
     const [filterBase, setFilterBase] = useState<string>("all")
-    const [viewWeeks, setViewWeeks] = useState(8)
+    const [viewWeeks, setViewWeeks] = useState(16)
     const [startOffset, setStartOffset] = useState(0)
 
     useEffect(() => {
@@ -271,14 +271,26 @@ export function BookingCalendar() {
                                 ))}
                             </SelectContent>
                         </Select>
+                        <Select value={String(viewWeeks)} onValueChange={(v) => setViewWeeks(Number(v))}>
+                            <SelectTrigger className="h-8 w-[120px] text-xs">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="8">2 Months</SelectItem>
+                                <SelectItem value="12">3 Months</SelectItem>
+                                <SelectItem value="16">4 Months</SelectItem>
+                                <SelectItem value="26">6 Months</SelectItem>
+                                <SelectItem value="52">12 Months</SelectItem>
+                            </SelectContent>
+                        </Select>
                         <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setStartOffset(o => o - 2)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setStartOffset(o => o - 4)}>
                                 <ChevronLeft className="h-4 w-4" />
                             </Button>
                             <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={() => setStartOffset(0)}>
                                 Today
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setStartOffset(o => o + 2)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setStartOffset(o => o + 4)}>
                                 <ChevronRight className="h-4 w-4" />
                             </Button>
                         </div>
@@ -286,7 +298,7 @@ export function BookingCalendar() {
                 </CardHeader>
                 <CardContent className="pt-0 px-2 sm:px-6">
                     <div className="overflow-x-auto">
-                        <div className="min-w-[700px] relative">
+                        <div className={`relative ${viewWeeks <= 12 ? "min-w-[900px]" : viewWeeks <= 26 ? "min-w-[1200px]" : "min-w-[1800px]"}`}>
                             {/* Month headers */}
                             <div className="flex">
                                 <div className="w-36 sm:w-44 shrink-0" />
