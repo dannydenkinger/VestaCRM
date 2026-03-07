@@ -7,34 +7,35 @@ export async function getConversations() {
     try {
         // Fetch all contacts
         const contactsSnap = await adminDb.collection('contacts').get();
-        const conversations = [];
 
-        // For each contact, fetch their latest message to populate the conversation list
-        for (const contactDoc of contactsSnap.docs) {
+        // Fetch latest message per contact in parallel (only 1 message each, not all)
+        const conversationPromises = contactsSnap.docs.map(async (contactDoc) => {
             const contactId = contactDoc.id;
             const contactData = contactDoc.data();
 
-            const messagesSnap = await adminDb.collection('contacts').doc(contactId).collection('messages')
+            const latestSnap = await adminDb.collection('contacts').doc(contactId).collection('messages')
                 .orderBy('createdAt', 'desc')
+                .limit(1)
                 .get();
 
-            if (!messagesSnap.empty) {
-                const latestMessage = messagesSnap.docs[0].data();
-                
-                conversations.push({
-                    contactId,
-                    contactName: contactData.name,
-                    email: contactData.email,
-                    phone: contactData.phone,
-                    status: contactData.status,
-                    lastMessage: latestMessage.content,
-                    lastMessageType: latestMessage.type,
-                    lastMessageDirection: latestMessage.direction,
-                    lastMessageTime: latestMessage.createdAt?.toDate ? latestMessage.createdAt.toDate().toISOString() : latestMessage.createdAt,
-                    messageCount: messagesSnap.size
-                });
-            }
-        }
+            if (latestSnap.empty) return null;
+
+            const latestMessage = latestSnap.docs[0].data();
+            return {
+                contactId,
+                contactName: contactData.name,
+                email: contactData.email,
+                phone: contactData.phone,
+                status: contactData.status,
+                lastMessage: latestMessage.content,
+                lastMessageType: latestMessage.type,
+                lastMessageDirection: latestMessage.direction,
+                lastMessageTime: latestMessage.createdAt?.toDate ? latestMessage.createdAt.toDate().toISOString() : latestMessage.createdAt,
+            };
+        });
+
+        const results = await Promise.all(conversationPromises);
+        const conversations = results.filter((c): c is NonNullable<typeof c> => c !== null);
 
         // Sort by most recent message
         conversations.sort((a, b) => {

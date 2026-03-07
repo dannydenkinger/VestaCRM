@@ -2,7 +2,7 @@
 
 import { useState, useMemo, Suspense } from "react"
 import { Button } from "@/components/ui/button"
-import { Search, Plus, ListFilter, Calendar as CalendarIcon, DollarSign, MapPin, Phone, Mail, FileText, CheckCircle2, MoreVertical, Settings, Send, ChevronDown, ChevronUp, MessageSquare, Tag, CheckSquare, LayoutGrid, List as ListIcon, ArrowUpDown, Calculator, Info, Clock, ChevronRight, User, Building2, Layers, Upload, Edit2, Trash2 } from "lucide-react"
+import { Search, Plus, ListFilter, Calendar as CalendarIcon, DollarSign, MapPin, Phone, Mail, FileText, CheckCircle2, MoreVertical, Settings, Send, ChevronDown, ChevronUp, MessageSquare, Tag, CheckSquare, LayoutGrid, List as ListIcon, ArrowUpDown, Calculator, Info, Clock, ChevronRight, User, Building2, Layers, Upload, Edit2, Trash2, BarChart3, Download } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
-import { getPipelines, bulkCreateOpportunities, deleteOpportunity, updateOpportunity, getBaseNames, getUsers, createNewDeal, markOpportunitySeen, updateRequiredDocs, moveToLeaseSigned, autoAdvanceOpportunities, runStayReminders } from "./actions"
+import { getPipelines, bulkCreateOpportunities, deleteOpportunity, updateOpportunity, getBaseNames, getUsers, createNewDeal, markOpportunitySeen, updateRequiredDocs, moveToLeaseSigned, autoAdvanceOpportunities, runStayReminders, claimOpportunity } from "./actions"
 import { getAutomationSettings } from "@/app/settings/automations/actions"
 import { getContactsList, getContactTimeline, createNote, deleteNote, type TimelineItem } from "@/app/contacts/actions"
 import { getSpecialAccommodations } from "@/app/settings/system-properties/actions"
@@ -58,8 +58,10 @@ import {
 } from "@/components/ui/alert-dialog"
 import { LeadSourceSelector } from "@/components/ui/LeadSourceSelector"
 import { TagPicker } from "@/components/ui/TagPicker"
+import { ConversionMetrics } from "./analytics/ConversionMetrics"
 import { Skeleton } from "@/components/ui/skeleton"
 import dynamic from "next/dynamic"
+import { exportToCSV } from "@/lib/export"
 
 const OffBaseLodgingCalculator = dynamic(() => import("@/components/calculators/OffBaseLodgingCalculator"), {
     ssr: false,
@@ -111,6 +113,7 @@ function PipelineContent() {
     const [isLoading, setIsLoading] = useState(true)
     const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
     const [isPipelineManagerOpen, setIsPipelineManagerOpen] = useState(false)
+    const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
     const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
     const [baseNames, setBaseNames] = useState<string[]>([])
@@ -635,6 +638,34 @@ function PipelineContent() {
                         </Button>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                        <Button variant="outline" size="sm" onClick={() => setIsAnalyticsOpen(true)} className="hidden sm:flex">
+                            <BarChart3 className="mr-2 h-4 w-4" />
+                            Analytics
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="hidden sm:flex"
+                            onClick={() => {
+                                const pipeline = pipelines[activePipelineKey]
+                                if (!pipeline) return
+                                const rows = pipeline.deals.map((d: any) => ({
+                                    Name: d.name || "",
+                                    Stage: pipeline.stages.find((s: any) => s.id === d.pipelineStageId)?.name || "",
+                                    Value: d.opportunityValue || 0,
+                                    "Military Base": d.militaryBase || "",
+                                    "Stay Start": d.stayStartDate ? new Date(d.stayStartDate).toLocaleDateString() : "",
+                                    "Stay End": d.stayEndDate ? new Date(d.stayEndDate).toLocaleDateString() : "",
+                                    Priority: d.priority || "",
+                                    Source: d.utmSource || d.source || "",
+                                    Created: d.createdAt ? new Date(d.createdAt).toLocaleDateString() : "",
+                                }))
+                                exportToCSV(rows, `${pipeline.name}-deals`)
+                            }}
+                        >
+                            <Download className="mr-2 h-4 w-4" />
+                            Export
+                        </Button>
                         <Button variant="outline" size="sm" onClick={() => setIsImportDialogOpen(true)} className="hidden sm:flex">
                             <Upload className="mr-2 h-4 w-4" />
                             Import CSV
@@ -677,6 +708,19 @@ function PipelineContent() {
                 description="Upload a CSV file to bulk add deals and contacts to your pipeline."
                 templateFields={['name', 'email', 'phone', 'base', 'dealName', 'value', 'margin', 'stage', 'priority']}
             />
+
+            {/* Analytics Sheet */}
+            <Sheet open={isAnalyticsOpen} onOpenChange={setIsAnalyticsOpen}>
+                <SheetContent className="w-full max-w-[100vw] sm:max-w-lg overflow-y-auto">
+                    <SheetTitle className="text-lg font-semibold mb-1">Pipeline Analytics</SheetTitle>
+                    <SheetDescription className="text-sm text-muted-foreground mb-4">
+                        Conversion funnel, win rate, and deal cycle metrics.
+                    </SheetDescription>
+                    {isAnalyticsOpen && activePipelineKey && (
+                        <ConversionMetrics pipelineId={activePipelineKey} />
+                    )}
+                </SheetContent>
+            </Sheet>
 
             <PipelineManagerDialog
                 isOpen={isPipelineManagerOpen}
@@ -753,7 +797,7 @@ function PipelineContent() {
                     viewMode === "kanban" ? (
                         <div className="flex min-h-[400px] sm:min-h-[calc(100vh-220px)] h-[400px] sm:h-[calc(100vh-220px)] gap-3 sm:gap-4 pb-4 w-max">
                             {[1, 2, 3, 4, 5].map((i) => (
-                                <div key={i} className="flex flex-col w-[280px] sm:w-[340px] shrink-0 bg-muted/40 rounded-xl border h-full overflow-hidden">
+                                <div key={i} className="flex flex-col w-[340px] shrink-0 bg-muted/40 rounded-xl border h-full overflow-hidden">
                                     <div className="p-4 border-b bg-muted/60 flex items-center justify-between">
                                         <Skeleton className="h-4 w-24" />
                                         <Skeleton className="h-5 w-8 rounded-full" />
@@ -813,7 +857,7 @@ function PipelineContent() {
                     <>
                     {/* Mobile kanban: stage pill selector + card list */}
                     <div className="md:hidden flex flex-col h-full min-h-0">
-                        <div className="flex gap-2 overflow-x-auto no-scrollbar px-1 py-2 shrink-0">
+                        <div className="flex gap-2 overflow-x-auto no-scrollbar scroll-fade-x px-1 py-2 shrink-0">
                             {currentPipeline.stages.map((stage: any) => {
                                 const stageName = typeof stage === 'string' ? stage : stage.name;
                                 const stageDeals = currentPipeline.deals.filter((d: any) => d.stage === stageName);
@@ -885,7 +929,7 @@ function PipelineContent() {
                             return (
                                 <div
                                     key={stageId}
-                                    className={`flex flex-col w-[280px] sm:w-[340px] shrink-0 bg-muted/40 rounded-xl pb-2 border h-full overflow-hidden transition-colors ${dragOverStageId === stageId ? "border-primary/60 bg-primary/5 ring-2 ring-primary/20" : ""
+                                    className={`flex flex-col w-[340px] shrink-0 bg-muted/40 rounded-xl pb-2 border h-full overflow-hidden transition-colors ${dragOverStageId === stageId ? "border-primary/60 bg-primary/5 ring-2 ring-primary/20" : ""
                                         }`}
                                     onDragOver={(e) => handleDragOver(e, stageId)}
                                     onDragLeave={handleDragLeave}
@@ -950,6 +994,15 @@ function PipelineContent() {
                                                         <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-bold">{deal.assignee}</AvatarFallback>
                                                     </Avatar>
                                                 </div>
+
+                                                {deal.claimedByName && (
+                                                    <div className="flex items-center gap-1.5 pl-1">
+                                                        <Badge variant="outline" className="text-[9px] font-bold bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                                                            <User className="h-2.5 w-2.5 mr-1" />
+                                                            {deal.claimedByName}
+                                                        </Badge>
+                                                    </div>
+                                                )}
 
                                                 {(showValue || showPriority) && (
                                                     <div className="grid grid-cols-2 gap-2 text-xs pl-1">
@@ -1195,7 +1248,7 @@ function PipelineContent() {
                     }
                 }}
             >
-                <SheetContent className="sm:max-w-xl w-full p-0 flex flex-col gap-0 border-l border-border/50 shadow-2xl">
+                <SheetContent className="sm:max-w-xl w-full max-w-[100vw] p-0 flex flex-col gap-0 border-l border-border/50 shadow-2xl">
                     {selectedDeal && (
                         <>
                             <div className="p-4 sm:p-6 bg-muted/30 border-b">
@@ -1226,16 +1279,53 @@ function PipelineContent() {
                                         <Mail className="mr-2 h-4 w-4" />
                                         Email
                                     </Button>
+                                    <Button
+                                        size="sm"
+                                        variant={selectedDeal.claimedBy === session?.user?.id ? "default" : "outline"}
+                                        className="w-full"
+                                        onClick={async () => {
+                                            const res = await claimOpportunity(selectedDeal.id);
+                                            if (res.success) {
+                                                if (res.action === "claimed") {
+                                                    setSelectedDeal((prev: any) => prev ? {
+                                                        ...prev,
+                                                        claimedBy: session?.user?.id,
+                                                        claimedByName: session?.user?.name || session?.user?.email || "You",
+                                                        claimedAt: new Date().toISOString(),
+                                                    } : null);
+                                                } else {
+                                                    setSelectedDeal((prev: any) => prev ? {
+                                                        ...prev,
+                                                        claimedBy: null,
+                                                        claimedByName: null,
+                                                        claimedAt: null,
+                                                    } : null);
+                                                }
+                                                fetchPipelines();
+                                            }
+                                        }}
+                                    >
+                                        <User className="mr-2 h-4 w-4" />
+                                        {selectedDeal.claimedBy === session?.user?.id
+                                            ? "Unclaim"
+                                            : selectedDeal.claimedBy
+                                                ? `Claimed by ${selectedDeal.claimedByName}`
+                                                : "Claim"
+                                        }
+                                    </Button>
                                 </div>
+                                {selectedDeal.claimedByName && selectedDeal.claimedBy !== session?.user?.id && (
+                                    <p className="text-xs text-muted-foreground mt-2">Currently being worked by {selectedDeal.claimedByName}</p>
+                                )}
                             </div>
 
                             <div className="flex-1 overflow-y-auto">
                                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full h-full flex flex-col">
                                     <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-3 sm:px-6 h-12">
-                                        <TabsTrigger value="details" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-2.5 sm:px-4 h-full text-xs sm:text-sm">Details</TabsTrigger>
-                                        <TabsTrigger value="notes" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-2.5 sm:px-4 h-full text-xs sm:text-sm">Notes</TabsTrigger>
-                                        <TabsTrigger value="timeline" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-2.5 sm:px-4 h-full text-xs sm:text-sm">Timeline</TabsTrigger>
-                                        <TabsTrigger value="documents" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-2.5 sm:px-4 h-full text-xs sm:text-sm">Docs</TabsTrigger>
+                                        <TabsTrigger value="details" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-2.5 sm:px-4 h-full text-xs sm:text-sm min-h-[44px] sm:min-h-0 touch-manipulation">Details</TabsTrigger>
+                                        <TabsTrigger value="notes" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-2.5 sm:px-4 h-full text-xs sm:text-sm min-h-[44px] sm:min-h-0 touch-manipulation">Notes</TabsTrigger>
+                                        <TabsTrigger value="timeline" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-2.5 sm:px-4 h-full text-xs sm:text-sm min-h-[44px] sm:min-h-0 touch-manipulation">Timeline</TabsTrigger>
+                                        <TabsTrigger value="documents" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-2.5 sm:px-4 h-full text-xs sm:text-sm min-h-[44px] sm:min-h-0 touch-manipulation">Docs</TabsTrigger>
                                     </TabsList>
 
                                     <TabsContent value="details" className="flex-1 p-4 sm:p-6 m-0 outline-none space-y-8 overflow-y-auto">

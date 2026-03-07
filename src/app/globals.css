@@ -136,3 +136,25 @@
 
 .safe-top { padding-top: env(safe-area-inset-top, 0px); }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* Momentum scrolling for all scrollable areas */
+@layer base {
+  [class*="overflow-y-auto"],
+  [class*="overflow-x-auto"],
+  [class*="overflow-auto"] {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
+
+/* Horizontal scroll fade indicator (mobile only) */
+.scroll-fade-x {
+  mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
+}
+@media (min-width: 640px) {
+  .scroll-fade-x {
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+}

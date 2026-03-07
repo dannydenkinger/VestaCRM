@@ -143,7 +143,7 @@ export function BAHCalculator({
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-5">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label className="text-[11px] font-bold uppercase opacity-70 flex items-center gap-1.5"><MapPin size={12} /> Station ZIP</Label>
                                 <Input
@@ -204,7 +204,7 @@ export function BAHCalculator({
                             exit={{ opacity: 0, scale: 0.95 }}
                             className="space-y-4"
                         >
-                            <div className="relative p-8 rounded-3xl bg-gradient-to-br from-blue-600 to-blue-800 text-white shadow-2xl overflow-hidden min-h-[220px] flex flex-col justify-center border border-white/10 group">
+                            <div className="relative p-4 sm:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-blue-600 to-blue-800 text-white shadow-2xl overflow-hidden min-h-[220px] flex flex-col justify-center border border-white/10 group">
                                 <motion.div
                                     className="absolute -top-12 -right-12 opacity-10 group-hover:opacity-20 transition-opacity"
                                     initial={{ rotate: -12, scale: 1 }}

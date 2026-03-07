@@ -190,7 +190,7 @@ export default function ToolsPage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="p-4 rounded-lg bg-muted/30 border border-dashed border-muted flex flex-col gap-1">
                                 <span className="font-bold text-sm">PCS Mileage</span>
                                 <span className="text-xs text-muted-foreground">Estimate MALT and Flat Rate Per Diem for moves.</span>

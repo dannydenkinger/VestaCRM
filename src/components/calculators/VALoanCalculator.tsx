@@ -236,7 +236,7 @@ export function VALoanCalculator({
                             />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border/50">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-border/50">
                             <div className="space-y-2">
                                 <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Rate (%)</Label>
                                 <Input
@@ -324,7 +324,7 @@ export function VALoanCalculator({
                                         exit={{ height: 0, opacity: 0 }}
                                         className="overflow-hidden"
                                     >
-                                        <div className="grid grid-cols-2 gap-4 pt-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3">
                                             <div className="space-y-2">
                                                 <Label className="text-[11px] font-bold uppercase opacity-70">Tax Rate (%)</Label>
                                                 <Input
@@ -361,7 +361,7 @@ export function VALoanCalculator({
                             exit={{ opacity: 0, scale: 0.95 }}
                             className="space-y-6"
                         >
-                            <div className="relative p-8 rounded-3xl bg-gradient-to-br from-blue-700 to-blue-900 text-white shadow-2xl overflow-hidden min-h-[260px] flex flex-col justify-center border border-white/10 group">
+                            <div className="relative p-4 sm:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-blue-700 to-blue-900 text-white shadow-2xl overflow-hidden min-h-[260px] flex flex-col justify-center border border-white/10 group">
                                 <motion.div
                                     className="absolute -top-10 -right-10 opacity-10 group-hover:opacity-20 transition-opacity pointer-events-none"
                                     initial={{ rotate: -12, scale: 1 }}

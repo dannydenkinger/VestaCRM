@@ -423,71 +423,30 @@ export default function BlogDashboard() {
                             )}
                         </div>
                     ) : (
-                        <div className="overflow-x-auto -mx-4 sm:mx-0">
-                        <Table>
-                            <TableHeader>
-                                <TableRow className="hover:bg-transparent">
-                                    <TableHead className="text-[10px] uppercase tracking-wider font-bold">Title</TableHead>
-                                    <TableHead className="text-[10px] uppercase tracking-wider font-bold w-[80px]">Type</TableHead>
-                                    <TableHead className="text-[10px] uppercase tracking-wider font-bold w-[80px]">Status</TableHead>
-                                    <TableHead className="text-[10px] uppercase tracking-wider font-bold w-[60px] text-center">SEO</TableHead>
-                                    <TableHead className="text-[10px] uppercase tracking-wider font-bold w-[80px] text-right">Words</TableHead>
-                                    <TableHead className="text-[10px] uppercase tracking-wider font-bold w-[100px] text-right">Updated</TableHead>
-                                    <TableHead className="w-[40px]" />
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
+                        <>
+                            {/* Mobile card view */}
+                            <div className="sm:hidden space-y-3 p-4">
                                 {filteredArticles.map((article) => (
-                                    <TableRow
-                                        key={article.id}
-                                        className="cursor-pointer"
+                                    <div
+                                        key={`mobile-${article.id}`}
+                                        className="p-3 rounded-xl border border-border/50 bg-card space-y-2.5 cursor-pointer active:bg-muted/30 transition-colors touch-manipulation"
                                         onClick={() => handleEditArticle(article.id)}
                                     >
-                                        <TableCell>
-                                            <div className="flex flex-col gap-0.5">
-                                                <span className="text-xs font-semibold truncate max-w-[300px]">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="min-w-0 flex-1">
+                                                <h4 className="text-sm font-semibold leading-tight line-clamp-2">
                                                     {article.title}
-                                                </span>
+                                                </h4>
                                                 {article.focusKeyword && (
-                                                    <span className="text-[10px] text-muted-foreground">
+                                                    <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
                                                         {article.focusKeyword}
-                                                    </span>
+                                                    </p>
                                                 )}
                                             </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline" className="text-[8px] h-4 px-1.5 capitalize">
-                                                {article.type}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge
-                                                variant="outline"
-                                                className={`text-[8px] h-4 px-1.5 ${statusConfig[article.status]?.class || ""}`}
-                                            >
-                                                {statusConfig[article.status]?.label || article.status}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-center">
-                                            <span className={`text-xs font-bold ${scoreColor(article.seoScore)}`}>
-                                                {article.seoScore}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <span className="text-xs text-muted-foreground">
-                                                {article.wordCount.toLocaleString()}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <span className="text-[10px] text-muted-foreground">
-                                                {new Date(article.updatedAt).toLocaleDateString()}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell>
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                                                        <MoreHorizontal className="h-3.5 w-3.5" />
+                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0 touch-manipulation">
+                                                        <MoreHorizontal className="h-4 w-4" />
                                                     </Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
@@ -511,12 +470,125 @@ export default function BlogDashboard() {
                                                     </DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
-                                        </TableCell>
-                                    </TableRow>
+                                        </div>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <Badge variant="outline" className="text-[9px] h-5 px-1.5 capitalize">
+                                                {article.type}
+                                            </Badge>
+                                            <Badge
+                                                variant="outline"
+                                                className={`text-[9px] h-5 px-1.5 ${statusConfig[article.status]?.class || ""}`}
+                                            >
+                                                {statusConfig[article.status]?.label || article.status}
+                                            </Badge>
+                                            <span className={`text-xs font-bold ${scoreColor(article.seoScore)}`}>
+                                                SEO: {article.seoScore}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t border-border/30">
+                                            <span>{article.wordCount.toLocaleString()} words</span>
+                                            <span>{new Date(article.updatedAt).toLocaleDateString()}</span>
+                                        </div>
+                                    </div>
                                 ))}
-                            </TableBody>
-                        </Table>
-                        </div>
+                            </div>
+
+                            {/* Desktop table view */}
+                            <div className="hidden sm:block">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="hover:bg-transparent">
+                                        <TableHead className="text-[10px] uppercase tracking-wider font-bold">Title</TableHead>
+                                        <TableHead className="text-[10px] uppercase tracking-wider font-bold w-[80px]">Type</TableHead>
+                                        <TableHead className="text-[10px] uppercase tracking-wider font-bold w-[80px]">Status</TableHead>
+                                        <TableHead className="text-[10px] uppercase tracking-wider font-bold w-[60px] text-center">SEO</TableHead>
+                                        <TableHead className="text-[10px] uppercase tracking-wider font-bold w-[80px] text-right">Words</TableHead>
+                                        <TableHead className="text-[10px] uppercase tracking-wider font-bold w-[100px] text-right">Updated</TableHead>
+                                        <TableHead className="w-[40px]" />
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {filteredArticles.map((article) => (
+                                        <TableRow
+                                            key={article.id}
+                                            className="cursor-pointer"
+                                            onClick={() => handleEditArticle(article.id)}
+                                        >
+                                            <TableCell>
+                                                <div className="flex flex-col gap-0.5">
+                                                    <span className="text-xs font-semibold truncate max-w-[300px]">
+                                                        {article.title}
+                                                    </span>
+                                                    {article.focusKeyword && (
+                                                        <span className="text-[10px] text-muted-foreground">
+                                                            {article.focusKeyword}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline" className="text-[8px] h-4 px-1.5 capitalize">
+                                                    {article.type}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge
+                                                    variant="outline"
+                                                    className={`text-[8px] h-4 px-1.5 ${statusConfig[article.status]?.class || ""}`}
+                                                >
+                                                    {statusConfig[article.status]?.label || article.status}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                                <span className={`text-xs font-bold ${scoreColor(article.seoScore)}`}>
+                                                    {article.seoScore}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <span className="text-xs text-muted-foreground">
+                                                    {article.wordCount.toLocaleString()}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <span className="text-[10px] text-muted-foreground">
+                                                    {new Date(article.updatedAt).toLocaleDateString()}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                                            <MoreHorizontal className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditArticle(article.id) }}>
+                                                            <Pencil className="h-3 w-3 mr-2" />
+                                                            Edit
+                                                        </DropdownMenuItem>
+                                                        {article.wpPublishedUrl && (
+                                                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); window.open(article.wpPublishedUrl, "_blank") }}>
+                                                                <Eye className="h-3 w-3 mr-2" />
+                                                                View on WordPress
+                                                            </DropdownMenuItem>
+                                                        )}
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem
+                                                            className="text-destructive"
+                                                            onClick={(e) => { e.stopPropagation(); handleDeleteArticle(article.id) }}
+                                                        >
+                                                            <Trash2 className="h-3 w-3 mr-2" />
+                                                            Delete
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                            </div>
+                        </>
                     )}
                 </CardContent>
             </Card>

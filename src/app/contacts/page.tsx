@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, Suspense } from "react"
+import { useState, useEffect, useRef, useCallback, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,7 @@ import {
     Phone, Mail, MoreVertical, Search, Filter, Plus, ChevronRight, LayoutGrid,
     List as ListIcon, Calendar as CalendarIcon, ArrowUp, ArrowDown, Calculator,
     Send, FileText, MessageSquare, Clock, CheckCircle, Upload, Trash2, ListTodo,
-    ChevronDown, ChevronUp, Briefcase, ExternalLink
+    ChevronDown, ChevronUp, Briefcase, ExternalLink, Download, Merge, Bookmark, X,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import {
@@ -49,13 +49,21 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { getContacts, getContactDetail, createNote, deleteNote, updateContact, updateFormTracking, bulkCreateContacts, createContact, deleteContact, bulkDeleteContacts } from "./actions"
+import { getContacts, getContactDetail, createNote, deleteNote, updateContact, updateFormTracking, bulkCreateContacts, createContact, deleteContact, bulkDeleteContacts, mergeContacts, findDuplicateContacts } from "./actions"
 import { sendMessage } from "@/app/communications/actions"
 import { getContactStatuses } from "@/app/settings/system-properties/actions"
 import { createNewDeal } from "@/app/pipeline/actions"
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog"
 import { CSVImportDialog } from "@/components/ui/CSVImportDialog"
 import { CreateTaskDialog } from "@/components/ui/CreateTaskDialog"
 import { DocumentManager } from "./documents/DocumentManager"
+import { exportToCSV } from "@/lib/export"
 import dynamic from "next/dynamic"
 
 type ColumnId = 'name' | 'phone' | 'email' | 'businessName' | 'status' | 'opportunity' | 'lastActivity' | 'created' | 'tags' | 'lastNote';
@@ -121,6 +129,71 @@ function ContactsContent() {
     const [expandedNoteIds, setExpandedNoteIds] = useState<Set<string>>(new Set());
     const [noteToDelete, setNoteToDelete] = useState<{ contactId: string; noteId: string } | null>(null);
     const [isDeletingNote, setIsDeletingNote] = useState(false);
+    const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false);
+    const [isMerging, setIsMerging] = useState(false);
+    const [mergeFieldChoices, setMergeFieldChoices] = useState<Record<string, string>>({});
+
+    // Saved filters
+    type SavedFilter = { name: string; searchTerm: string; statusFilter: string[]; sortKey: string; sortDir: string };
+    const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
+    const [filterNameInput, setFilterNameInput] = useState("");
+    const [showSaveFilter, setShowSaveFilter] = useState(false);
+
+    // Restore filter state + saved presets from localStorage on mount
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem("contacts-saved-filters");
+            if (saved) setSavedFilters(JSON.parse(saved));
+            const lastFilter = localStorage.getItem("contacts-last-filter");
+            if (lastFilter) {
+                const f = JSON.parse(lastFilter);
+                if (f.searchTerm) setSearchTerm(f.searchTerm);
+                if (f.statusFilter?.length) setStatusFilter(f.statusFilter);
+                if (f.sortKey) setSortConfig({ key: f.sortKey, direction: f.sortDir || "asc" });
+            }
+        } catch { /* ignore corrupt localStorage */ }
+    }, []);
+
+    // Persist filter state to localStorage on change (debounced)
+    const filterPersistTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+    useEffect(() => {
+        clearTimeout(filterPersistTimer.current);
+        filterPersistTimer.current = setTimeout(() => {
+            try {
+                localStorage.setItem("contacts-last-filter", JSON.stringify({
+                    searchTerm, statusFilter, sortKey: sortConfig.key, sortDir: sortConfig.direction,
+                }));
+            } catch { /* ignore */ }
+        }, 500);
+    }, [searchTerm, statusFilter, sortConfig]);
+
+    const handleSaveFilter = useCallback(() => {
+        if (!filterNameInput.trim()) return;
+        const preset: SavedFilter = {
+            name: filterNameInput.trim(),
+            searchTerm,
+            statusFilter,
+            sortKey: sortConfig.key,
+            sortDir: sortConfig.direction,
+        };
+        const updated = [...savedFilters.filter(f => f.name !== preset.name), preset].slice(-10);
+        setSavedFilters(updated);
+        localStorage.setItem("contacts-saved-filters", JSON.stringify(updated));
+        setFilterNameInput("");
+        setShowSaveFilter(false);
+    }, [filterNameInput, searchTerm, statusFilter, sortConfig, savedFilters]);
+
+    const handleApplyFilter = useCallback((f: SavedFilter) => {
+        setSearchTerm(f.searchTerm);
+        setStatusFilter(f.statusFilter);
+        setSortConfig({ key: f.sortKey as ColumnId, direction: f.sortDir as "asc" | "desc" });
+    }, []);
+
+    const handleDeleteFilter = useCallback((name: string) => {
+        const updated = savedFilters.filter(f => f.name !== name);
+        setSavedFilters(updated);
+        localStorage.setItem("contacts-saved-filters", JSON.stringify(updated));
+    }, [savedFilters]);
 
     const fetchContactStatuses = async () => {
         const res = await getContactStatuses();
@@ -503,9 +576,28 @@ function ContactsContent() {
                         <p className="text-sm sm:text-base text-muted-foreground mt-0.5">Manage your leads, active tenants, and past guests.</p>
                     </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    <Button variant="outline" size="sm" className="touch-manipulation">
-                        <Calculator className="mr-2 h-4 w-4" />
-                        Export
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="touch-manipulation"
+                        onClick={() => {
+                            const rows = (allContacts || []).map((c: any) => ({
+                                Name: c.name || "",
+                                Email: c.email || "",
+                                Phone: c.phone || "",
+                                Status: c.status || "",
+                                "Military Base": c.militaryBase || "",
+                                "Business Name": c.businessName || "",
+                                "Stay Start": c.stayStartDate ? new Date(c.stayStartDate).toLocaleDateString() : "",
+                                "Stay End": c.stayEndDate ? new Date(c.stayEndDate).toLocaleDateString() : "",
+                                Source: c.utmSource || "",
+                                Created: c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "",
+                            }));
+                            exportToCSV(rows, "contacts-export");
+                        }}
+                    >
+                        <Download className="mr-2 h-4 w-4" />
+                        Export CSV
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => setIsImportDialogOpen(true)} className="touch-manipulation">
                         <Upload className="mr-2 h-4 w-4" />
@@ -521,6 +613,19 @@ function ContactsContent() {
             {selectedContactIds.size > 0 && (
                 <div className="flex items-center gap-4 rounded-lg border bg-muted/50 px-4 py-3">
                     <span className="text-sm font-medium">{selectedContactIds.size} contact{selectedContactIds.size !== 1 ? 's' : ''} selected</span>
+                    {selectedContactIds.size === 2 && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                                setMergeFieldChoices({});
+                                setIsMergeDialogOpen(true);
+                            }}
+                        >
+                            <Merge className="mr-2 h-4 w-4" />
+                            Merge Contacts
+                        </Button>
+                    )}
                     <Button
                         variant="destructive"
                         size="sm"
@@ -667,7 +772,57 @@ function ContactsContent() {
                                     </div>
                                 </DropdownMenuContent>
                             </DropdownMenu>
+
+                            {/* Save current filter */}
+                            {(searchTerm || statusFilter.length > 0) && (
+                                showSaveFilter ? (
+                                    <div className="flex items-center gap-1">
+                                        <Input
+                                            placeholder="Filter name..."
+                                            className="h-9 w-32 text-xs"
+                                            value={filterNameInput}
+                                            onChange={(e) => setFilterNameInput(e.target.value)}
+                                            onKeyDown={(e) => e.key === "Enter" && handleSaveFilter()}
+                                            autoFocus
+                                        />
+                                        <Button size="sm" className="h-9 px-2" onClick={handleSaveFilter} disabled={!filterNameInput.trim()}>
+                                            Save
+                                        </Button>
+                                        <Button size="sm" variant="ghost" className="h-9 px-2" onClick={() => setShowSaveFilter(false)}>
+                                            <X className="h-3 w-3" />
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground" onClick={() => setShowSaveFilter(true)}>
+                                        <Bookmark className="mr-1 h-3 w-3" />
+                                        Save Filter
+                                    </Button>
+                                )
+                            )}
                         </div>
+
+                        {/* Saved filter presets */}
+                        {savedFilters.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                                <span className="text-[10px] text-muted-foreground/60 uppercase font-semibold tracking-wider mr-1">Saved:</span>
+                                {savedFilters.map(f => (
+                                    <Badge
+                                        key={f.name}
+                                        variant="secondary"
+                                        className="cursor-pointer text-xs px-2 py-0.5 gap-1 hover:bg-secondary/80"
+                                        onClick={() => handleApplyFilter(f)}
+                                    >
+                                        {f.name}
+                                        <button
+                                            className="ml-0.5 hover:text-destructive"
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteFilter(f.name); }}
+                                        >
+                                            <X className="h-2.5 w-2.5" />
+                                        </button>
+                                    </Badge>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </CardHeader>
                 <CardContent className="px-4 sm:px-6">
@@ -701,9 +856,16 @@ function ContactsContent() {
                                             )}
                                         </div>
                                         <p className="text-xs text-muted-foreground truncate">{contact.email || contact.phone || "—"}</p>
+                                        {(contact.militaryBase || contact.dealStage !== "—") && (
+                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                {contact.militaryBase && <span className="text-[10px] text-muted-foreground">{contact.militaryBase}</span>}
+                                                {contact.militaryBase && contact.dealStage !== "—" && <span className="text-[10px] text-muted-foreground/40">·</span>}
+                                                {contact.dealStage !== "—" && <span className="text-[10px] text-muted-foreground">{contact.dealStage}</span>}
+                                            </div>
+                                        )}
                                     </div>
                                     <Badge variant={contact.status === "Active Stay" ? "default" : "outline"} className="shrink-0 text-xs">
-                                        {contact.status}
+                                        {contact.status || "—"}
                                     </Badge>
                                     <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                                 </div>
@@ -848,22 +1010,27 @@ function ContactsContent() {
 
             {/* Slide-over Contact Detail Pane */}
             <Sheet open={!!selectedContact} onOpenChange={() => setSelectedContact(null)}>
-                <SheetContent className="sm:max-w-xl w-full p-0 flex flex-col gap-0 border-l border-border/50 shadow-2xl">
+                <SheetContent className="sm:max-w-xl w-full max-w-[100vw] p-0 flex flex-col gap-0 border-l border-border/50 shadow-2xl">
                     {(() => {
                         const contact = selectedContact;
                         if (!contact) return null;
                         return (
                             <>
-                                <div className="p-6 bg-muted/30 border-b">
+                                <div className="p-4 sm:p-6 bg-muted/30 border-b">
                                     <div className="flex items-start justify-between mb-4">
-                                        <div className="flex items-center gap-4">
-                                            <Avatar className="h-16 w-16 border-2 border-background shadow-sm">
-                                                <AvatarFallback className="text-xl bg-primary/10 text-primary">{contact.name.charAt(6)}</AvatarFallback>
+                                        <div className="flex items-center gap-3 sm:gap-4">
+                                            <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-background shadow-sm">
+                                                <AvatarFallback className="text-lg sm:text-xl bg-primary/10 text-primary">{contact.name.charAt(0)}</AvatarFallback>
                                             </Avatar>
                                             <div>
-                                                <SheetTitle className="text-2xl">{contact.name}</SheetTitle>
-                                                <SheetDescription className="flex items-center gap-2 mt-1">
+                                                <SheetTitle className="text-xl sm:text-2xl">{contact.name}</SheetTitle>
+                                                <SheetDescription className="flex items-center gap-2 mt-1 flex-wrap">
                                                     <Badge variant="outline" className="font-normal">{contact.status}</Badge>
+                                                    {contact.utmSource && (
+                                                        <Badge variant="secondary" className="text-[10px] font-normal">
+                                                            via {contact.utmSource}
+                                                        </Badge>
+                                                    )}
                                                     <span className="text-xs text-muted-foreground">Tenant Record</span>
                                                 </SheetDescription>
                                             </div>
@@ -943,11 +1110,24 @@ function ContactsContent() {
                                     </div>
 
                                     <div className="flex items-center gap-6 mt-6">
-                                        <Button size="sm" className="w-full">
+                                        <Button
+                                            size="sm"
+                                            className="w-full"
+                                            disabled={!selectedContact?.phone}
+                                            onClick={() => selectedContact?.phone && window.open(`tel:${selectedContact.phone}`)}
+                                            title={selectedContact?.phone || "No phone number"}
+                                        >
                                             <Phone className="mr-2 h-4 w-4" />
                                             Call
                                         </Button>
-                                        <Button size="sm" variant="outline" className="w-full">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="w-full"
+                                            disabled={!selectedContact?.email}
+                                            onClick={() => selectedContact?.email && window.open(`mailto:${selectedContact.email}`)}
+                                            title={selectedContact?.email || "No email address"}
+                                        >
                                             <Mail className="mr-2 h-4 w-4" />
                                             Email
                                         </Button>
@@ -956,14 +1136,14 @@ function ContactsContent() {
 
                                 <div className="flex-1 overflow-y-auto">
                                     <Tabs defaultValue="details" className="w-full h-full flex flex-col">
-                                        <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-6 h-12">
-                                            <TabsTrigger value="details" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 h-full">Details</TabsTrigger>
-                                            <TabsTrigger value="notes" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 h-full">Notes</TabsTrigger>
-                                            <TabsTrigger value="documents" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 h-full">Documents</TabsTrigger>
-                                            <TabsTrigger value="timeline" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-4 h-full">Timeline</TabsTrigger>
+                                        <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-4 sm:px-6 h-12">
+                                            <TabsTrigger value="details" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-3 sm:px-4 h-full min-h-[44px] touch-manipulation">Details</TabsTrigger>
+                                            <TabsTrigger value="notes" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-3 sm:px-4 h-full min-h-[44px] touch-manipulation">Notes</TabsTrigger>
+                                            <TabsTrigger value="documents" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-3 sm:px-4 h-full min-h-[44px] touch-manipulation">Docs</TabsTrigger>
+                                            <TabsTrigger value="timeline" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-3 sm:px-4 h-full min-h-[44px] touch-manipulation">Timeline</TabsTrigger>
                                         </TabsList>
 
-                                        <TabsContent value="details" className="flex-1 p-6 m-0 outline-none space-y-8 overflow-y-auto">
+                                        <TabsContent value="details" className="flex-1 p-4 sm:p-6 m-0 outline-none space-y-6 sm:space-y-8 overflow-y-auto">
                                             {/* Contact Info */}
                                             <div className="space-y-4">
                                                 <div className="flex items-center justify-between">
@@ -1378,6 +1558,97 @@ function ContactsContent() {
                     initialContactId={selectedContact.id}
                 />
             )}
+
+            {/* Merge Contacts Dialog */}
+            <Dialog open={isMergeDialogOpen} onOpenChange={setIsMergeDialogOpen}>
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Merge className="h-4 w-4" />
+                            Merge Contacts
+                        </DialogTitle>
+                    </DialogHeader>
+                    {(() => {
+                        const ids = Array.from(selectedContactIds);
+                        const contactA = allContacts.find(c => c.id === ids[0]);
+                        const contactB = allContacts.find(c => c.id === ids[1]);
+                        if (!contactA || !contactB) return <p className="text-sm text-muted-foreground p-4">Select exactly 2 contacts to merge.</p>;
+
+                        const fields = [
+                            { key: 'name', label: 'Name' },
+                            { key: 'email', label: 'Email' },
+                            { key: 'phone', label: 'Phone' },
+                            { key: 'militaryBase', label: 'Military Base' },
+                            { key: 'businessName', label: 'Business' },
+                            { key: 'status', label: 'Status' },
+                        ];
+
+                        return (
+                            <div className="space-y-4">
+                                <p className="text-sm text-muted-foreground">
+                                    Choose which value to keep for each field. The secondary contact will be deleted and all their notes, documents, and opportunities will be moved to the primary.
+                                </p>
+                                <div className="border rounded-lg overflow-hidden">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="bg-muted/30 border-b">
+                                                <th className="text-left px-3 py-2 font-medium text-xs text-muted-foreground">Field</th>
+                                                <th className="text-left px-3 py-2 font-medium text-xs text-muted-foreground">Contact A (Primary)</th>
+                                                <th className="text-left px-3 py-2 font-medium text-xs text-muted-foreground">Contact B</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {fields.map(f => {
+                                                const valA = contactA[f.key] || '—';
+                                                const valB = contactB[f.key] || '—';
+                                                const choice = mergeFieldChoices[f.key] || 'primary';
+                                                return (
+                                                    <tr key={f.key} className="border-b last:border-0">
+                                                        <td className="px-3 py-2 font-medium text-xs text-muted-foreground">{f.label}</td>
+                                                        <td
+                                                            className={`px-3 py-2 cursor-pointer transition-colors ${choice === 'primary' ? 'bg-primary/10 font-semibold' : 'hover:bg-muted/20'}`}
+                                                            onClick={() => setMergeFieldChoices(prev => ({ ...prev, [f.key]: 'primary' }))}
+                                                        >
+                                                            <span className="text-sm">{valA}</span>
+                                                        </td>
+                                                        <td
+                                                            className={`px-3 py-2 cursor-pointer transition-colors ${choice === 'secondary' ? 'bg-primary/10 font-semibold' : 'hover:bg-muted/20'}`}
+                                                            onClick={() => setMergeFieldChoices(prev => ({ ...prev, [f.key]: 'secondary' }))}
+                                                        >
+                                                            <span className="text-sm">{valB}</span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <p className="text-xs text-muted-foreground">Click a cell to select that value. Contact A is the primary by default.</p>
+                            </div>
+                        );
+                    })()}
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsMergeDialogOpen(false)} disabled={isMerging}>Cancel</Button>
+                        <Button
+                            onClick={async () => {
+                                const ids = Array.from(selectedContactIds);
+                                if (ids.length !== 2) return;
+                                setIsMerging(true);
+                                const res = await mergeContacts(ids[0], ids[1], mergeFieldChoices);
+                                setIsMerging(false);
+                                if (res.success) {
+                                    setIsMergeDialogOpen(false);
+                                    setSelectedContactIds(new Set());
+                                    fetchAllContacts();
+                                }
+                            }}
+                            disabled={isMerging}
+                        >
+                            {isMerging ? 'Merging...' : 'Merge Contacts'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
             </div>
         </div>
     )

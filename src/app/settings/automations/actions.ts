@@ -3,6 +3,7 @@
 import { adminDb } from "@/lib/firebase-admin";
 import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
+import { logAudit } from "@/lib/audit";
 
 // --- Automation Settings ---
 
@@ -26,6 +27,12 @@ export async function getAutomationSettings() {
                 autoReplyEnabled: data.autoReplyEnabled ?? false,
                 autoReplyTemplateId: data.autoReplyTemplateId ?? null,
                 autoAdvanceEnabled: data.autoAdvanceEnabled ?? false,
+                staleOpportunityEnabled: data.staleOpportunityEnabled ?? false,
+                guestRemindersEnabled: data.guestRemindersEnabled ?? false,
+                checkInReminderDays: data.checkInReminderDays ?? [1, 3, 7],
+                checkOutReminderDays: data.checkOutReminderDays ?? [1, 3, 7, 30],
+                guestCheckInTemplateId: data.guestCheckInTemplateId ?? null,
+                guestCheckOutTemplateId: data.guestCheckOutTemplateId ?? null,
             }
         };
     } catch (error) {
@@ -38,6 +45,12 @@ export async function updateAutomationSettings(updates: {
     autoReplyEnabled?: boolean;
     autoReplyTemplateId?: string | null;
     autoAdvanceEnabled?: boolean;
+    staleOpportunityEnabled?: boolean;
+    guestRemindersEnabled?: boolean;
+    checkInReminderDays?: number[];
+    checkOutReminderDays?: number[];
+    guestCheckInTemplateId?: string | null;
+    guestCheckOutTemplateId?: string | null;
 }) {
     try {
         const session = await auth();
@@ -55,6 +68,17 @@ export async function updateAutomationSettings(updates: {
             { ...updates, updatedAt: new Date() },
             { merge: true }
         );
+
+        logAudit({
+            userId: usersSnap.docs[0].id,
+            userEmail: session.user.email,
+            userName: usersSnap.docs[0].data()?.name || "",
+            action: "settings_change",
+            entity: "settings",
+            entityId: "automations",
+            entityName: "Automation Settings",
+            metadata: updates,
+        }).catch(() => {});
 
         revalidatePath("/settings");
         return { success: true };
@@ -124,6 +148,45 @@ export async function updateEmailTemplate(id: string, data: { name?: string; sub
     } catch (error) {
         console.error("Failed to update email template:", error);
         return { success: false, error: "Failed to update template" };
+    }
+}
+
+// --- Staleness Thresholds ---
+
+export async function getStalenessSettings() {
+    try {
+        const pipelinesSnap = await adminDb.collection("pipelines").orderBy("createdAt", "asc").get()
+        const pipelines: { id: string; name: string; stages: { id: string; name: string; stalenessThresholdDays: number | null; probability: number }[] }[] = []
+
+        for (const pDoc of pipelinesSnap.docs) {
+            const stagesSnap = await pDoc.ref.collection("stages").orderBy("order", "asc").get()
+            const stages = stagesSnap.docs.map(s => ({
+                id: s.id,
+                name: s.data().name || "",
+                stalenessThresholdDays: s.data().stalenessThresholdDays ?? null,
+                probability: s.data().probability ?? 0,
+            }))
+            pipelines.push({ id: pDoc.id, name: pDoc.data().name || "", stages })
+        }
+
+        return { success: true, pipelines }
+    } catch (error) {
+        console.error("Failed to get staleness settings:", error)
+        return { success: false, error: "Failed to get settings" }
+    }
+}
+
+export async function updateStageSettings(pipelineId: string, stageId: string, updates: { stalenessThresholdDays?: number | null; probability?: number }) {
+    try {
+        const session = await auth()
+        if (!session?.user?.email) return { success: false, error: "Unauthorized" }
+
+        await adminDb.collection("pipelines").doc(pipelineId).collection("stages").doc(stageId).update(updates)
+        revalidatePath("/settings")
+        return { success: true }
+    } catch (error) {
+        console.error("Failed to update stage settings:", error)
+        return { success: false, error: "Failed to update" }
     }
 }
 

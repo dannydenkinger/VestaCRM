@@ -3,7 +3,7 @@ import { adminDb } from "@/lib/firebase-admin"
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { ShieldAlert, Users, User, ShieldCheck, BriefcaseBusiness, Construction, Link, MapPin, Workflow } from "lucide-react"
+import { ShieldAlert, Users, User, ShieldCheck, BriefcaseBusiness, Construction, Link, MapPin, Workflow, ScrollText } from "lucide-react"
 import { UserManagementTable } from "./users/UserManagementTable"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProfileForm } from "./ProfileForm"
@@ -16,6 +16,7 @@ import { SpecialAccommodationsManager } from "./system-properties/SpecialAccommo
 import AutomationsContent from "./automations/AutomationsTab"
 import { PipelinePrioritySettings } from "./pipeline/PipelinePrioritySettings"
 import { NotificationPreferences } from "./NotificationPreferences"
+import { AuditLogViewer } from "./audit/AuditLogViewer"
 
 export default async function SettingsPage() {
     const session = await auth()
@@ -77,28 +78,32 @@ export default async function SettingsPage() {
                 </div>
 
                 <Tabs defaultValue="profile" className="w-full space-y-6">
-                    <TabsList className="bg-muted/50 p-1 flex overflow-x-auto no-scrollbar flex-nowrap sm:flex-wrap h-auto gap-1">
-                    <TabsTrigger value="profile" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm">
+                    <TabsList className="bg-muted/50 p-1 flex overflow-x-auto no-scrollbar scroll-fade-x flex-nowrap sm:flex-wrap h-auto gap-1">
+                    <TabsTrigger value="profile" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm min-h-[44px] sm:min-h-0 touch-manipulation">
                         <User className="w-4 h-4" />
                         My Profile
                     </TabsTrigger>
                     {isOwnerOrAdmin && (
                         <>
-                            <TabsTrigger value="workspace" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm">
+                            <TabsTrigger value="workspace" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm min-h-[44px] sm:min-h-0 touch-manipulation">
                                 <BriefcaseBusiness className="w-4 h-4" />
                                 Workspace
                             </TabsTrigger>
-                            <TabsTrigger value="integrations" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm">
+                            <TabsTrigger value="integrations" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm min-h-[44px] sm:min-h-0 touch-manipulation">
                                 <Link className="w-4 h-4" />
                                 Integrations
                             </TabsTrigger>
-                            <TabsTrigger value="users" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm">
+                            <TabsTrigger value="users" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm min-h-[44px] sm:min-h-0 touch-manipulation">
                                 <ShieldCheck className="w-4 h-4" />
                                 Users
                             </TabsTrigger>
-                            <TabsTrigger value="automations" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm">
+                            <TabsTrigger value="automations" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm min-h-[44px] sm:min-h-0 touch-manipulation">
                                 <Workflow className="w-4 h-4" />
                                 Automations
+                            </TabsTrigger>
+                            <TabsTrigger value="audit" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm min-h-[44px] sm:min-h-0 touch-manipulation">
+                                <ScrollText className="w-4 h-4" />
+                                Audit Log
                             </TabsTrigger>
                         </>
                     )}
@@ -228,6 +233,9 @@ export default async function SettingsPage() {
                         </TabsContent>
 
 
+                        <TabsContent value="audit" className="space-y-6">
+                            <AuditLogViewer />
+                        </TabsContent>
                     </>
                 )}
             </Tabs>

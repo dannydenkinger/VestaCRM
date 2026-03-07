@@ -6,6 +6,26 @@ import { auth } from "@/auth"
 const STAGE_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#10b981', '#f59e0b', '#f43f5e', '#06b6d4']
 const BASE_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4']
 
+export interface LeaderboardAgent {
+    userId: string
+    name: string
+    email: string
+    role: string
+    totalDeals: number
+    bookedDeals: number
+    totalRevenue: number
+    totalProfit: number
+    avgDealValue: number
+    conversionRate: number
+    claimedDeals: number
+    rank: number
+}
+
+export interface LeaderboardData {
+    agents: LeaderboardAgent[]
+    totalAgents: number
+}
+
 export interface DashboardData {
     pipelines: { id: string; name: string }[]
     kpi: {
@@ -14,6 +34,14 @@ export interface DashboardData {
         conversionRate: number
         totalPipelineValue: number
         openInquiries: number
+        monthlyRevenue: number
+        revenueTrend: number | null
+        leadVelocity: number
+        leadVelocityTrend: number | null
+        avgDealValue: number
+        weightedForecast: number
+        totalClosedProfit: number
+        avgProfitPerDeal: number
     }
     pipelineData: Record<string, {
         stageDistribution: { name: string; count: number; value: number; color: string }[]
@@ -26,6 +54,7 @@ export interface DashboardData {
         totalValue: number
         totalDeals: number
     }>
+    sourceAttribution: { source: string; count: number; value: number }[]
     tasks: {
         id: string
         title: string
@@ -56,16 +85,19 @@ export async function getDashboardData(): Promise<{ success: boolean; data?: Das
         // Build stages map
         const pipelinesList: { id: string; name: string }[] = []
         const stageMap: Record<string, { pipelineId: string; name: string; order: number }> = {}
+        const stageProbMap: Record<string, number> = {}
 
         for (const doc of pipelinesSnap.docs) {
             pipelinesList.push({ id: doc.id, name: doc.data().name })
             const stagesSnap = await doc.ref.collection('stages').orderBy('order', 'asc').get()
             for (const sDoc of stagesSnap.docs) {
+                const sData = sDoc.data()
                 stageMap[sDoc.id] = {
                     pipelineId: doc.id,
-                    name: sDoc.data().name,
-                    order: sDoc.data().order,
+                    name: sData.name,
+                    order: sData.order,
                 }
+                stageProbMap[sDoc.id] = sData.probability ?? 0
             }
         }
 
@@ -109,9 +141,23 @@ export async function getDashboardData(): Promise<{ success: boolean; data?: Das
                 stageName: stageInfo?.name || 'Unknown',
                 value: Number(d.opportunityValue) || 0,
                 militaryBase: d.militaryBase || (d.contactId ? contactBaseMap[d.contactId] : null) || null,
+                utmSource: (d.utmSource as string) || null,
                 createdAt: toDate(d.createdAt),
             }
         })
+
+        // Source attribution from UTM data
+        const sourceCounts: Record<string, { count: number; value: number }> = {}
+        for (const opp of opps) {
+            const src = opp.utmSource || "Direct / Unknown"
+            if (!sourceCounts[src]) sourceCounts[src] = { count: 0, value: 0 }
+            sourceCounts[src].count++
+            sourceCounts[src].value += opp.value
+        }
+        const sourceAttribution = Object.entries(sourceCounts)
+            .map(([source, data]) => ({ source, count: data.count, value: data.value }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10)
 
         // KPIs
         const activeStayCount = contactsSnap.docs.filter(doc => doc.data().status === 'Active Stay').length
@@ -121,6 +167,52 @@ export async function getDashboardData(): Promise<{ success: boolean; data?: Das
         const openInquiries = opps.filter(o => !closedStageIds.has(o.stageId)).length
         const bookedCount = opps.filter(o => bookedStageIds.has(o.stageId)).length
         const conversionRate = opps.length > 0 ? Math.round((bookedCount / opps.length) * 1000) / 10 : 0
+
+        // Monthly revenue (booked opps created this month vs last month)
+        const now2 = new Date()
+        const thisMonthStart = new Date(now2.getFullYear(), now2.getMonth(), 1)
+        const lastMonthStart = new Date(now2.getFullYear(), now2.getMonth() - 1, 1)
+        const lastMonthEnd = new Date(now2.getFullYear(), now2.getMonth(), 0, 23, 59, 59)
+
+        const monthlyRevenue = opps
+            .filter(o => bookedStageIds.has(o.stageId) && o.createdAt >= thisMonthStart)
+            .reduce((sum, o) => sum + o.value, 0)
+        const previousMonthRevenue = opps
+            .filter(o => bookedStageIds.has(o.stageId) && o.createdAt >= lastMonthStart && o.createdAt <= lastMonthEnd)
+            .reduce((sum, o) => sum + o.value, 0)
+        const revenueTrend = previousMonthRevenue > 0
+            ? Math.round(((monthlyRevenue - previousMonthRevenue) / previousMonthRevenue) * 1000) / 10
+            : null
+
+        // Lead velocity (new contacts last 30 days vs prior 30 days)
+        const thirtyDaysAgo = new Date(now2.getTime() - 30 * 86400000)
+        const sixtyDaysAgo = new Date(now2.getTime() - 60 * 86400000)
+        const leadVelocity = contactsSnap.docs.filter(doc => {
+            const ca = toDate(doc.data().createdAt)
+            return ca >= thirtyDaysAgo
+        }).length
+        const previousLeadVelocity = contactsSnap.docs.filter(doc => {
+            const ca = toDate(doc.data().createdAt)
+            return ca >= sixtyDaysAgo && ca < thirtyDaysAgo
+        }).length
+        const leadVelocityTrend = previousLeadVelocity > 0
+            ? Math.round(((leadVelocity - previousLeadVelocity) / previousLeadVelocity) * 1000) / 10
+            : null
+
+        // Avg deal value (booked deals)
+        const bookedOpps = opps.filter(o => bookedStageIds.has(o.stageId))
+        const avgDealValue = bookedOpps.length > 0 ? Math.round(bookedOpps.reduce((s, o) => s + o.value, 0) / bookedOpps.length) : 0
+
+        // Closed profit metrics (from reporting)
+        const totalClosedProfit = oppsSnap.docs
+            .filter(doc => bookedStageIds.has(doc.data().pipelineStageId))
+            .reduce((sum, doc) => sum + (Number(doc.data().estimatedProfit) || 0), 0)
+        const avgProfitPerDeal = bookedCount > 0 ? Math.round(totalClosedProfit / bookedCount) : 0
+
+        // Weighted forecast (open opps * stage probability)
+        const weightedForecast = opps
+            .filter(o => !closedStageIds.has(o.stageId))
+            .reduce((sum, o) => sum + o.value * ((stageProbMap[o.stageId] ?? 0) / 100), 0)
 
         // Per-pipeline data
         const pipelineData: DashboardData['pipelineData'] = {}
@@ -225,13 +317,130 @@ export async function getDashboardData(): Promise<{ success: boolean; data?: Das
             success: true,
             data: {
                 pipelines: pipelinesList,
-                kpi: { activeStayCount, totalContacts, conversionRate, totalPipelineValue, openInquiries },
+                kpi: {
+                    activeStayCount, totalContacts, conversionRate, totalPipelineValue, openInquiries,
+                    monthlyRevenue, revenueTrend,
+                    leadVelocity, leadVelocityTrend, avgDealValue,
+                    weightedForecast: Math.round(weightedForecast),
+                    totalClosedProfit: Math.round(totalClosedProfit),
+                    avgProfitPerDeal,
+                },
                 pipelineData,
+                sourceAttribution,
                 tasks,
             }
         }
     } catch (error) {
         console.error("Dashboard data error:", error)
         return { success: false, error: "Failed to fetch dashboard data" }
+    }
+}
+
+export async function getLeaderboardData(): Promise<{ success: boolean; data?: LeaderboardData; error?: string }> {
+    const session = await auth()
+    if (!session?.user) return { success: false, error: "Not authenticated" }
+
+    try {
+        const [usersSnap, oppsSnap, pipelinesSnap] = await Promise.all([
+            adminDb.collection('users').get(),
+            adminDb.collection('opportunities').get(),
+            adminDb.collection('pipelines').get(),
+        ])
+
+        // Build stage lookup — identify booked/won stages
+        const bookedNames = new Set(['Booked', 'Closed', 'Signed', 'Closed Won', 'Lease Signed'])
+        const bookedStageIds = new Set<string>()
+
+        for (const pDoc of pipelinesSnap.docs) {
+            const stagesSnap = await pDoc.ref.collection('stages').orderBy('order', 'asc').get()
+            for (const sDoc of stagesSnap.docs) {
+                if (bookedNames.has(sDoc.data().name)) {
+                    bookedStageIds.add(sDoc.id)
+                }
+            }
+        }
+
+        // Calculate metrics per user (by assigneeId AND claimedBy)
+        const agentMetrics: Record<string, {
+            totalDeals: number
+            bookedDeals: number
+            totalRevenue: number
+            totalProfit: number
+            claimedDeals: number
+        }> = {}
+
+        const initAgent = (id: string) => {
+            if (!agentMetrics[id]) {
+                agentMetrics[id] = { totalDeals: 0, bookedDeals: 0, totalRevenue: 0, totalProfit: 0, claimedDeals: 0 }
+            }
+        }
+
+        oppsSnap.docs.forEach(doc => {
+            const d = doc.data()
+            const assigneeId = d.assigneeId as string | undefined
+            const claimedBy = d.claimedBy as string | undefined
+            const isBooked = bookedStageIds.has(d.pipelineStageId)
+            const value = Number(d.opportunityValue) || 0
+            const profit = Number(d.estimatedProfit) || 0
+
+            if (assigneeId) {
+                initAgent(assigneeId)
+                agentMetrics[assigneeId].totalDeals++
+                if (isBooked) {
+                    agentMetrics[assigneeId].bookedDeals++
+                    agentMetrics[assigneeId].totalRevenue += value
+                    agentMetrics[assigneeId].totalProfit += profit
+                }
+            }
+
+            if (claimedBy) {
+                initAgent(claimedBy)
+                agentMetrics[claimedBy].claimedDeals++
+                // If claimedBy is different from assignee, also count for claimed user
+                if (claimedBy !== assigneeId) {
+                    agentMetrics[claimedBy].totalDeals++
+                    if (isBooked) {
+                        agentMetrics[claimedBy].bookedDeals++
+                        agentMetrics[claimedBy].totalRevenue += value
+                        agentMetrics[claimedBy].totalProfit += profit
+                    }
+                }
+            }
+        })
+
+        // Build agent list
+        const agents: LeaderboardAgent[] = usersSnap.docs
+            .map(doc => {
+                const userData = doc.data()
+                const metrics = agentMetrics[doc.id] || { totalDeals: 0, bookedDeals: 0, totalRevenue: 0, totalProfit: 0, claimedDeals: 0 }
+                return {
+                    userId: doc.id,
+                    name: userData.name || 'Unknown',
+                    email: userData.email || '',
+                    role: userData.role || 'AGENT',
+                    totalDeals: metrics.totalDeals,
+                    bookedDeals: metrics.bookedDeals,
+                    totalRevenue: Math.round(metrics.totalRevenue),
+                    totalProfit: Math.round(metrics.totalProfit),
+                    avgDealValue: metrics.bookedDeals > 0
+                        ? Math.round(metrics.totalRevenue / metrics.bookedDeals)
+                        : 0,
+                    conversionRate: metrics.totalDeals > 0
+                        ? Math.round((metrics.bookedDeals / metrics.totalDeals) * 1000) / 10
+                        : 0,
+                    claimedDeals: metrics.claimedDeals,
+                    rank: 0,
+                }
+            })
+            .sort((a, b) => b.totalRevenue - a.totalRevenue)
+            .map((agent, idx) => ({ ...agent, rank: idx + 1 }))
+
+        return {
+            success: true,
+            data: { agents, totalAgents: agents.length },
+        }
+    } catch (error) {
+        console.error("Leaderboard data error:", error)
+        return { success: false, error: "Failed to fetch leaderboard data" }
     }
 }

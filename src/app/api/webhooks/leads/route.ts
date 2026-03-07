@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { sendEmail } from '@/lib/email';
 import { createNotification } from '@/app/notifications/actions';
+import { triggerSequence } from '@/lib/email-sequences';
 import * as z from 'zod';
 import { calculateOnBaseLodging, lodgingData } from '@/lib/calculators/on-base';
 
@@ -91,6 +92,12 @@ export async function POST(req: Request) {
         // 2. Parse and Normalize Payload (support both Elementor + Fluent Forms-style keys)
         const raw = await req.json();
 
+        // Normalize UTM params (support both utm_source and utmSource styles)
+        const utmSource = raw.utm_source ?? raw.utmSource ?? raw.UTM_Source ?? null;
+        const utmMedium = raw.utm_medium ?? raw.utmMedium ?? raw.UTM_Medium ?? null;
+        const utmCampaign = raw.utm_campaign ?? raw.utmCampaign ?? raw.UTM_Campaign ?? null;
+        const utmTerm = raw.utm_term ?? raw.utmTerm ?? raw.UTM_Term ?? null;
+        const utmContent = raw.utm_content ?? raw.utmContent ?? raw.UTM_Content ?? null;
         const body: any = {
             ...raw,
             // Names
@@ -161,7 +168,7 @@ export async function POST(req: Request) {
         if (existingContacts.empty) {
             const contactRef = adminDb.collection('contacts').doc();
             contactId = contactRef.id;
-            
+
             await contactRef.set({
                 name: finalName,
                 email: data.email,
@@ -170,9 +177,21 @@ export async function POST(req: Request) {
                 stayStartDate: formattedStartDate,
                 stayEndDate: formattedEndDate,
                 status: 'Lead',
+                ...(utmSource && { utmSource }),
+                ...(utmMedium && { utmMedium }),
+                ...(utmCampaign && { utmCampaign }),
+                ...(utmTerm && { utmTerm }),
+                ...(utmContent && { utmContent }),
                 createdAt: new Date(),
                 updatedAt: new Date()
             });
+
+            // Trigger new_contact email sequence for new contacts
+            triggerSequence("new_contact", contactId, data.email, finalName, {
+                base: data.base || "",
+                startDate: startYmd || "",
+                endDate: endYmd || "",
+            }).catch(() => {});
         } else {
             contactId = existingContacts.docs[0].id;
             const contactData = existingContacts.docs[0].data();
@@ -266,6 +285,11 @@ export async function POST(req: Request) {
             reasonForStay: data.reason_for_stay?.trim?.() ? data.reason_for_stay.trim() : null,
             specialAccommodationId,
             specialAccommodationLabels: specialAccommodationLabels.length > 0 ? specialAccommodationLabels : [],
+            ...(utmSource && { utmSource }),
+            ...(utmMedium && { utmMedium }),
+            ...(utmCampaign && { utmCampaign }),
+            ...(utmTerm && { utmTerm }),
+            ...(utmContent && { utmContent }),
             unread: true,
             unreadAt: new Date(),
             lastSeenAt: null,
@@ -284,6 +308,32 @@ export async function POST(req: Request) {
                 createdAt: new Date(),
                 updatedAt: new Date()
             });
+        }
+
+        // 7b. Auto-link referral by email match
+        if (data.email) {
+            try {
+                const refSnap = await adminDb.collection('referrals')
+                    .where('referredEmail', '==', data.email)
+                    .limit(1)
+                    .get();
+                if (!refSnap.empty) {
+                    const refDoc = refSnap.docs[0];
+                    const refData = refDoc.data();
+                    // Only advance if not already past contacted
+                    if (refData.status === 'pending') {
+                        await refDoc.ref.update({
+                            referredContactId: contactId,
+                            referredOpportunityId: oppRef.id,
+                            referredName: finalName,
+                            dealValue: opportunityValue,
+                            status: 'contacted',
+                        });
+                    }
+                }
+            } catch (refErr) {
+                console.error("Referral linking failed (non-blocking):", refErr);
+            }
         }
 
         // 8. Create a notification (in-app + email dispatch)

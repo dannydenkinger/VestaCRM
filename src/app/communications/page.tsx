@@ -297,7 +297,7 @@ export default function CommunicationsPage() {
                             </div>
 
                             {/* Messages */}
-                            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                            <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4">
                                 {messages.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
                                         <p className="text-sm">No messages yet</p>
@@ -308,7 +308,7 @@ export default function CommunicationsPage() {
                                         key={msg.id}
                                         className={`flex ${msg.direction === "outbound" ? "justify-end" : "justify-start"}`}
                                     >
-                                        <div className={`max-w-[70%] rounded-2xl px-4 py-2.5 space-y-1 ${msg.direction === "outbound"
+                                        <div className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-2.5 space-y-1 ${msg.direction === "outbound"
                                                 ? "bg-primary text-primary-foreground rounded-br-md"
                                                 : "bg-muted rounded-bl-md"
                                             }`}>
@@ -359,7 +359,7 @@ export default function CommunicationsPage() {
                                         }}
                                         placeholder="Type your message..."
                                         rows={2}
-                                        className="flex-1 min-w-0 resize-none rounded-xl border border-input bg-background px-3 sm:px-4 py-2.5 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[44px]"
+                                        className="flex-1 min-w-0 resize-none rounded-xl border border-input bg-background px-3 sm:px-4 py-2.5 text-base sm:text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[44px]"
                                     />
                                     <Button
                                         onClick={handleSend}

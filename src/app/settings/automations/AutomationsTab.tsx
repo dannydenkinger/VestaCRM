@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Zap, ArrowRight, Mail, CalendarClock, FileCheck, Trash2, Edit2, Play } from "lucide-react"
+import { Plus, Zap, ArrowRight, Mail, CalendarClock, FileCheck, Trash2, Edit2, Play, AlertTriangle, Bell } from "lucide-react"
 import {
     Dialog,
     DialogContent,
@@ -24,8 +24,11 @@ import {
     createEmailTemplate,
     updateEmailTemplate,
     deleteEmailTemplate,
+    getStalenessSettings,
+    updateStageSettings,
 } from "./actions"
 import { autoAdvanceOpportunities } from "@/app/pipeline/actions"
+import { SequenceManager } from "./SequenceManager"
 
 interface EmailTemplate {
     id: string
@@ -35,10 +38,29 @@ interface EmailTemplate {
     createdAt: string | null
 }
 
+interface StageInfo {
+    id: string
+    name: string
+    stalenessThresholdDays: number | null
+    probability: number
+}
+
+interface PipelineInfo {
+    id: string
+    name: string
+    stages: StageInfo[]
+}
+
 interface AutomationSettings {
     autoReplyEnabled: boolean
     autoReplyTemplateId: string | null
     autoAdvanceEnabled: boolean
+    staleOpportunityEnabled: boolean
+    guestRemindersEnabled: boolean
+    checkInReminderDays: number[]
+    checkOutReminderDays: number[]
+    guestCheckInTemplateId: string | null
+    guestCheckOutTemplateId: string | null
 }
 
 export default function AutomationsContent() {
@@ -46,8 +68,15 @@ export default function AutomationsContent() {
         autoReplyEnabled: false,
         autoReplyTemplateId: null,
         autoAdvanceEnabled: false,
+        staleOpportunityEnabled: false,
+        guestRemindersEnabled: false,
+        checkInReminderDays: [1, 3, 7],
+        checkOutReminderDays: [1, 3, 7, 30],
+        guestCheckInTemplateId: null,
+        guestCheckOutTemplateId: null,
     })
     const [templates, setTemplates] = useState<EmailTemplate[]>([])
+    const [pipelineStages, setPipelineStages] = useState<PipelineInfo[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false)
     const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null)
@@ -57,12 +86,14 @@ export default function AutomationsContent() {
 
     useEffect(() => {
         async function load() {
-            const [settingsRes, templatesRes] = await Promise.all([
+            const [settingsRes, templatesRes, stalenessRes] = await Promise.all([
                 getAutomationSettings(),
                 getEmailTemplates(),
+                getStalenessSettings(),
             ])
-            if (settingsRes.success && settingsRes.settings) setSettings(settingsRes.settings)
+            if (settingsRes.success && settingsRes.settings) setSettings(settingsRes.settings as AutomationSettings)
             if (templatesRes.success && templatesRes.templates) setTemplates(templatesRes.templates)
+            if (stalenessRes.success && stalenessRes.pipelines) setPipelineStages(stalenessRes.pipelines)
             setIsLoading(false)
         }
         load()
@@ -145,6 +176,42 @@ export default function AutomationsContent() {
         } else {
             toast.error("Failed to delete template.")
         }
+    }
+
+    const handleToggleStaleAlerts = async (enabled: boolean) => {
+        setSettings(prev => ({ ...prev, staleOpportunityEnabled: enabled }))
+        const res = await updateAutomationSettings({ staleOpportunityEnabled: enabled })
+        if (!res.success) {
+            setSettings(prev => ({ ...prev, staleOpportunityEnabled: !enabled }))
+            toast.error("Failed to update setting.")
+        }
+    }
+
+    const handleToggleGuestReminders = async (enabled: boolean) => {
+        setSettings(prev => ({ ...prev, guestRemindersEnabled: enabled }))
+        const res = await updateAutomationSettings({ guestRemindersEnabled: enabled })
+        if (!res.success) {
+            setSettings(prev => ({ ...prev, guestRemindersEnabled: !enabled }))
+            toast.error("Failed to update setting.")
+        }
+    }
+
+    const handleUpdateStaleness = async (pipelineId: string, stageId: string, days: string) => {
+        const value = days.trim() === "" ? null : parseInt(days)
+        if (days.trim() !== "" && (isNaN(value!) || value! < 0)) return
+
+        setPipelineStages(prev => prev.map(p =>
+            p.id === pipelineId
+                ? { ...p, stages: p.stages.map(s => s.id === stageId ? { ...s, stalenessThresholdDays: value } : s) }
+                : p
+        ))
+        await updateStageSettings(pipelineId, stageId, { stalenessThresholdDays: value })
+    }
+
+    const handleSelectGuestTemplate = async (field: "guestCheckInTemplateId" | "guestCheckOutTemplateId", templateId: string) => {
+        const value = templateId === "none" ? null : templateId
+        setSettings(prev => ({ ...prev, [field]: value }))
+        await updateAutomationSettings({ [field]: value })
     }
 
     const handleRunAutoAdvance = async () => {
@@ -306,6 +373,124 @@ export default function AutomationsContent() {
                     </div>
                 </CardContent>
             </Card>
+
+            {/* Stale Opportunity Alerts */}
+            <Card>
+                <CardContent className="p-4 sm:p-6">
+                    <div className="flex flex-col sm:flex-row gap-4 items-start w-full">
+                        <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+                            <AlertTriangle className="h-5 w-5" />
+                        </div>
+                        <div className="flex flex-col flex-1 space-y-1 min-w-0">
+                            <h3 className="font-semibold text-base sm:text-lg">Stale Opportunity Alerts</h3>
+                            <p className="text-sm text-muted-foreground">
+                                Get notified when opportunities haven&apos;t been updated within the threshold days per stage.
+                            </p>
+                            {settings.staleOpportunityEnabled && pipelineStages.length > 0 && (
+                                <div className="pt-4 space-y-3">
+                                    {pipelineStages.map(pipeline => (
+                                        <div key={pipeline.id}>
+                                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{pipeline.name}</p>
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                                {pipeline.stages.map(stage => (
+                                                    <div key={stage.id} className="flex items-center gap-2">
+                                                        <span className="text-xs truncate flex-1">{stage.name}</span>
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            placeholder="—"
+                                                            className="w-16 h-7 text-xs text-center"
+                                                            value={stage.stalenessThresholdDays ?? ""}
+                                                            onChange={(e) => handleUpdateStaleness(pipeline.id, stage.id, e.target.value)}
+                                                        />
+                                                        <span className="text-[10px] text-muted-foreground">days</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-3 sm:ml-auto shrink-0 sm:pl-10 sm:border-l border-border/50">
+                            <span className="text-sm font-medium text-muted-foreground w-12 text-right">
+                                {settings.staleOpportunityEnabled ? "Active" : "Paused"}
+                            </span>
+                            <Switch
+                                checked={settings.staleOpportunityEnabled}
+                                onCheckedChange={handleToggleStaleAlerts}
+                            />
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Guest Check-In/Out Reminders */}
+            <Card>
+                <CardContent className="p-4 sm:p-6">
+                    <div className="flex flex-col sm:flex-row gap-4 items-start w-full">
+                        <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-500">
+                            <Bell className="h-5 w-5" />
+                        </div>
+                        <div className="flex flex-col flex-1 space-y-1 min-w-0">
+                            <h3 className="font-semibold text-base sm:text-lg">Guest Check-In/Out Emails</h3>
+                            <p className="text-sm text-muted-foreground">
+                                Send email reminders directly to guests before check-in and check-out dates.
+                            </p>
+                            {settings.guestRemindersEnabled && (
+                                <div className="pt-4 space-y-4">
+                                    <div>
+                                        <label className="text-sm font-medium text-muted-foreground mb-1.5 block">Check-In Email Template</label>
+                                        <Select
+                                            value={settings.guestCheckInTemplateId || "none"}
+                                            onValueChange={(val) => handleSelectGuestTemplate("guestCheckInTemplateId", val)}
+                                        >
+                                            <SelectTrigger className="w-full sm:w-[300px]">
+                                                <SelectValue placeholder="Select a template" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">No template selected</SelectItem>
+                                                {templates.map(t => (
+                                                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-medium text-muted-foreground mb-1.5 block">Check-Out Email Template</label>
+                                        <Select
+                                            value={settings.guestCheckOutTemplateId || "none"}
+                                            onValueChange={(val) => handleSelectGuestTemplate("guestCheckOutTemplateId", val)}
+                                        >
+                                            <SelectTrigger className="w-full sm:w-[300px]">
+                                                <SelectValue placeholder="Select a template" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">No template selected</SelectItem>
+                                                {templates.map(t => (
+                                                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-3 sm:ml-auto shrink-0 sm:pl-10 sm:border-l border-border/50">
+                            <span className="text-sm font-medium text-muted-foreground w-12 text-right">
+                                {settings.guestRemindersEnabled ? "Active" : "Paused"}
+                            </span>
+                            <Switch
+                                checked={settings.guestRemindersEnabled}
+                                onCheckedChange={handleToggleGuestReminders}
+                            />
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Email Sequences */}
+            <SequenceManager templates={templates.map(t => ({ id: t.id, name: t.name }))} />
 
             {/* Email Templates */}
             <Card>

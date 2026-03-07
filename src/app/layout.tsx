@@ -12,6 +12,14 @@ export const metadata: Metadata = {
   title: "AFCrashpad CRM",
   description: "Custom GoHighLevel-style CRM for Air Force Crashpad",
   manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "AFCrashpad",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 export const viewport: Viewport = {
@@ -19,6 +27,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: "cover",
+  themeColor: "#0a0a0a",
 };
 
 export default function RootLayout({
@@ -28,6 +37,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+      </head>
       <body className={`${inter.className} h-screen bg-background antialiased overflow-hidden flex`}>
         <Providers>
           <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>

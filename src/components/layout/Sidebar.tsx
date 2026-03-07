@@ -2,23 +2,28 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Users, Calendar, ListTodo, BarChart3, Settings, Plane, ChevronLeft, ChevronRight, Megaphone, LayoutGrid, Wrench, MessageSquare, X } from "lucide-react"
+import { LayoutDashboard, Users, Calendar, Settings, Plane, ChevronLeft, ChevronRight, Megaphone, LayoutGrid, Wrench, MessageSquare, X, Wallet } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useSession } from "next-auth/react"
 import { getCurrentUserRole } from "@/app/settings/users/actions"
 import { Button } from "@/components/ui/button"
 
-const rootLinks = [
+type NavItem = { name: string; href: string; icon: any } | { separator: string }
+
+const navItems: NavItem[] = [
+    // CRM
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { name: "Contacts", href: "/contacts", icon: Users },
-    { name: "Communications", href: "/communications", icon: MessageSquare },
-    { name: "Calendar", href: "/calendar", icon: Calendar },
-    { name: "Tasks", href: "/tasks", icon: ListTodo },
     { name: "Pipeline", href: "/pipeline", icon: LayoutGrid },
-    { name: "Reporting", href: "/reporting", icon: BarChart3 },
+    { name: "Contacts", href: "/contacts", icon: Users },
+    { separator: "Activity" },
+    { name: "Calendar", href: "/calendar", icon: Calendar },
+    { name: "Communications", href: "/communications", icon: MessageSquare },
+    { separator: "Finance & Growth" },
+    { name: "Finance", href: "/finance", icon: Wallet },
     { name: "Marketing", href: "/marketing", icon: Megaphone },
     { name: "Tools", href: "/tools", icon: Wrench },
+    { separator: "Admin" },
     { name: "Settings", href: "/settings", icon: Settings },
 ]
 
@@ -100,15 +105,26 @@ export function Sidebar({ onNavigate, className, mobileCollapsed }: SidebarProps
             </div>
 
             <nav className="flex-1 space-y-1">
-                {rootLinks.map((link) => {
-                    const isActive = pathname.startsWith(link.href)
-                    const Icon = link.icon
+                {navItems.map((item, idx) => {
+                    if ("separator" in item) {
+                        if (showCollapsed) {
+                            return <div key={`sep-${idx}`} className="h-px bg-border/50 my-2 mx-2" />
+                        }
+                        return (
+                            <div key={`sep-${idx}`} className="pt-4 pb-1 px-3">
+                                <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider">{item.separator}</span>
+                            </div>
+                        )
+                    }
+
+                    const isActive = pathname.startsWith(item.href)
+                    const Icon = item.icon
 
                     return (
                         <Link
-                            key={link.name}
-                            href={link.href}
-                            title={showCollapsed ? link.name : undefined}
+                            key={item.name}
+                            href={item.href}
+                            title={showCollapsed ? item.name : undefined}
                             onClick={onNavigate}
                             className={cn(
                                 "flex items-center rounded-md font-medium transition-colors min-h-[44px] touch-manipulation",
@@ -119,7 +135,7 @@ export function Sidebar({ onNavigate, className, mobileCollapsed }: SidebarProps
                             )}
                         >
                             <Icon className={cn("shrink-0", showCollapsed ? "h-5 w-5" : "h-4 w-4")} />
-                            {!showCollapsed && <span>{link.name}</span>}
+                            {!showCollapsed && <span>{item.name}</span>}
                         </Link>
                     )
                 })}

@@ -5,6 +5,9 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { createNotification } from "@/app/notifications/actions";
 import { checkStayReminders } from "@/lib/reminders";
+import { logAudit, diffChanges } from "@/lib/audit";
+import { recordCommission } from "@/app/dashboard/commissions/actions";
+import { advanceReferralForStage, checkReferralConversion } from "@/app/dashboard/referrals/actions";
 
 export async function getPipelines() {
     // Normalize Firestore Timestamp/Date to ISO string (plain-object safe for RSC serialization)
@@ -53,77 +56,66 @@ export async function getPipelines() {
             };
         }
 
-        // Load all opportunities
-        const oppsSnapshot = await adminDb.collection('opportunities').orderBy('createdAt', 'desc').get();
-        
-        // Cache contacts and users
-        const contactsMap: Record<string, any> = {};
-        const usersMap: Record<string, any> = {};
-        
-        const oppsPromises = oppsSnapshot.docs.map(async (doc) => {
-            const data = doc.data();
-            
-            let contact = contactsMap[data.contactId];
-            if (!contact && data.contactId) {
-                const contactDoc = await adminDb.collection('contacts').doc(data.contactId).get();
-                if (contactDoc.exists) {
-                    contact = { id: contactDoc.id, ...contactDoc.data() };
-                    contactsMap[data.contactId] = contact;
-                }
+        // Build stageId → (pipelineId, stageName) index for O(1) lookup
+        const stageIndex: Record<string, { pipelineId: string; stageName: string }> = {};
+        for (const pid in pipelinesMap) {
+            for (const stage of pipelinesMap[pid].stages) {
+                stageIndex[stage.id] = { pipelineId: pid, stageName: stage.name };
             }
+        }
 
-            let assignee = usersMap[data.assigneeId];
-            if (!assignee && data.assigneeId) {
-                const userDoc = await adminDb.collection('users').doc(data.assigneeId).get();
-                if (userDoc.exists) {
-                    assignee = { id: userDoc.id, ...userDoc.data() };
-                    usersMap[data.assigneeId] = assignee;
+        // Load all opportunities, contacts, and users in parallel (avoid N+1)
+        const [oppsSnapshot, contactsSnap, usersSnap] = await Promise.all([
+            adminDb.collection('opportunities').orderBy('createdAt', 'desc').get(),
+            adminDb.collection('contacts').get(),
+            adminDb.collection('users').get(),
+        ]);
+
+        // Build contacts and users maps from bulk queries
+        const contactsMap: Record<string, any> = {};
+        contactsSnap.docs.forEach(doc => {
+            contactsMap[doc.id] = { id: doc.id, ...doc.data() };
+        });
+        const usersMap: Record<string, any> = {};
+        usersSnap.docs.forEach(doc => {
+            usersMap[doc.id] = { id: doc.id, ...doc.data() };
+        });
+
+        // Pre-fetch latest note per contact using collectionGroup (avoids N+1 note queries)
+        const contactNotesMap: Record<string, string> = {};
+        try {
+            const allNotesSnap = await adminDb.collectionGroup('notes').orderBy('createdAt', 'desc').get();
+            for (const noteDoc of allNotesSnap.docs) {
+                const contactId = noteDoc.ref.parent.parent?.id;
+                if (contactId && !contactNotesMap[contactId]) {
+                    contactNotesMap[contactId] = noteDoc.data().content || "";
                 }
             }
-            
-            // Find which pipeline this belongs to by stage id
-            let pipelineId = null;
-            let stageName = "";
-            for (const pid in pipelinesMap) {
-                const stage = pipelinesMap[pid].stages.find((s: any) => s.id === data.pipelineStageId);
-                if (stage) {
-                    pipelineId = pid;
-                    stageName = stage.name;
-                    break;
-                }
-            }
+        } catch {
+            // Fallback: notes map stays empty, opp.notes will be null
+        }
+
+        const allOpps = oppsSnapshot.docs.map(doc => {
+            const data = doc.data();
+            const contact = data.contactId ? contactsMap[data.contactId] : null;
+            const assignee = data.assigneeId ? usersMap[data.assigneeId] : null;
+            const stageInfo = data.pipelineStageId ? stageIndex[data.pipelineStageId] : null;
 
             const base = data.militaryBase || contact?.militaryBase || null;
             const startDate = toDateInput(data.stayStartDate || contact?.stayStartDate);
             const endDate = toDateInput(data.stayEndDate || contact?.stayEndDate);
-            let notes = data.notes || null;
-            if (!notes && data.contactId) {
-                try {
-                    const notesSnap = await adminDb
-                        .collection('contacts')
-                        .doc(data.contactId)
-                        .collection('notes')
-                        .orderBy('createdAt', 'desc')
-                        .limit(1)
-                        .get();
-                    if (!notesSnap.empty) {
-                        notes = notesSnap.docs[0].data()?.content || null;
-                    }
-                } catch {
-                    // Ignore notes fallback failures
-                }
-            }
+            const notes = data.notes || (data.contactId ? contactNotesMap[data.contactId] : null) || null;
 
             return {
                 id: doc.id,
-                pipelineId: pipelineId || null,
+                pipelineId: stageInfo?.pipelineId || null,
                 pipelineStageId: data.pipelineStageId || null,
                 contactId: data.contactId || null,
                 name: contact?.name || data.name || "Unknown",
                 email: contact?.email || data.email || null,
                 phone: contact?.phone || data.phone || null,
                 base: base || null,
-                stage: stageName || "Unknown",
+                stage: stageInfo?.stageName || "Unknown",
                 value: Number(data.opportunityValue) || 0,
                 margin: Number(data.estimatedProfit) || 0,
                 priority: data.priority || "MEDIUM",
@@ -148,12 +140,13 @@ export async function getPipelines() {
                     tc: data.requiredDocs?.tc ?? false,
                     payment: data.requiredDocs?.payment ?? false,
                 },
+                claimedBy: data.claimedBy || null,
+                claimedByName: data.claimedByName || null,
+                claimedAt: toISO(data.claimedAt),
                 createdAt: toISO(data.createdAt),
                 updatedAt: toISO(data.updatedAt)
             };
         });
-
-        const allOpps = await Promise.all(oppsPromises);
         
         for (const opp of allOpps) {
             if (opp.pipelineId && pipelinesMap[opp.pipelineId]) {
@@ -487,6 +480,16 @@ export async function createNewDeal(data: any, pipelineId?: string) {
             });
         }
 
+        logAudit({
+            userId: (session.user as any).id || "",
+            userEmail: session.user.email || "",
+            userName: session.user.name || "",
+            action: "create",
+            entity: "opportunity",
+            entityId: oppRef.id,
+            entityName: data.name || "New Deal",
+        }).catch(() => {});
+
         revalidatePath("/pipeline");
         return { success: true, dealId: oppRef.id };
     } catch (error) {
@@ -521,7 +524,9 @@ export async function updateOpportunity(id: string, data: {
         }
         const updateData: Record<string, unknown> = { updatedAt: new Date() };
 
-        if (data.pipelineStageId !== undefined) updateData.pipelineStageId = data.pipelineStageId;
+        if (data.pipelineStageId !== undefined) {
+            updateData.pipelineStageId = data.pipelineStageId;
+        }
         if (data.name !== undefined) updateData.name = data.name;
         if (data.value !== undefined) updateData.opportunityValue = Number(data.value) || 0;
         if (data.margin !== undefined) updateData.estimatedProfit = Number(data.margin) || 0;
@@ -550,7 +555,63 @@ export async function updateOpportunity(id: string, data: {
         if (!snap.exists) {
             return { success: false, error: "Opportunity not found" };
         }
+        const beforeData = snap.data() || {};
+
+        // Track stage history for conversion metrics
+        if (data.pipelineStageId !== undefined && data.pipelineStageId !== beforeData.pipelineStageId) {
+            const history = Array.isArray(beforeData.stageHistory) ? [...beforeData.stageHistory] : [];
+            history.push({ stageId: data.pipelineStageId, enteredAt: new Date() });
+            updateData.stageHistory = history;
+        }
+
         await docRef.update(updateData);
+
+        // Auto-record commission + check referral conversion on stage change
+        if (data.pipelineStageId !== undefined && data.pipelineStageId !== beforeData.pipelineStageId) {
+            try {
+                const bookedNames = new Set(["Booked", "Closed Won", "Lease Signed"]);
+                const pipelines = await adminDb.collection('pipelines').get();
+                for (const pDoc of pipelines.docs) {
+                    const stageDoc = await pDoc.ref.collection('stages').doc(data.pipelineStageId).get();
+                    if (stageDoc.exists) {
+                        const stageName = stageDoc.data()?.name;
+                        // Auto-record commission for booked stages
+                        if (bookedNames.has(stageName)) {
+                            const agentId = beforeData.claimedBy || beforeData.assigneeId;
+                            if (agentId) {
+                                recordCommission(oppId, agentId).catch(() => {});
+                            }
+                        }
+                        // Advance referral status for every stage change
+                        const contactId = beforeData.contactId || data.contactId;
+                        const dealValue = Number(updateData.opportunityValue ?? beforeData.opportunityValue) || 0;
+                        if (contactId) {
+                            advanceReferralForStage(oppId, contactId, stageName, dealValue).catch(() => {});
+                        }
+                        break;
+                    }
+                }
+            } catch { /* ignore commission/referral errors */ }
+        }
+
+        // Audit log
+        const session = await auth();
+        if (session?.user) {
+            const auditFields = ["pipelineStageId", "opportunityValue", "estimatedProfit", "priority", "assigneeId", "militaryBase", "stayStartDate", "stayEndDate", "notes"];
+            const changes = diffChanges(beforeData, updateData, auditFields);
+            if (changes) {
+                logAudit({
+                    userId: (session.user as any).id || "",
+                    userEmail: session.user.email || "",
+                    userName: session.user.name || "",
+                    action: data.pipelineStageId !== undefined && data.pipelineStageId !== beforeData.pipelineStageId ? "stage_move" : "update",
+                    entity: "opportunity",
+                    entityId: oppId,
+                    entityName: beforeData.name || "",
+                    changes,
+                }).catch(() => {});
+            }
+        }
 
         if (data.contactId && data.notes !== undefined) {
             const content = data.notes ? String(data.notes).trim() : "";
@@ -588,6 +649,57 @@ export async function updateOpportunity(id: string, data: {
     }
 }
 
+export async function claimOpportunity(id: string) {
+    try {
+        const session = await auth();
+        if (!session?.user) return { success: false, error: "Not authenticated" };
+
+        const userId = (session.user as any).id;
+        const userName = session.user.name || session.user.email || "Unknown";
+
+        const docRef = adminDb.collection('opportunities').doc(id);
+        const snap = await docRef.get();
+        if (!snap.exists) return { success: false, error: "Opportunity not found" };
+
+        const data = snap.data()!;
+
+        // If already claimed by this user, unclaim
+        if (data.claimedBy === userId) {
+            await docRef.update({
+                claimedBy: null,
+                claimedByName: null,
+                claimedAt: null,
+                updatedAt: new Date(),
+            });
+            revalidatePath("/pipeline");
+            return { success: true, action: "unclaimed" };
+        }
+
+        await docRef.update({
+            claimedBy: userId,
+            claimedByName: userName,
+            claimedAt: new Date(),
+            updatedAt: new Date(),
+        });
+
+        logAudit({
+            userId,
+            userEmail: session.user.email || "",
+            userName,
+            action: "claim",
+            entity: "opportunity",
+            entityId: id,
+            entityName: data.name || "",
+        }).catch(() => {});
+
+        revalidatePath("/pipeline");
+        return { success: true, action: "claimed" };
+    } catch (error) {
+        console.error("Failed to claim opportunity:", error);
+        return { success: false, error: "Failed to claim opportunity" };
+    }
+}
+
 export async function deleteOpportunity(id: string) {
     try {
         const session = await auth();
@@ -595,7 +707,19 @@ export async function deleteOpportunity(id: string) {
             throw new Error("Unauthorized");
         }
 
+        const snap = await adminDb.collection('opportunities').doc(id).get();
+        const name = snap.data()?.name || "";
         await adminDb.collection('opportunities').doc(id).delete();
+
+        logAudit({
+            userId: (session.user as any).id || "",
+            userEmail: session.user.email || "",
+            userName: session.user.name || "",
+            action: "delete",
+            entity: "opportunity",
+            entityId: id,
+            entityName: name,
+        }).catch(() => {});
 
         revalidatePath("/pipeline");
         return { success: true };
@@ -674,8 +798,11 @@ export async function moveToLeaseSigned(opportunityId: string) {
 
         if (!leaseSignedStageId) return { success: false, error: "Lease Signed stage not found in this pipeline" };
 
+        const history = Array.isArray(oppData.stageHistory) ? [...oppData.stageHistory] : [];
+        history.push({ stageId: leaseSignedStageId, enteredAt: new Date() });
         await adminDb.collection('opportunities').doc(opportunityId).update({
             pipelineStageId: leaseSignedStageId,
+            stageHistory: history,
             updatedAt: new Date()
         });
 
@@ -744,11 +871,20 @@ export async function autoAdvanceOpportunities() {
                         : null;
 
                     if (startStr && startStr <= today) {
+                        const history = Array.isArray(data.stageHistory) ? [...data.stageHistory] : [];
+                        history.push({ stageId: currentTenantStageId, enteredAt: new Date() });
                         await oppDoc.ref.update({
                             pipelineStageId: currentTenantStageId,
+                            stageHistory: history,
                             updatedAt: new Date()
                         });
                         advancedCount++;
+
+                        // Check if this advancement triggers a referral payout
+                        if (data.contactId) {
+                            const dealValue = Number(data.opportunityValue) || 0;
+                            checkReferralConversion(oppDoc.id, data.contactId, dealValue).catch(() => {});
+                        }
                     }
                 }
             }
