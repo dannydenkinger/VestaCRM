@@ -28,24 +28,26 @@ export async function getDashboardData(startDate?: string, endDate?: string): Pr
             adminDb.collection('users').get(),
         ])
 
-        // Build stages map
+        // Build stages map (parallel reads to avoid Netlify function timeout)
         const pipelinesList: { id: string; name: string }[] = []
         const stageMap: Record<string, { pipelineId: string; name: string; order: number }> = {}
         const stageProbMap: Record<string, number> = {}
 
-        for (const doc of pipelinesSnap.docs) {
+        const stageReadPromises = pipelinesSnap.docs.map(doc => {
             pipelinesList.push({ id: doc.id, name: doc.data().name })
-            const stagesSnap = await doc.ref.collection('stages').orderBy('order', 'asc').get()
-            for (const sDoc of stagesSnap.docs) {
-                const sData = sDoc.data()
-                stageMap[sDoc.id] = {
-                    pipelineId: doc.id,
-                    name: sData.name,
-                    order: sData.order,
+            return doc.ref.collection('stages').orderBy('order', 'asc').get().then(stagesSnap => {
+                for (const sDoc of stagesSnap.docs) {
+                    const sData = sDoc.data()
+                    stageMap[sDoc.id] = {
+                        pipelineId: doc.id,
+                        name: sData.name,
+                        order: sData.order,
+                    }
+                    stageProbMap[sDoc.id] = sData.probability ?? 0
                 }
-                stageProbMap[sDoc.id] = sData.probability ?? 0
-            }
-        }
+            })
+        })
+        await Promise.all(stageReadPromises)
 
         // Determine closed/booked stage IDs
         const closedNames = new Set(['Booked', 'Closed', 'Signed', 'Closed Won', 'Lost', 'Abandoned'])
@@ -332,15 +334,16 @@ export async function getRecentActivity(): Promise<{ success: boolean; data?: Ac
             return new Date()
         }
 
-        // Build stage name lookup
+        // Build stage name lookup (parallel reads)
         const pipelinesSnap = await adminDb.collection('pipelines').get()
         const stageNameMap: Record<string, string> = {}
-        for (const pDoc of pipelinesSnap.docs) {
-            const stagesSnap = await pDoc.ref.collection('stages').get()
-            for (const sDoc of stagesSnap.docs) {
-                stageNameMap[sDoc.id] = sDoc.data().name || 'Unknown Stage'
-            }
-        }
+        await Promise.all(pipelinesSnap.docs.map(pDoc =>
+            pDoc.ref.collection('stages').get().then(stagesSnap => {
+                for (const sDoc of stagesSnap.docs) {
+                    stageNameMap[sDoc.id] = sDoc.data().name || 'Unknown Stage'
+                }
+            })
+        ))
 
         // 1. Recent deal stage changes (opportunities with stageHistory, sorted by latest entry)
         const oppsSnap = await adminDb.collection('opportunities')
@@ -462,14 +465,15 @@ export async function getLeaderboardData(): Promise<{ success: boolean; data?: L
         const bookedNames = new Set(['Booked', 'Closed', 'Signed', 'Closed Won', 'Lease Signed'])
         const bookedStageIds = new Set<string>()
 
-        for (const pDoc of pipelinesSnap.docs) {
-            const stagesSnap = await pDoc.ref.collection('stages').orderBy('order', 'asc').get()
-            for (const sDoc of stagesSnap.docs) {
-                if (bookedNames.has(sDoc.data().name)) {
-                    bookedStageIds.add(sDoc.id)
+        await Promise.all(pipelinesSnap.docs.map(pDoc =>
+            pDoc.ref.collection('stages').orderBy('order', 'asc').get().then(stagesSnap => {
+                for (const sDoc of stagesSnap.docs) {
+                    if (bookedNames.has(sDoc.data().name)) {
+                        bookedStageIds.add(sDoc.id)
+                    }
                 }
-            }
-        }
+            })
+        ))
 
         // Calculate metrics per user (by assigneeId AND claimedBy)
         const agentMetrics: Record<string, {

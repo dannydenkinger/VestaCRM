@@ -108,6 +108,9 @@ export default function DashboardPage() {
                 setGlobalPipelineId(firstId)
             }
             setLoading(false)
+        }).catch(err => {
+            console.error("Dashboard fetch failed:", err)
+            setLoading(false)
         })
     }, [dateRange])
 
