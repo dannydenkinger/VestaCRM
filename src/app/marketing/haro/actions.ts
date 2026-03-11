@@ -431,10 +431,14 @@ export async function fetchAndProcessHaroEmails() {
     if (emails.length === 0) return { success: true, message: "No new HARO emails found", processed: 0 }
 
     // Check which emails we've already processed (by Gmail message ID)
-    const processedSnap = await adminDb.collection("haro_batches")
-        .where("gmailMessageId", "in", emails.map(e => e.id).slice(0, 10))
-        .get()
-    const processedIds = new Set(processedSnap.docs.map(d => d.data().gmailMessageId))
+    const emailIds = emails.map(e => e.id).slice(0, 10)
+    let processedIds = new Set<string>()
+    if (emailIds.length > 0) {
+        const processedSnap = await adminDb.collection("haro_batches")
+            .where("gmailMessageId", "in", emailIds)
+            .get()
+        processedIds = new Set(processedSnap.docs.map(d => d.data().gmailMessageId))
+    }
 
     const newEmails = emails.filter(e => !processedIds.has(e.id))
     if (newEmails.length === 0) return { success: true, message: "All HARO emails already processed", processed: 0 }
@@ -456,7 +460,12 @@ export async function fetchAndProcessHaroEmails() {
 // Wrapper for UI-triggered fetch (requires auth)
 export async function triggerHaroFetch() {
     await requireAuth()
-    return fetchAndProcessHaroEmails()
+    try {
+        return await fetchAndProcessHaroEmails()
+    } catch (err: any) {
+        console.error("HARO fetch error:", err)
+        return { success: false, message: err.message || "Failed to fetch emails", processed: 0 }
+    }
 }
 
 // Internal processor that stores the Gmail message ID
