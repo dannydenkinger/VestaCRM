@@ -6,7 +6,7 @@ const withBundleAnalyzer = bundleAnalyzer({
 });
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["googleapis", "node-ical"],
+  serverExternalPackages: ["googleapis", "node-ical", "firebase-admin"],
   images: {
     remotePatterns: [
       {

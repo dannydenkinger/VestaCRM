@@ -17,7 +17,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             // On sign-in, look up role from Firestore (Google OAuth doesn't include role)
             if (user || trigger === "signIn") {
                 try {
-                    const { adminDb } = await import("@/lib/firebase-admin")
+                    const { adminDb } = await import(/* webpackIgnore: true */ "@/lib/firebase-admin")
                     const email = token.email || user?.email
                     if (email) {
                         const usersSnap = await adminDb.collection("users")
