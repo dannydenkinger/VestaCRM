@@ -40,7 +40,10 @@ import {
     getTaskComments,
     addTaskComment,
     addRecurrenceException,
-    updateFutureOccurrences
+    updateFutureOccurrences,
+    addSubtask,
+    toggleSubtask,
+    deleteSubtask,
 } from "../calendar/actions"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -165,6 +168,15 @@ export default function TasksPage() {
     // Recurring exception state
     const [recurringExceptionTarget, setRecurringExceptionTarget] = useState<any>(null)
 
+    // Bulk operations
+    const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
+    const [bulkActionLoading, setBulkActionLoading] = useState(false)
+    const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
+
+    // Subtasks
+    const [expandedSubtaskId, setExpandedSubtaskId] = useState<string | null>(null)
+    const [newSubtaskTitle, setNewSubtaskTitle] = useState("")
+
     const loadTasks = async () => {
         setIsLoading(true)
         try {
@@ -287,6 +299,75 @@ export default function TasksPage() {
         setEditingTask(task)
         setIsCreateDialogOpen(true)
     }, [])
+
+    // ── Bulk Operations ──────────────────────────────────────────────────────
+
+    const toggleSelectTask = (taskId: string) => {
+        setSelectedTaskIds(prev => {
+            const next = new Set(prev)
+            if (next.has(taskId)) next.delete(taskId)
+            else next.add(taskId)
+            return next
+        })
+    }
+
+    const handleBulkComplete = async () => {
+        setBulkActionLoading(true)
+        const ids = Array.from(selectedTaskIds)
+        // Optimistic update
+        setTasks(prev => prev.map(t => ids.includes(t.id) ? { ...t, completed: true } : t))
+        let failed = 0
+        for (const id of ids) {
+            try { await toggleTaskComplete(id, true) } catch { failed++ }
+        }
+        if (failed > 0) toast.error(`${failed} task(s) failed to complete`)
+        else toast.success(`${ids.length} task(s) completed`)
+        setSelectedTaskIds(new Set())
+        setBulkActionLoading(false)
+        loadTasks()
+    }
+
+    const handleBulkDelete = async () => {
+        setBulkActionLoading(true)
+        const ids = Array.from(selectedTaskIds)
+        let failed = 0
+        for (const id of ids) {
+            try { await deleteTask(id) } catch { failed++ }
+        }
+        if (failed > 0) toast.error(`${failed} task(s) failed to delete`)
+        else toast.success(`${ids.length} task(s) deleted`)
+        setSelectedTaskIds(new Set())
+        setBulkDeleteConfirm(false)
+        setBulkActionLoading(false)
+        loadTasks()
+    }
+
+    // ── Subtasks ──────────────────────────────────────────────────────────
+
+    const handleAddSubtask = async (taskId: string) => {
+        if (!newSubtaskTitle.trim()) return
+        const res = await addSubtask(taskId, newSubtaskTitle)
+        if (res.success && res.subtask) {
+            setTasks(prev => prev.map(t => t.id === taskId ? { ...t, subtasks: [...(t.subtasks || []), res.subtask] } : t))
+            setNewSubtaskTitle("")
+        } else {
+            toast.error("Failed to add checklist item")
+        }
+    }
+
+    const handleToggleSubtask = async (taskId: string, subtaskId: string) => {
+        setTasks(prev => prev.map(t => t.id === taskId ? {
+            ...t, subtasks: (t.subtasks || []).map((s: any) => s.id === subtaskId ? { ...s, completed: !s.completed } : s)
+        } : t))
+        await toggleSubtask(taskId, subtaskId)
+    }
+
+    const handleDeleteSubtask = async (taskId: string, subtaskId: string) => {
+        setTasks(prev => prev.map(t => t.id === taskId ? {
+            ...t, subtasks: (t.subtasks || []).filter((s: any) => s.id !== subtaskId)
+        } : t))
+        await deleteSubtask(taskId, subtaskId)
+    }
 
     // ── Comments ────────────────────────────────────────────────────────────
 
@@ -552,6 +633,24 @@ export default function TasksPage() {
                 ))}
             </div>
 
+            {selectedTaskIds.size > 0 && (
+                <div className="flex items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2.5 shadow-sm">
+                    <span className="text-sm font-medium">{selectedTaskIds.size} selected</span>
+                    <div className="h-4 w-px bg-border" />
+                    <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={handleBulkComplete} disabled={bulkActionLoading}>
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Complete All
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-8 text-xs gap-1 text-destructive hover:text-destructive" onClick={() => setBulkDeleteConfirm(true)} disabled={bulkActionLoading}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Delete
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-8 text-xs ml-auto" onClick={() => setSelectedTaskIds(new Set())}>
+                        Clear
+                    </Button>
+                </div>
+            )}
+
             <div className="flex-1 overflow-auto pr-2 space-y-3">
                 {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
@@ -580,6 +679,14 @@ export default function TasksPage() {
                                         <CardContent className="p-0">
                                             <div className="flex items-center p-4 min-h-[56px]">
                                                 <div className="flex items-center gap-4 flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                                        <Checkbox
+                                                            checked={selectedTaskIds.has(task.id)}
+                                                            onCheckedChange={() => toggleSelectTask(task.id)}
+                                                            className="h-4 w-4 rounded border-white/10 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+                                                            aria-label={`Select ${task.title}`}
+                                                        />
+                                                    </div>
                                                     <Checkbox
                                                         checked={task.completed}
                                                         onCheckedChange={() => handleToggleTask(task.id, task.completed)}
@@ -660,6 +767,10 @@ export default function TasksPage() {
                                                                 <MessageSquare className="h-3.5 w-3.5 mr-2" />
                                                                 Comments
                                                             </DropdownMenuItem>
+                                                            <DropdownMenuItem onClick={() => { setExpandedSubtaskId(expandedSubtaskId === task.id ? null : task.id); setNewSubtaskTitle("") }}>
+                                                                <CheckSquare className="h-3.5 w-3.5 mr-2" />
+                                                                Checklist
+                                                            </DropdownMenuItem>
                                                             {task.recurrence && task.recurrence.type !== "none" && (
                                                                 <>
                                                                     <DropdownMenuSeparator />
@@ -678,6 +789,53 @@ export default function TasksPage() {
                                             {isPast(new Date(task.dueDate)) && !isToday(new Date(task.dueDate)) && !task.completed && (
                                                 <div className="h-1 w-full bg-rose-500/20">
                                                     <div className="h-full bg-rose-500 w-1/3 animate-pulse" />
+                                                </div>
+                                            )}
+                                            {/* Subtasks / Checklist */}
+                                            {((task.subtasks?.length > 0) || expandedSubtaskId === task.id) && (
+                                                <div className="px-4 pb-3 border-t border-border/30 pt-2">
+                                                    {task.subtasks?.length > 0 && (
+                                                        <div className="space-y-1 mb-2">
+                                                            {task.subtasks.map((sub: any) => (
+                                                                <div key={sub.id} className="flex items-center gap-2 group/sub">
+                                                                    <Checkbox
+                                                                        checked={sub.completed}
+                                                                        onCheckedChange={() => handleToggleSubtask(task.id, sub.id)}
+                                                                        className="h-3.5 w-3.5 rounded"
+                                                                    />
+                                                                    <span className={cn("text-xs flex-1", sub.completed && "line-through text-muted-foreground")}>{sub.title}</span>
+                                                                    <button
+                                                                        className="opacity-0 group-hover/sub:opacity-100 text-muted-foreground hover:text-destructive transition-opacity p-0.5"
+                                                                        onClick={() => handleDeleteSubtask(task.id, sub.id)}
+                                                                    >
+                                                                        <X className="h-3 w-3" />
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    {expandedSubtaskId === task.id && (
+                                                        <div className="flex items-center gap-1.5">
+                                                            <input
+                                                                className="flex-1 text-xs h-7 px-2 rounded border bg-muted/20 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                                                                placeholder="Add checklist item..."
+                                                                value={newSubtaskTitle}
+                                                                onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                                                                onKeyDown={(e) => { if (e.key === "Enter") handleAddSubtask(task.id); if (e.key === "Escape") setExpandedSubtaskId(null) }}
+                                                                autoFocus
+                                                            />
+                                                            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => handleAddSubtask(task.id)} disabled={!newSubtaskTitle.trim()}>Add</Button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {/* Subtask progress indicator */}
+                                            {task.subtasks?.length > 0 && expandedSubtaskId !== task.id && (
+                                                <div className="px-4 pb-2">
+                                                    <div className="h-1 w-full bg-muted/30 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-primary/60 rounded-full transition-all" style={{ width: `${Math.round((task.subtasks.filter((s: any) => s.completed).length / task.subtasks.length) * 100)}%` }} />
+                                                    </div>
+                                                    <span className="text-[9px] text-muted-foreground">{task.subtasks.filter((s: any) => s.completed).length}/{task.subtasks.length} done</span>
                                                 </div>
                                             )}
                                         </CardContent>
@@ -713,6 +871,24 @@ export default function TasksPage() {
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => deleteTarget && handleDeleteTask(deleteTarget)}>
                             Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Bulk Delete Dialog */}
+            <AlertDialog open={bulkDeleteConfirm} onOpenChange={setBulkDeleteConfirm}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete {selectedTaskIds.size} Tasks</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete {selectedTaskIds.size} selected task{selectedTaskIds.size !== 1 ? "s" : ""}? This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleBulkDelete} disabled={bulkActionLoading}>
+                            {bulkActionLoading ? "Deleting..." : `Delete ${selectedTaskIds.size} Tasks`}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

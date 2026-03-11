@@ -51,6 +51,8 @@ export interface BlogArticle {
     wordCount: number;
     readingTime: number; // minutes
 
+    scheduledPublishDate?: string; // ISO date for scheduled publishing
+
     createdAt: string;
     updatedAt: string;
     publishedAt?: string;

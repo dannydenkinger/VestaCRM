@@ -9,7 +9,8 @@ import { Separator } from "@/components/ui/separator"
 import {
     Search, Send, Mail, MessageSquare, Phone, Filter,
     ArrowLeft, Plus, User, Clock, ChevronDown, Eye, MousePointerClick,
-    Zap, Paperclip, BarChart3, CalendarDays, X, FileText
+    Zap, Paperclip, BarChart3, CalendarDays, X, FileText, Reply, CornerDownRight,
+    Bold, Italic, Link2, List
 } from "lucide-react"
 import { getConversations, getMessages, sendMessage, getAllContacts, getEmailTracking, scheduleMessage, cancelScheduledMessage } from "./actions"
 import { toast } from "sonner"
@@ -42,6 +43,19 @@ export default function CommunicationsPage() {
     const [showSnippets, setShowSnippets] = useState(false)
     const [attachments, setAttachments] = useState<AttachmentFile[]>([])
     const [showAnalytics, setShowAnalytics] = useState(false)
+    const [threadSearch, setThreadSearch] = useState("")
+    const [replyToMessage, setReplyToMessage] = useState<any>(null)
+
+    // Draft auto-save
+    const draftKey = selectedContactId ? `comms-draft-${selectedContactId}` : null
+    useEffect(() => {
+        if (draftKey && newMessage) {
+            const timeout = setTimeout(() => {
+                localStorage.setItem(draftKey, newMessage)
+            }, 500)
+            return () => clearTimeout(timeout)
+        }
+    }, [newMessage, draftKey])
 
     const fetchConversations = async () => {
         setIsLoading(true)
@@ -71,6 +85,11 @@ export default function CommunicationsPage() {
         }
         setTrackingData(trackingRes.success ? trackingRes.tracking : [])
         setIsLoadingThread(false)
+        setThreadSearch("")
+        // Restore draft
+        const savedDraft = localStorage.getItem(`comms-draft-${contactId}`)
+        if (savedDraft) setNewMessage(savedDraft)
+        else setNewMessage("")
     }
 
     const handleSend = async () => {
@@ -80,12 +99,15 @@ export default function CommunicationsPage() {
             selectedContactId,
             messageType,
             newMessage.trim(),
-            attachments.length > 0 ? attachments.map(a => ({ filename: a.filename, url: a.url, contentType: a.contentType })) : undefined
+            attachments.length > 0 ? attachments.map(a => ({ filename: a.filename, url: a.url, contentType: a.contentType })) : undefined,
+            replyToMessage?.id || undefined
         )
         if (res.success) {
             toast.success("Message sent")
             setNewMessage("")
+            if (draftKey) localStorage.removeItem(draftKey)
             setAttachments([])
+            setReplyToMessage(null)
             // Refresh thread
             const threadRes = await getMessages(selectedContactId)
             if (threadRes.success) setMessages(threadRes.messages || [])
@@ -109,6 +131,7 @@ export default function CommunicationsPage() {
         if (res.success) {
             toast.success("Message scheduled")
             setNewMessage("")
+            if (draftKey) localStorage.removeItem(draftKey)
             setAttachments([])
             setShowSchedulePicker(false)
             // Refresh thread
@@ -418,6 +441,21 @@ export default function CommunicationsPage() {
                                     </div>
                                 </div>
                                 <Badge variant="outline" className="font-normal shrink-0 hidden sm:inline-flex">{contact?.status || "Lead"}</Badge>
+                                <div className="relative hidden sm:block">
+                                    <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search messages..."
+                                        value={threadSearch}
+                                        onChange={(e) => setThreadSearch(e.target.value)}
+                                        className="h-7 w-40 pl-7 pr-2 text-xs rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                                    />
+                                    {threadSearch && (
+                                        <button onClick={() => setThreadSearch("")} className="absolute right-1.5 top-1.5 text-muted-foreground hover:text-foreground">
+                                            <X className="h-3.5 w-3.5" />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Email Tracking Summary */}
@@ -439,12 +477,18 @@ export default function CommunicationsPage() {
 
                             {/* Messages */}
                             <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4">
-                                {messages.length === 0 ? (
+                                {messages.length === 0 && !threadSearch ? (
                                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
                                         <p className="text-sm">No messages yet</p>
                                         <p className="text-xs">Send the first message below</p>
                                     </div>
-                                ) : messages.map((msg: any) => {
+                                ) : (threadSearch && messages.filter(m => m.content?.toLowerCase().includes(threadSearch.toLowerCase())).length === 0) ? (
+                                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
+                                        <Search className="h-8 w-8 opacity-20" />
+                                        <p className="text-sm">No messages match &ldquo;{threadSearch}&rdquo;</p>
+                                        <button onClick={() => setThreadSearch("")} className="text-xs text-primary hover:underline">Clear search</button>
+                                    </div>
+                                ) : messages.filter(m => !threadSearch || m.content?.toLowerCase().includes(threadSearch.toLowerCase())).map((msg: any) => {
                                     const isScheduled = msg.status === "scheduled"
                                     const isCancelled = msg.status === "cancelled"
                                     const isOutbound = msg.direction === "outbound" || msg.direction === "OUTBOUND"
@@ -452,9 +496,12 @@ export default function CommunicationsPage() {
                                     return (
                                         <div
                                             key={msg.id}
-                                            className={`flex ${isOutbound ? "justify-end" : "justify-start"}`}
+                                            className={`flex ${isOutbound ? "justify-end" : "justify-start"} ${msg.parentMessageId ? "ml-6 sm:ml-10" : ""}`}
                                         >
-                                            <div className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-2.5 space-y-1 ${
+                                            {msg.parentMessageId && (
+                                                <CornerDownRight className="h-4 w-4 text-muted-foreground/40 mr-1.5 mt-3 shrink-0" />
+                                            )}
+                                            <div className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-2.5 space-y-1 group ${
                                                 isCancelled
                                                     ? "bg-muted/50 opacity-60 rounded-br-md"
                                                     : isScheduled
@@ -568,6 +615,23 @@ export default function CommunicationsPage() {
                                                             Cancel
                                                         </button>
                                                     )}
+                                                    {/* Reply button */}
+                                                    {!isScheduled && !isCancelled && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setReplyToMessage(msg)
+                                                                textareaRef.current?.focus()
+                                                            }}
+                                                            className={`text-[10px] font-medium transition-colors flex items-center gap-0.5 opacity-0 group-hover:opacity-100 ${
+                                                                isOutbound && !isScheduled && !isCancelled
+                                                                    ? "text-primary-foreground/50 hover:text-primary-foreground/80"
+                                                                    : "text-muted-foreground hover:text-foreground"
+                                                            }`}
+                                                        >
+                                                            <Reply className="h-3 w-3" />
+                                                            Reply
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -578,6 +642,18 @@ export default function CommunicationsPage() {
 
                             {/* Compose */}
                             <div className="p-3 sm:p-4 border-t bg-muted/10 shrink-0 relative">
+                                {/* Reply indicator */}
+                                {replyToMessage && (
+                                    <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-lg bg-primary/5 border border-primary/10">
+                                        <Reply className="h-3.5 w-3.5 text-primary shrink-0" />
+                                        <p className="text-xs text-muted-foreground truncate flex-1">
+                                            Replying to: <span className="font-medium text-foreground">{replyToMessage.content?.substring(0, 80)}{replyToMessage.content?.length > 80 ? "..." : ""}</span>
+                                        </p>
+                                        <button onClick={() => setReplyToMessage(null)} className="text-muted-foreground hover:text-foreground shrink-0">
+                                            <X className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                )}
                                 {/* Schedule Picker */}
                                 {showSchedulePicker && (
                                     <SchedulePicker
@@ -628,6 +704,42 @@ export default function CommunicationsPage() {
                                                     <X className="h-3 w-3" />
                                                 </button>
                                             </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Rich text formatting toolbar */}
+                                {messageType === "email" && (
+                                    <div className="flex items-center gap-0.5 mb-2 px-1">
+                                        {[
+                                            { icon: Bold, label: "Bold", prefix: "**", suffix: "**" },
+                                            { icon: Italic, label: "Italic", prefix: "_", suffix: "_" },
+                                            { icon: Link2, label: "Link", prefix: "[", suffix: "](url)" },
+                                            { icon: List, label: "List", prefix: "\n- ", suffix: "" },
+                                        ].map(({ icon: Icon, label, prefix, suffix }) => (
+                                            <button
+                                                key={label}
+                                                type="button"
+                                                title={label}
+                                                onClick={() => {
+                                                    const ta = textareaRef.current
+                                                    if (!ta) return
+                                                    const start = ta.selectionStart
+                                                    const end = ta.selectionEnd
+                                                    const selected = newMessage.substring(start, end) || label.toLowerCase()
+                                                    const before = newMessage.substring(0, start)
+                                                    const after = newMessage.substring(end)
+                                                    setNewMessage(before + prefix + selected + suffix + after)
+                                                    setTimeout(() => {
+                                                        ta.focus()
+                                                        ta.selectionStart = start + prefix.length
+                                                        ta.selectionEnd = start + prefix.length + selected.length
+                                                    }, 0)
+                                                }}
+                                                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                                            >
+                                                <Icon className="h-3.5 w-3.5" />
+                                            </button>
                                         ))}
                                     </div>
                                 )}

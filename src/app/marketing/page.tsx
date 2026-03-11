@@ -3,7 +3,7 @@
 import { useState } from "react"
 import dynamic from "next/dynamic"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TrendingUp, FileText, Search } from "lucide-react"
+import { TrendingUp, FileText, Search, Mail } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 
 const AnalyticsDashboard = dynamic(() => import("./AnalyticsDashboard"), {
@@ -15,6 +15,10 @@ const SEODashboard = dynamic(() => import("./seo/SEODashboard"), {
     ssr: false,
 })
 const BlogDashboard = dynamic(() => import("./blog/BlogDashboard"), {
+    loading: () => <Skeleton className="h-[500px] w-full rounded-xl" />,
+    ssr: false,
+})
+const HaroDashboard = dynamic(() => import("./haro/HaroDashboard").then(mod => ({ default: mod.HaroDashboard })), {
     loading: () => <Skeleton className="h-[500px] w-full rounded-xl" />,
     ssr: false,
 })
@@ -48,6 +52,10 @@ export default function MarketingPage() {
                             <FileText className="w-4 h-4" />
                             Blog CMS
                         </TabsTrigger>
+                        <TabsTrigger value="haro" className="flex items-center gap-2 px-3 sm:px-6 shrink-0 text-xs sm:text-sm min-h-[44px] sm:min-h-0 touch-manipulation">
+                            <Mail className="w-4 h-4" />
+                            HARO
+                        </TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="analytics" className="mt-0">
@@ -62,6 +70,10 @@ export default function MarketingPage() {
 
                     <TabsContent value="blog" className="mt-0">
                         <BlogDashboard />
+                    </TabsContent>
+
+                    <TabsContent value="haro" className="mt-0">
+                        <HaroDashboard />
                     </TabsContent>
                 </Tabs>
             </div>

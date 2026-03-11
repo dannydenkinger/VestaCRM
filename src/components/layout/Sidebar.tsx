@@ -1,6 +1,7 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import NextImage from "next/image"
 import { usePathname } from "next/navigation"
 import { LayoutDashboard, Users, Calendar, Settings, Plane, ChevronLeft, ChevronRight, Megaphone, LayoutGrid, Wrench, MessageSquare, X, Wallet, LogOut, CheckSquare } from "lucide-react"
@@ -41,6 +42,7 @@ interface SidebarProps {
 
 export function Sidebar({ onNavigate, className, mobileCollapsed }: SidebarProps) {
     const pathname = usePathname()
+    const router = useRouter()
     const { data: session } = useSession()
     const [isCollapsed, setIsCollapsed] = useState(false)
     const [mounted, setMounted] = useState(false)
@@ -49,6 +51,38 @@ export function Sidebar({ onNavigate, className, mobileCollapsed }: SidebarProps
     const [displayName, setDisplayName] = useState<string | null>(null)
     const [branding, setBranding] = useState<{ logoUrl?: string; primaryColor?: string; companyName?: string } | null>(null)
     const [overdueCount, setOverdueCount] = useState(0)
+    const gPressedRef = useRef(false)
+
+    // G-key navigation shortcuts
+    useEffect(() => {
+        const navMap: Record<string, string> = {
+            d: "/dashboard", p: "/pipeline", c: "/contacts",
+            a: "/calendar", t: "/tasks", f: "/finance", s: "/settings",
+        }
+        let gTimeout: ReturnType<typeof setTimeout>
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Don't intercept when typing in inputs
+            const tag = (e.target as HTMLElement).tagName
+            if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (e.target as HTMLElement).isContentEditable) return
+
+            if (e.key === "g" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+                gPressedRef.current = true
+                clearTimeout(gTimeout)
+                gTimeout = setTimeout(() => { gPressedRef.current = false }, 1000)
+                return
+            }
+
+            if (gPressedRef.current && navMap[e.key]) {
+                e.preventDefault()
+                gPressedRef.current = false
+                router.push(navMap[e.key])
+            }
+        }
+
+        window.addEventListener("keydown", handleKeyDown)
+        return () => { window.removeEventListener("keydown", handleKeyDown); clearTimeout(gTimeout) }
+    }, [router])
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -165,11 +199,22 @@ export function Sidebar({ onNavigate, className, mobileCollapsed }: SidebarProps
                     }
                     const onboardingAttr = onboardingMap[item.href]
 
+                    const shortcutMap: Record<string, string> = {
+                        "/dashboard": "G then D",
+                        "/pipeline": "G then P",
+                        "/contacts": "G then C",
+                        "/calendar": "G then A",
+                        "/tasks": "G then T",
+                        "/finance": "G then F",
+                        "/settings": "G then S",
+                    }
+                    const shortcutHint = shortcutMap[item.href]
+
                     return (
                         <Link
                             key={item.name}
                             href={item.href}
-                            title={showCollapsed ? item.name : undefined}
+                            title={showCollapsed ? item.name : (shortcutHint ? `${item.name} (${shortcutHint})` : undefined)}
                             onClick={onNavigate}
                             {...(onboardingAttr ? { "data-onboarding": onboardingAttr } : {})}
                             className={cn(

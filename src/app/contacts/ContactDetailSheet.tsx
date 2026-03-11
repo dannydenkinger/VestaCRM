@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import {
     Phone, Mail, MoreVertical, Plus, FileText, MessageSquare,
-    Trash2, ListTodo, Briefcase, ExternalLink, FileDown, Upload, Loader2,
+    Trash2, ListTodo, Briefcase, ExternalLink, FileDown, Upload, Loader2, Pencil, Check,
 } from "lucide-react"
 import { exportToPDF } from "@/lib/export-pdf"
 import { buildContactProfileHtml } from "@/components/PrintableProfile"
@@ -59,6 +59,7 @@ interface ContactDetailSheetProps {
     expandedNoteIds: Set<string>
     toggleNoteExpanded: (id: string) => void
     onDeleteNote: (contactId: string, noteId: string) => void
+    onEditNote?: (contactId: string, noteId: string, content: string, mentions: { userId: string; userName: string }[]) => Promise<void>
     // Users for @mention
     users: { id: string; name: string; email: string }[]
     // Message logging
@@ -88,6 +89,50 @@ interface ContactDetailSheetProps {
     onMergeWith?: (contactId: string) => void
 }
 
+/** Inline-editable field: shows display text, becomes input on click, auto-saves on blur */
+function InlineField({ label, value, onChange, onBlurSave, type = "text", error, placeholder, colSpan }: {
+    label: string; value: string; onChange: (val: string) => void; onBlurSave: () => void;
+    type?: string; error?: string; placeholder?: string; colSpan?: boolean
+}) {
+    const [editing, setEditing] = useState(false)
+    const inputRef = useRef<HTMLInputElement>(null)
+
+    useEffect(() => {
+        if (editing && inputRef.current) inputRef.current.focus()
+    }, [editing])
+
+    return (
+        <div className={`space-y-1 ${colSpan ? "col-span-2" : ""}`}>
+            <span className="text-muted-foreground text-xs">{label}</span>
+            {editing ? (
+                <div className="flex items-center gap-1">
+                    <Input
+                        ref={inputRef}
+                        type={type}
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                        onBlur={() => { setEditing(false); onBlurSave() }}
+                        onKeyDown={(e) => { if (e.key === "Enter") { setEditing(false); onBlurSave() } if (e.key === "Escape") setEditing(false) }}
+                        placeholder={placeholder}
+                        className={`h-8 text-sm font-medium ${error ? "border-destructive" : ""}`}
+                    />
+                </div>
+            ) : (
+                <div
+                    className="group/field flex items-center gap-1.5 min-h-[32px] px-3 py-1 rounded-md cursor-pointer hover:bg-muted/30 transition-colors"
+                    onClick={() => setEditing(true)}
+                >
+                    <span className={`text-sm ${value ? "font-medium" : "text-muted-foreground"}`}>
+                        {value || placeholder || "—"}
+                    </span>
+                    <Pencil className="h-3 w-3 text-muted-foreground/0 group-hover/field:text-muted-foreground/50 transition-opacity ml-auto shrink-0" />
+                </div>
+            )}
+            {error && <p className="text-xs text-destructive mt-1">{error}</p>}
+        </div>
+    )
+}
+
 export function ContactDetailSheet({
     selectedContact,
     editingContact,
@@ -102,6 +147,7 @@ export function ContactDetailSheet({
     expandedNoteIds,
     toggleNoteExpanded,
     onDeleteNote,
+    onEditNote,
     users,
     logMessageType,
     setLogMessageType,
@@ -491,59 +537,52 @@ export function ContactDetailSheet({
                                                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Contact Information</h3>
                                             </div>
                                             <div className="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
-                                                <div className="space-y-1 col-span-2">
-                                                    <span className="text-muted-foreground text-xs">Full Name</span>
-                                                    <Input
-                                                        value={editingContact?.name || ""}
-                                                        onChange={(e) => {
-                                                            setEditingContact((prev: any) => prev ? { ...prev, name: e.target.value } : null)
-                                                            if (formErrors.name) setFormErrors(prev => { const next = {...prev}; delete next.name; return next })
-                                                        }}
-                                                        className={`h-8 text-sm font-medium ${formErrors.name ? "border-destructive" : ""}`}
-                                                    />
-                                                    {formErrors.name && <p className="text-xs text-destructive mt-1">{formErrors.name}</p>}
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <span className="text-muted-foreground text-xs">Email Address</span>
-                                                    <Input
-                                                        value={editingContact?.email || ""}
-                                                        onChange={(e) => {
-                                                            setEditingContact((prev: any) => prev ? { ...prev, email: e.target.value } : null)
-                                                            if (formErrors.email) setFormErrors(prev => { const next = {...prev}; delete next.email; return next })
-                                                        }}
-                                                        className={`h-8 text-sm ${formErrors.email ? "border-destructive" : ""}`}
-                                                    />
-                                                    {formErrors.email && <p className="text-xs text-destructive mt-1">{formErrors.email}</p>}
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <span className="text-muted-foreground text-xs">Phone Number</span>
-                                                    <Input
-                                                        value={editingContact?.phone || ""}
-                                                        onChange={(e) => {
-                                                            setEditingContact((prev: any) => prev ? { ...prev, phone: e.target.value } : null)
-                                                            if (formErrors.phone) setFormErrors(prev => { const next = {...prev}; delete next.phone; return next })
-                                                        }}
-                                                        className={`h-8 text-sm ${formErrors.phone ? "border-destructive" : ""}`}
-                                                    />
-                                                    {formErrors.phone && <p className="text-xs text-destructive mt-1">{formErrors.phone}</p>}
-                                                </div>
-                                                <div className="space-y-1 col-span-2">
-                                                    <span className="text-muted-foreground text-xs">Business Name</span>
-                                                    <Input
-                                                        value={editingContact?.businessName || ""}
-                                                        onChange={(e) => setEditingContact((prev: any) => prev ? { ...prev, businessName: e.target.value } : null)}
-                                                        className="h-8 text-sm"
-                                                    />
-                                                </div>
-                                                <div className="space-y-1 col-span-2">
-                                                    <span className="text-muted-foreground text-xs">Military Base</span>
-                                                    <Input
-                                                        value={editingContact?.militaryBase || ""}
-                                                        onChange={(e) => setEditingContact((prev: any) => prev ? { ...prev, militaryBase: e.target.value } : null)}
-                                                        className="h-8 text-sm"
-                                                        placeholder="e.g. Luke AFB"
-                                                    />
-                                                </div>
+                                                <InlineField
+                                                    label="Full Name"
+                                                    value={editingContact?.name || ""}
+                                                    onChange={(val) => {
+                                                        setEditingContact((prev: any) => prev ? { ...prev, name: val } : null)
+                                                        if (formErrors.name) setFormErrors(prev => { const next = {...prev}; delete next.name; return next })
+                                                    }}
+                                                    onBlurSave={handleValidatedSave}
+                                                    error={formErrors.name}
+                                                    colSpan
+                                                />
+                                                <InlineField
+                                                    label="Email Address"
+                                                    value={editingContact?.email || ""}
+                                                    onChange={(val) => {
+                                                        setEditingContact((prev: any) => prev ? { ...prev, email: val } : null)
+                                                        if (formErrors.email) setFormErrors(prev => { const next = {...prev}; delete next.email; return next })
+                                                    }}
+                                                    onBlurSave={handleValidatedSave}
+                                                    error={formErrors.email}
+                                                />
+                                                <InlineField
+                                                    label="Phone Number"
+                                                    value={editingContact?.phone || ""}
+                                                    onChange={(val) => {
+                                                        setEditingContact((prev: any) => prev ? { ...prev, phone: val } : null)
+                                                        if (formErrors.phone) setFormErrors(prev => { const next = {...prev}; delete next.phone; return next })
+                                                    }}
+                                                    onBlurSave={handleValidatedSave}
+                                                    error={formErrors.phone}
+                                                />
+                                                <InlineField
+                                                    label="Business Name"
+                                                    value={editingContact?.businessName || ""}
+                                                    onChange={(val) => setEditingContact((prev: any) => prev ? { ...prev, businessName: val } : null)}
+                                                    onBlurSave={handleValidatedSave}
+                                                    colSpan
+                                                />
+                                                <InlineField
+                                                    label="Military Base"
+                                                    value={editingContact?.militaryBase || ""}
+                                                    onChange={(val) => setEditingContact((prev: any) => prev ? { ...prev, militaryBase: val } : null)}
+                                                    onBlurSave={handleValidatedSave}
+                                                    placeholder="e.g. Luke AFB"
+                                                    colSpan
+                                                />
                                             </div>
                                         </div>
 
@@ -573,24 +612,20 @@ export function ContactDetailSheet({
                                                         )}
                                                     </select>
                                                 </div>
-                                                <div className="space-y-1">
-                                                    <span className="text-muted-foreground text-xs">Stay Start (optional)</span>
-                                                    <Input
-                                                        type="date"
-                                                        value={editingContact?.stayStartDate?.split?.('T')?.[0] || editingContact?.stayStartDate || ""}
-                                                        onChange={(e) => setEditingContact((prev: any) => prev ? { ...prev, stayStartDate: e.target.value || null } : null)}
-                                                        className="h-8 text-sm"
-                                                    />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <span className="text-muted-foreground text-xs">Stay End (optional)</span>
-                                                    <Input
-                                                        type="date"
-                                                        value={editingContact?.stayEndDate?.split?.('T')?.[0] || editingContact?.stayEndDate || ""}
-                                                        onChange={(e) => setEditingContact((prev: any) => prev ? { ...prev, stayEndDate: e.target.value || null } : null)}
-                                                        className="h-8 text-sm"
-                                                    />
-                                                </div>
+                                                <InlineField
+                                                    label="Stay Start (optional)"
+                                                    type="date"
+                                                    value={editingContact?.stayStartDate?.split?.('T')?.[0] || editingContact?.stayStartDate || ""}
+                                                    onChange={(val) => setEditingContact((prev: any) => prev ? { ...prev, stayStartDate: val || null } : null)}
+                                                    onBlurSave={handleValidatedSave}
+                                                />
+                                                <InlineField
+                                                    label="Stay End (optional)"
+                                                    type="date"
+                                                    value={editingContact?.stayEndDate?.split?.('T')?.[0] || editingContact?.stayEndDate || ""}
+                                                    onChange={(val) => setEditingContact((prev: any) => prev ? { ...prev, stayEndDate: val || null } : null)}
+                                                    onBlurSave={handleValidatedSave}
+                                                />
                                             </div>
                                             <p className="text-xs text-muted-foreground">Stay dates are used when creating an opportunity and will pre-fill the deal form.</p>
                                         </div>
@@ -671,9 +706,10 @@ export function ContactDetailSheet({
                                             {saveError && (
                                                 <p className="text-sm text-destructive">{saveError}</p>
                                             )}
-                                            <div className="flex justify-end">
-                                                <Button onClick={handleValidatedSave} disabled={isSaving}>
-                                                    {isSaving ? "Saving..." : "Save Changes"}
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-[10px] text-muted-foreground">Click any field to edit. Changes save automatically.</p>
+                                                <Button variant="outline" size="sm" onClick={handleValidatedSave} disabled={isSaving}>
+                                                    {isSaving ? "Saving..." : "Save All"}
                                                 </Button>
                                             </div>
                                         </div>
@@ -691,6 +727,9 @@ export function ContactDetailSheet({
                                                 createdAt: n.createdAt,
                                             }))}
                                             onAddNote={onAddNoteWithMentions}
+                                            onEditNote={onEditNote ? async (noteId, content, mentions) => {
+                                                await onEditNote(selectedContact.id, noteId, content, mentions)
+                                            } : undefined}
                                             onDeleteNote={(noteId) => onDeleteNote(selectedContact.id, noteId)}
                                             users={users}
                                             placeholder="Type a note... Use @ to mention a team member"

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -9,6 +9,7 @@ import { getNotifications, markAsRead, markAllAsRead } from "./actions"
 import { useRouter } from "next/navigation"
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh"
 import { VirtualList } from "@/components/ui/VirtualList"
+import { isToday, isYesterday, isThisWeek } from "date-fns"
 
 type Notification = {
     id: string
@@ -20,12 +21,15 @@ type Notification = {
     createdAt: string | null
 }
 
+const TYPE_OPTIONS = ["all", "opportunity", "contact", "task", "checkin", "checkout"] as const
+
 export default function NotificationsPage() {
     const router = useRouter()
     const [notifications, setNotifications] = useState<Notification[]>([])
     const [unreadCount, setUnreadCount] = useState(0)
     const [loading, setLoading] = useState(true)
     const [filter, setFilter] = useState<"all" | "unread">("all")
+    const [typeFilter, setTypeFilter] = useState<string>("all")
 
     const fetchData = useCallback(async () => {
         const res = await getNotifications(100)
@@ -102,9 +106,30 @@ export default function NotificationsPage() {
         }
     }
 
-    const filtered = filter === "unread"
-        ? notifications.filter(n => !n.isRead)
-        : notifications
+    const filtered = useMemo(() => {
+        let result = notifications
+        if (filter === "unread") result = result.filter(n => !n.isRead)
+        if (typeFilter !== "all") result = result.filter(n => n.type === typeFilter)
+        return result
+    }, [notifications, filter, typeFilter])
+
+    const groupedNotifications = useMemo(() => {
+        const groups: { key: string; label: string; items: Notification[] }[] = [
+            { key: "today", label: "Today", items: [] },
+            { key: "yesterday", label: "Yesterday", items: [] },
+            { key: "thisWeek", label: "This Week", items: [] },
+            { key: "older", label: "Older", items: [] },
+        ]
+        for (const n of filtered) {
+            if (!n.createdAt) { groups[3].items.push(n); continue }
+            const d = new Date(n.createdAt)
+            if (isToday(d)) groups[0].items.push(n)
+            else if (isYesterday(d)) groups[1].items.push(n)
+            else if (isThisWeek(d, { weekStartsOn: 1 })) groups[2].items.push(n)
+            else groups[3].items.push(n)
+        }
+        return groups.filter(g => g.items.length > 0)
+    }, [filtered])
 
     if (loading) {
         return (
@@ -159,6 +184,23 @@ export default function NotificationsPage() {
                     </div>
                 </div>
 
+                {/* Type Filter Chips */}
+                <div className="flex items-center gap-1.5 flex-wrap -mt-2">
+                    {TYPE_OPTIONS.map(t => (
+                        <button
+                            key={t}
+                            onClick={() => setTypeFilter(t)}
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider transition-colors border touch-manipulation ${
+                                typeFilter === t
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                            }`}
+                        >
+                            {t === "all" ? "All Types" : typeLabel(t)}
+                        </button>
+                    ))}
+                </div>
+
                 {filtered.length === 0 ? (
                     <Card className="border-none shadow-md bg-card/40 backdrop-blur-md">
                         <CardContent className="py-16 flex flex-col items-center justify-center text-muted-foreground">
@@ -172,61 +214,66 @@ export default function NotificationsPage() {
                         </CardContent>
                     </Card>
                 ) : (
-                    <VirtualList
-                        items={filtered}
-                        estimateSize={80}
-                        overscan={8}
-                        className="max-h-[75vh]"
-                        renderItem={(notif) => (
-                            <div className="pb-2">
-                                <Card
-                                    className={`border-none shadow-sm transition-colors cursor-pointer ${notif.isRead ? "bg-card/30 hover:bg-card/50" : "bg-card/60 hover:bg-card/80 ring-1 ring-primary/10"}`}
-                                    onClick={() => handleClick(notif)}
-                                >
-                                    <CardContent className="flex items-start gap-3 py-4 px-4 sm:px-5">
-                                        <div className={`h-2.5 w-2.5 rounded-full mt-1.5 shrink-0 ${notif.isRead ? "bg-transparent" : typeColor(notif.type)}`} />
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div className="min-w-0">
-                                                    <div className="flex items-center gap-2 mb-0.5">
-                                                        <span className={`text-sm font-medium ${notif.isRead ? "text-muted-foreground" : "text-foreground"}`}>
-                                                            {notif.title}
-                                                        </span>
-                                                        <Badge variant="outline" className="text-[10px] h-4 px-1.5 shrink-0">
-                                                            {typeLabel(notif.type)}
-                                                        </Badge>
+                    <div className="space-y-6">
+                        {groupedNotifications.map(group => (
+                            <div key={group.key}>
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground mb-2 px-1">
+                                    {group.label}
+                                    <span className="ml-1.5 text-muted-foreground/50">{group.items.length}</span>
+                                </h3>
+                                <div className="space-y-2">
+                                    {group.items.map(notif => (
+                                        <Card
+                                            key={notif.id}
+                                            className={`border-none shadow-sm transition-colors cursor-pointer ${notif.isRead ? "bg-card/30 hover:bg-card/50" : "bg-card/60 hover:bg-card/80 ring-1 ring-primary/10"}`}
+                                            onClick={() => handleClick(notif)}
+                                        >
+                                            <CardContent className="flex items-start gap-3 py-4 px-4 sm:px-5">
+                                                <div className={`h-2.5 w-2.5 rounded-full mt-1.5 shrink-0 ${notif.isRead ? "bg-transparent" : typeColor(notif.type)}`} />
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="min-w-0">
+                                                            <div className="flex items-center gap-2 mb-0.5">
+                                                                <span className={`text-sm font-medium ${notif.isRead ? "text-muted-foreground" : "text-foreground"}`}>
+                                                                    {notif.title}
+                                                                </span>
+                                                                <Badge variant="outline" className="text-[10px] h-4 px-1.5 shrink-0">
+                                                                    {typeLabel(notif.type)}
+                                                                </Badge>
+                                                            </div>
+                                                            <p className="text-xs text-muted-foreground line-clamp-2">{notif.message}</p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 shrink-0">
+                                                            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                                                {formatTime(notif.createdAt)}
+                                                            </span>
+                                                            {notif.linkUrl && (
+                                                                <ExternalLink className="h-3 w-3 text-muted-foreground/50" />
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    <p className="text-xs text-muted-foreground line-clamp-2">{notif.message}</p>
                                                 </div>
-                                                <div className="flex items-center gap-2 shrink-0">
-                                                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                                                        {formatTime(notif.createdAt)}
-                                                    </span>
-                                                    {notif.linkUrl && (
-                                                        <ExternalLink className="h-3 w-3 text-muted-foreground/50" />
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        {!notif.isRead && (
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-7 w-7 shrink-0"
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    handleMarkRead(notif.id)
-                                                }}
-                                            >
-                                                <Check className="h-3.5 w-3.5" />
-                                                <span className="sr-only">Mark as read</span>
-                                            </Button>
-                                        )}
-                                    </CardContent>
-                                </Card>
+                                                {!notif.isRead && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-7 w-7 shrink-0"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            handleMarkRead(notif.id)
+                                                        }}
+                                                    >
+                                                        <Check className="h-3.5 w-3.5" />
+                                                        <span className="sr-only">Mark as read</span>
+                                                    </Button>
+                                                )}
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </div>
                             </div>
-                        )}
-                    />
+                        ))}
+                    </div>
                 )}
             </div>
         </div>

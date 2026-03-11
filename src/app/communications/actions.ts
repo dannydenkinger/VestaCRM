@@ -124,7 +124,8 @@ export async function sendMessage(
     contactId: string,
     type: string,
     content: string,
-    attachments?: { filename: string; url: string; contentType?: string }[]
+    attachments?: { filename: string; url: string; contentType?: string }[],
+    parentMessageId?: string
 ) {
     const parsed = sendMessageSchema.safeParse({ contactId, type, content });
     if (!parsed.success) return { success: false, error: "Invalid input" };
@@ -169,6 +170,7 @@ export async function sendMessage(
             createdAt: new Date(),
             ...(trackingId && { trackingId }),
             ...(attachments?.length && { attachments }),
+            ...(parentMessageId && { parentMessageId }),
         });
 
         revalidatePath("/communications");

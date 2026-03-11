@@ -3,7 +3,7 @@ import { adminDb } from "@/lib/firebase-admin"
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { ShieldAlert, Users, User, ShieldCheck, BriefcaseBusiness, Link, MapPin, Workflow, ScrollText, Layers, Key, Clock, GitBranch, UserPlus } from "lucide-react"
+import { ShieldAlert, Users, User, ShieldCheck, BriefcaseBusiness, Link, MapPin, Workflow, ScrollText, Layers, Key, Clock, GitBranch, UserPlus, Megaphone } from "lucide-react"
 import { UserManagementTable } from "./users/UserManagementTable"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProfileForm } from "./ProfileForm"
@@ -25,6 +25,8 @@ import { ScheduledReports } from "./reports/ScheduledReports"
 import { WorkflowBuilder } from "./workflows/WorkflowBuilder"
 import { AutoAssignRules } from "./assignment/AutoAssignRules"
 import { FollowUpReminders } from "./followups/FollowUpReminders"
+import { SettingsSearch } from "./SettingsSearch"
+import { Changelog } from "./changelog/Changelog"
 
 export default async function SettingsPage() {
     const session = await auth()
@@ -87,8 +89,13 @@ export default async function SettingsPage() {
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
             <div className="p-4 sm:p-6 lg:p-8 pt-4 sm:pt-6 pb-8 max-w-full">
                 <div className="mb-6 sm:mb-8">
-                    <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Settings</h2>
-                    <p className="text-sm sm:text-base text-muted-foreground mt-0.5">Manage your account preferences and application settings.</p>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Settings</h2>
+                            <p className="text-sm sm:text-base text-muted-foreground mt-0.5">Manage your account preferences and application settings.</p>
+                        </div>
+                        <SettingsSearch />
+                    </div>
                 </div>
 
                 <Tabs defaultValue="profile" className="w-full">
@@ -140,6 +147,10 @@ export default async function SettingsPage() {
                                     <TabsTrigger value="audit" className="flex items-center gap-1.5 px-3 shrink-0 text-xs min-h-[44px] touch-manipulation">
                                         <ScrollText className="w-3.5 h-3.5" />
                                         Audit Log
+                                    </TabsTrigger>
+                                    <TabsTrigger value="changelog" className="flex items-center gap-1.5 px-3 shrink-0 text-xs min-h-[44px] touch-manipulation">
+                                        <Megaphone className="w-3.5 h-3.5" />
+                                        Changelog
                                     </TabsTrigger>
                                 </>
                             )}
@@ -221,6 +232,17 @@ export default async function SettingsPage() {
                                                 <TabsTrigger value="audit" className="flex items-center gap-2.5 px-3 py-2 w-full justify-start text-sm rounded-md border-0 shadow-none data-[state=active]:bg-muted data-[state=active]:shadow-none data-[state=active]:border-0 dark:data-[state=active]:bg-muted dark:data-[state=active]:border-transparent dark:data-[state=inactive]:bg-transparent dark:data-[state=inactive]:border-transparent hover:bg-muted/50">
                                                     <ScrollText className="w-4 h-4 shrink-0" />
                                                     Audit Log
+                                                </TabsTrigger>
+                                            </TabsList>
+                                        </div>
+
+                                        {/* About group */}
+                                        <div>
+                                            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-3 px-3">About</p>
+                                            <TabsList className="bg-transparent flex flex-col w-full gap-0.5 h-auto group-data-[orientation=horizontal]/tabs:h-auto p-0">
+                                                <TabsTrigger value="changelog" className="flex items-center gap-2.5 px-3 py-2 w-full justify-start text-sm rounded-md border-0 shadow-none data-[state=active]:bg-muted data-[state=active]:shadow-none data-[state=active]:border-0 dark:data-[state=active]:bg-muted dark:data-[state=active]:border-transparent dark:data-[state=inactive]:bg-transparent dark:data-[state=inactive]:border-transparent hover:bg-muted/50">
+                                                    <Megaphone className="w-4 h-4 shrink-0" />
+                                                    Changelog
                                                 </TabsTrigger>
                                             </TabsList>
                                         </div>
@@ -403,6 +425,10 @@ export default async function SettingsPage() {
 
                                     <TabsContent value="audit" className="space-y-6 mt-0">
                                         <AuditLogViewer />
+                                    </TabsContent>
+
+                                    <TabsContent value="changelog" className="space-y-6 mt-0">
+                                        <Changelog />
                                     </TabsContent>
                                 </>
                             )}

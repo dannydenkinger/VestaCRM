@@ -22,6 +22,12 @@ import {
     Plus,
     Pencil,
     Trash2,
+    RefreshCw,
+    Settings2,
+    ArrowUp,
+    ArrowDown,
+    Eye,
+    EyeOff,
 } from "lucide-react"
 import {
     XAxis,
@@ -54,6 +60,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DateRangePicker, type DateRange } from "./DateRangePicker"
+import { GoalTracker } from "./GoalTracker"
+import { MiniCalendar } from "@/components/MiniCalendar"
 
 const RevenueForecast = dynamic(
     () => import("./forecasting/RevenueForecast").then(mod => mod.RevenueForecast),
@@ -89,6 +97,59 @@ export default function DashboardPage() {
     })
     const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false)
     const [editingTask, setEditingTask] = useState<any>(null)
+    const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
+    const [isRefreshing, setIsRefreshing] = useState(false)
+
+    // Widget layout customization
+    type WidgetId = "chart" | "donut" | "stages" | "bases" | "tasks" | "goals"
+    const defaultWidgetOrder: WidgetId[] = ["chart", "donut", "stages", "bases", "tasks", "goals"]
+    const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(() => {
+        if (typeof window === 'undefined') return defaultWidgetOrder
+        try {
+            const saved = localStorage.getItem('dashboard-widget-order')
+            if (saved) return JSON.parse(saved)
+        } catch {}
+        return defaultWidgetOrder
+    })
+    const [hiddenWidgets, setHiddenWidgets] = useState<WidgetId[]>(() => {
+        if (typeof window === 'undefined') return []
+        try {
+            const saved = localStorage.getItem('dashboard-hidden-widgets')
+            if (saved) return JSON.parse(saved)
+        } catch {}
+        return []
+    })
+    const [showLayoutEditor, setShowLayoutEditor] = useState(false)
+
+    const widgetLabels: Record<WidgetId, string> = {
+        chart: "Revenue & Pipeline Chart",
+        donut: "Opportunity Status",
+        stages: "Stage Distribution",
+        bases: "Inquiry Tracker",
+        tasks: "Priority Tasks",
+        goals: "Goals",
+    }
+
+    const moveWidget = (id: WidgetId, dir: -1 | 1) => {
+        setWidgetOrder(prev => {
+            const idx = prev.indexOf(id)
+            if (idx < 0) return prev
+            const newIdx = Math.max(0, Math.min(prev.length - 1, idx + dir))
+            const copy = [...prev]
+            copy.splice(idx, 1)
+            copy.splice(newIdx, 0, id)
+            localStorage.setItem('dashboard-widget-order', JSON.stringify(copy))
+            return copy
+        })
+    }
+
+    const toggleWidget = (id: WidgetId) => {
+        setHiddenWidgets(prev => {
+            const next = prev.includes(id) ? prev.filter(w => w !== id) : [...prev, id]
+            localStorage.setItem('dashboard-hidden-widgets', JSON.stringify(next))
+            return next
+        })
+    }
 
     useEffect(() => {
         if (dateRange) {
@@ -106,8 +167,10 @@ export default function DashboardPage() {
                 setTasks(result.data.tasks)
                 const firstId = result.data.pipelines[0]?.id || ""
                 setGlobalPipelineId(firstId)
+                setLastRefreshed(new Date())
             }
             setLoading(false)
+            setIsRefreshing(false)
         }).catch(err => {
             console.error("Dashboard fetch failed:", err)
             setLoading(false)
@@ -209,7 +272,7 @@ export default function DashboardPage() {
     const kpi = data.kpi
     const valueData = data.pipelineData[globalPipelineId]?.valueOverTime[timeframe] || []
     const stageData = data.pipelineData[globalPipelineId]?.stageDistribution || []
-    const donutData = data.pipelineData[globalPipelineId]?.stageDistribution.map(s => ({ name: s.name, value: s.count, color: s.color })) || []
+    const donutData = data.pipelineData[globalPipelineId]?.statusDistribution.map(s => ({ name: s.name, value: s.count, color: s.color })) || []
     const baseData = data.pipelineData[globalPipelineId]?.dealsByBase || []
 
     const PipelineDropdown = ({ value, onChange }: { value: string; onChange: (id: string) => void }) => (
@@ -241,6 +304,29 @@ export default function DashboardPage() {
                         <p className="text-sm sm:text-base text-muted-foreground mt-0.5">Operations overview & real-time analytics.</p>
                     </div>
                     <div className="flex items-center gap-2">
+                        {lastRefreshed && (
+                            <span className="text-[10px] text-muted-foreground hidden sm:inline">
+                                Updated {lastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                        )}
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => { setIsRefreshing(true); fetchDashboard() }}
+                            disabled={isRefreshing}
+                        >
+                            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setShowLayoutEditor(!showLayoutEditor)}
+                            title="Customize layout"
+                        >
+                            <Settings2 className={`h-3.5 w-3.5 ${showLayoutEditor ? "text-primary" : ""}`} />
+                        </Button>
                         <PipelineDropdown value={globalPipelineId} onChange={setGlobalPipelineId} />
                         <DateRangePicker value={dateRange} onChange={setDateRange} />
                         <Button
@@ -266,6 +352,43 @@ export default function DashboardPage() {
                     </TabsContent>
 
                     <TabsContent value="overview" className="m-0 space-y-6 sm:space-y-8">
+
+                {/* Layout editor panel */}
+                {showLayoutEditor && (
+                    <Card className="border-primary/20 bg-primary/5 shadow-sm">
+                        <CardContent className="pt-4 pb-3">
+                            <div className="flex items-center justify-between mb-3">
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Customize Layout</p>
+                                <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => {
+                                    setWidgetOrder(defaultWidgetOrder)
+                                    setHiddenWidgets([])
+                                    localStorage.removeItem('dashboard-widget-order')
+                                    localStorage.removeItem('dashboard-hidden-widgets')
+                                }}>
+                                    Reset
+                                </Button>
+                            </div>
+                            <div className="space-y-1.5">
+                                {widgetOrder.map((id, idx) => (
+                                    <div key={id} className="flex items-center gap-2 p-2 rounded-md bg-background/50 border border-border/30">
+                                        <button onClick={() => toggleWidget(id)} className="text-muted-foreground hover:text-foreground">
+                                            {hiddenWidgets.includes(id) ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                        </button>
+                                        <span className={`text-xs font-medium flex-1 ${hiddenWidgets.includes(id) ? "text-muted-foreground line-through" : ""}`}>
+                                            {widgetLabels[id]}
+                                        </span>
+                                        <button onClick={() => moveWidget(id, -1)} disabled={idx === 0} className="text-muted-foreground hover:text-foreground disabled:opacity-20">
+                                            <ArrowUp className="h-3.5 w-3.5" />
+                                        </button>
+                                        <button onClick={() => moveWidget(id, 1)} disabled={idx === widgetOrder.length - 1} className="text-muted-foreground hover:text-foreground disabled:opacity-20">
+                                            <ArrowDown className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* KPI Row */}
                 <div className="grid gap-4 sm:gap-5 grid-cols-2 lg:grid-cols-4">
@@ -325,7 +448,22 @@ export default function DashboardPage() {
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{formatCurrency(kpi.totalPipelineValue)}</div>
-                            <p className="text-xs sm:text-[10px] text-muted-foreground mt-1 font-medium">Total opportunity value</p>
+                            {valueData.length > 1 && (
+                                <div className="h-8 mt-1 -mx-1">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={valueData}>
+                                            <defs>
+                                                <linearGradient id="sparkPipeline" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                                                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                                                </linearGradient>
+                                            </defs>
+                                            <Area type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={1.5} fill="url(#sparkPipeline)" isAnimationActive={false} />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            )}
+                            {valueData.length <= 1 && <p className="text-xs sm:text-[10px] text-muted-foreground mt-1 font-medium">Total opportunity value</p>}
                         </CardContent>
                     </Card>
                     <Card className="border-none shadow-sm bg-card/40 backdrop-blur-md cursor-pointer hover:ring-1 hover:ring-primary/20 transition-all" onClick={() => router.push('/finance')} role="link">
@@ -390,7 +528,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Revenue & Pipeline Chart (combined with view switcher) */}
-                <Card className="border-none shadow-md bg-card/40 backdrop-blur-md">
+                {!hiddenWidgets.includes("chart") && <Card className="border-none shadow-md bg-card/40 backdrop-blur-md">
                     <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 space-y-0 p-4 sm:p-6 pb-4">
                         <div className="flex items-center gap-3 flex-wrap">
                             <BarChart3 className="h-4 w-4 text-primary" />
@@ -456,7 +594,7 @@ export default function DashboardPage() {
                                                     dy={10}
                                                     interval={timeframe === "1m" ? 4 : timeframe === "6m" ? 3 : 1}
                                                 />
-                                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#666' }} tickFormatter={(value) => `$${value / 1000}k`} />
+                                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#666' }} tickFormatter={(value) => value >= 1000000 ? `$${(value / 1000000).toFixed(1)}M` : `$${Math.round(value / 1000)}K`} />
                                                 <Tooltip
                                                     contentStyle={{ backgroundColor: '#18181b', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '12px' }}
                                                     itemStyle={{ color: '#10b981', padding: '0' }}
@@ -474,67 +612,43 @@ export default function DashboardPage() {
                             </div>
                         )}
                     </CardContent>
-                </Card>
+                </Card>}
 
-                <div className="grid gap-4 sm:gap-6 lg:grid-cols-7">
-                    {/* Opportunity Status Donut (col-3) */}
-                    <Card className="lg:col-span-3 border-none shadow-md bg-card/40 backdrop-blur-md">
-                        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 space-y-0 p-4 sm:p-6 pb-4">
+                {/* Row 1: Calendar (25%) + Goals (75%) */}
+                <div className="grid gap-4 sm:gap-6 lg:grid-cols-4 items-stretch">
+                    <Card className="lg:col-span-1 border-none shadow-md bg-card/40 backdrop-blur-md flex flex-col">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 sm:p-6 pb-4">
                             <div className="space-y-1">
-                                <CardTitle className="text-base font-semibold">Opportunity Status</CardTitle>
-                                <CardDescription className="text-xs">Deal distribution by stage</CardDescription>
+                                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                                    <Calendar className="h-4 w-4 text-primary" />
+                                    Calendar
+                                </CardTitle>
+                                <CardDescription className="text-xs">Quick date overview</CardDescription>
                             </div>
                         </CardHeader>
                         <CardContent className="pt-0 px-4 sm:px-6">
-                            <div className="h-[240px] sm:h-[280px] w-full min-h-0">
-                                {donutData.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <PieChart>
-                                            <Pie
-                                                data={donutData}
-                                                cx="50%"
-                                                cy="50%"
-                                                innerRadius={60}
-                                                outerRadius={75}
-                                                paddingAngle={4}
-                                                dataKey="value"
-                                                animationDuration={1500}
-                                                stroke="none"
-                                            >
-                                                {donutData.map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={entry.color} />
-                                                ))}
-                                            </Pie>
-                                            <Tooltip
-                                                contentStyle={{ backgroundColor: '#18181b', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '11px' }}
-                                            />
-                                            <Legend
-                                                verticalAlign="bottom"
-                                                height={36}
-                                                iconSize={6}
-                                                formatter={(value) => <span className="text-[9px] text-muted-foreground font-medium uppercase tracking-tight">{value}</span>}
-                                            />
-                                        </PieChart>
-                                    </ResponsiveContainer>
-                                ) : (
-                                    <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
-                                        No deals in this pipeline
-                                    </div>
-                                )}
-                            </div>
+                            <MiniCalendar
+                                selectedDate={new Date()}
+                                eventDates={tasks.filter(t => t.dueDate).map(t => new Date(t.dueDate))}
+                                onDayClick={() => router.push(`/calendar`)}
+                            />
                         </CardContent>
                     </Card>
 
-                    {/* Stage Distribution (col-4) */}
-                    <Card className="lg:col-span-4 border-none shadow-md bg-card/40 backdrop-blur-md">
-                        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 space-y-0 p-4 sm:p-6 pb-4">
+                    {!hiddenWidgets.includes("goals") && <div className="lg:col-span-3"><GoalTracker kpi={kpi} /></div>}
+                </div>
+
+                {/* Row 2: Stages + Bases (even split) */}
+                <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+                    {!hiddenWidgets.includes("stages") && <Card className="border-none shadow-md bg-card/40 backdrop-blur-md">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 sm:p-6 pb-4">
                             <div className="space-y-1">
                                 <CardTitle className="text-base font-semibold">Stage Distribution</CardTitle>
                                 <CardDescription className="text-xs">Deal volume & value by stage</CardDescription>
                             </div>
                         </CardHeader>
                         <CardContent className="pt-2 px-4 sm:px-6">
-                            <div className="space-y-4 h-[180px] overflow-y-auto pr-2 scrollbar-hide">
+                            <div className="space-y-3">
                                 {stageData.length > 0 ? (() => {
                                     const totalCount = stageData.reduce((acc, curr) => acc + curr.count, 0)
                                     const maxCount = Math.max(...stageData.map(d => d.count))
@@ -544,12 +658,12 @@ export default function DashboardPage() {
                                                 <div className="flex items-center gap-2">
                                                     <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: stage.color }} />
                                                     <span className="font-semibold text-foreground/90">{stage.name}</span>
-                                                    <span className="text-xs sm:text-[10px] text-muted-foreground font-medium">({stage.count} deals)</span>
+                                                    <span className="text-[10px] text-muted-foreground font-medium">({stage.count})</span>
                                                 </div>
                                                 <div className="text-right">
                                                     <span className="font-bold text-foreground">${stage.value.toLocaleString()}</span>
-                                                    <span className="ml-2 text-xs sm:text-[10px] text-muted-foreground font-medium">
-                                                        {totalCount > 0 ? ((stage.count / totalCount) * 100).toFixed(1) : 0}%
+                                                    <span className="ml-2 text-[10px] text-muted-foreground font-medium">
+                                                        {totalCount > 0 ? ((stage.count / totalCount) * 100).toFixed(0) : 0}%
                                                     </span>
                                                 </div>
                                             </div>
@@ -566,16 +680,15 @@ export default function DashboardPage() {
                                         </div>
                                     ))
                                 })() : (
-                                    <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                                    <div className="py-8 flex items-center justify-center text-muted-foreground text-sm">
                                         No deals in this pipeline
                                     </div>
                                 )}
                             </div>
                         </CardContent>
-                    </Card>
+                    </Card>}
 
-                    {/* Inquiry Tracker by Base (col-4) */}
-                    <Card className="lg:col-span-4 border-none shadow-md bg-card/40 backdrop-blur-md">
+                    {!hiddenWidgets.includes("bases") && <Card className="border-none shadow-md bg-card/40 backdrop-blur-md">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 sm:p-6 pb-4">
                             <div className="space-y-1">
                                 <CardTitle className="text-base font-semibold">Inquiry Tracker</CardTitle>
@@ -583,7 +696,7 @@ export default function DashboardPage() {
                             </div>
                         </CardHeader>
                         <CardContent className="pt-2 px-4 sm:px-6">
-                            <div className="space-y-4 h-[180px] overflow-y-auto pr-2 scrollbar-hide">
+                            <div className="space-y-3">
                                 {baseData.length > 0 ? (() => {
                                     const totalDeals = baseData.reduce((acc, curr) => acc + curr.deals, 0)
                                     const maxDeals = Math.max(...baseData.map(d => d.deals))
@@ -596,7 +709,7 @@ export default function DashboardPage() {
                                                 </div>
                                                 <div className="text-right">
                                                     <span className="font-bold text-foreground">{base.deals} {base.deals === 1 ? 'deal' : 'deals'}</span>
-                                                    <span className="ml-2 text-xs sm:text-[10px] text-muted-foreground font-medium">
+                                                    <span className="ml-2 text-[10px] text-muted-foreground font-medium">
                                                         {totalDeals > 0 ? ((base.deals / totalDeals) * 100).toFixed(0) : 0}%
                                                     </span>
                                                 </div>
@@ -614,17 +727,68 @@ export default function DashboardPage() {
                                         </div>
                                     ))
                                 })() : (
-                                    <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                                    <div className="py-8 flex items-center justify-center text-muted-foreground text-sm">
                                         No base data available
                                     </div>
                                 )}
                             </div>
                         </CardContent>
-                    </Card>
+                    </Card>}
+                </div>
 
-                    {/* Priority Tasks (col-3) */}
-                    <Card className="lg:col-span-3 border-none shadow-md bg-card/40 backdrop-blur-md">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                {/* Row 3: Donut (33%) + Tasks (66%) */}
+                <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
+                    {!hiddenWidgets.includes("donut") && <Card className="lg:col-span-1 border-none shadow-md bg-card/40 backdrop-blur-md">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 sm:p-6 pb-4">
+                            <div className="space-y-1">
+                                <CardTitle className="text-base font-semibold">Opportunity Status</CardTitle>
+                                <CardDescription className="text-xs">Deals by status</CardDescription>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="pt-0 px-4 sm:px-6">
+                            <div className="h-[220px] w-full min-h-0">
+                                {donutData.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={donutData}
+                                                cx="50%"
+                                                cy="45%"
+                                                innerRadius={55}
+                                                outerRadius={70}
+                                                paddingAngle={4}
+                                                dataKey="value"
+                                                animationDuration={1500}
+                                                stroke="none"
+                                            >
+                                                {donutData.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip
+                                                contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', color: '#18181b', fontSize: '11px' }}
+                                                itemStyle={{ color: '#18181b' }}
+                                                formatter={(value: any, name: any) => [`${value} deals`, name]}
+                                            />
+                                            <Legend
+                                                verticalAlign="bottom"
+                                                height={36}
+                                                iconSize={6}
+                                                formatter={(value) => <span className="text-[9px] text-muted-foreground font-medium uppercase tracking-tight">{value}</span>}
+                                            />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                ) : (
+                                    <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                                        No deals in this pipeline
+                                    </div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>}
+
+                    {!hiddenWidgets.includes("tasks") && <Card className="lg:col-span-2 border-none shadow-md bg-card/40 backdrop-blur-md">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 sm:p-6 pb-4">
                             <div className="space-y-1">
                                 <CardTitle className="text-base font-semibold">Priority Tasks</CardTitle>
                                 <CardDescription className="text-xs">Immediate focus items</CardDescription>
@@ -633,17 +797,17 @@ export default function DashboardPage() {
                                 <Plus className="h-4 w-4" />
                             </Button>
                         </CardHeader>
-                        <CardContent className="px-3 pt-0">
-                            <div className="space-y-3 h-[200px] overflow-y-auto scrollbar-hide">
+                        <CardContent className="px-4 sm:px-6 pt-0">
+                            <div className="space-y-2">
                                 {pendingTasks.length > 0 ? pendingTasks.slice(0, 5).map((task) => (
                                     <div
                                         key={task.id}
-                                        className="flex items-center justify-between p-3 sm:p-2 rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors group cursor-pointer min-h-[44px] sm:min-h-0 touch-manipulation"
+                                        className="flex items-center justify-between p-3 sm:p-2.5 rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors group cursor-pointer min-h-[44px] sm:min-h-0 touch-manipulation"
                                         onClick={() => handleToggleTask(task.id, task.status)}
                                     >
                                         <div className="flex items-center gap-3">
                                             <div className={`h-2 w-2 rounded-full shrink-0 ${task.priority === "High" ? "bg-rose-500" : task.priority === "Medium" ? "bg-amber-500" : "bg-emerald-500"}`} />
-                                            <span className="text-sm sm:text-xs font-medium truncate max-w-[140px] sm:max-w-[100px]">{task.title}</span>
+                                            <span className="text-sm sm:text-xs font-medium truncate max-w-[200px]">{task.title}</span>
                                         </div>
                                         <div className="flex items-center gap-1 shrink-0">
                                             {task.dueDate && <Badge variant="outline" className="text-xs sm:text-[9px] h-7 sm:h-5">{task.dueDate.split('-').slice(1).join('/')}</Badge>}
@@ -656,7 +820,7 @@ export default function DashboardPage() {
                                         </div>
                                     </div>
                                 )) : (
-                                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm gap-2">
+                                    <div className="py-8 flex flex-col items-center justify-center text-muted-foreground text-sm gap-2">
                                         <p>No pending tasks</p>
                                         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setEditingTask(null); setIsTaskDialogOpen(true); }}>
                                             <Plus className="h-3 w-3 mr-1" /> Add Task
@@ -665,7 +829,7 @@ export default function DashboardPage() {
                                 )}
                             </div>
                         </CardContent>
-                    </Card>
+                    </Card>}
                 </div>
 
                 <CreateTaskDialog

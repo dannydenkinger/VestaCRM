@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
-    Send, Trash2, ChevronDown, ChevronUp, FileText, AtSign,
+    Send, Trash2, ChevronDown, ChevronUp, FileText, AtSign, Pencil, X, Check,
 } from "lucide-react"
 
 interface MentionUser {
@@ -24,6 +24,7 @@ interface NoteItem {
 interface NotesEditorProps {
     notes: NoteItem[]
     onAddNote: (content: string, mentions: MentionUser[]) => Promise<void>
+    onEditNote?: (noteId: string, content: string, mentions: MentionUser[]) => Promise<void>
     onDeleteNote: (noteId: string) => void
     users: { id: string; name: string; email: string }[]
     placeholder?: string
@@ -68,6 +69,7 @@ function NoteContent({ content, mentions }: { content: string; mentions?: Mentio
 export function NotesEditor({
     notes,
     onAddNote,
+    onEditNote,
     onDeleteNote,
     users,
     placeholder = "Type a note... Use @ to mention a team member",
@@ -77,6 +79,11 @@ export function NotesEditor({
     const [content, setContent] = useState("")
     const [isSaving, setIsSaving] = useState(false)
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+
+    // Edit mode state
+    const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+    const [editContent, setEditContent] = useState("")
+    const [isSavingEdit, setIsSavingEdit] = useState(false)
 
     // Mention state
     const [showMentionDropdown, setShowMentionDropdown] = useState(false)
@@ -100,6 +107,33 @@ export function NotesEditor({
             else next.add(id)
             return next
         })
+    }
+
+    const startEditing = (note: NoteItem) => {
+        setEditingNoteId(note.id)
+        setEditContent(note.content)
+    }
+
+    const cancelEditing = () => {
+        setEditingNoteId(null)
+        setEditContent("")
+    }
+
+    const saveEdit = async () => {
+        if (!editingNoteId || !editContent.trim() || !onEditNote) return
+        setIsSavingEdit(true)
+        // Extract mentions from edited content
+        const mentionRegex = /@(\w[\w\s]*?\w)/g
+        const editMentions: MentionUser[] = []
+        let match: RegExpExecArray | null
+        while ((match = mentionRegex.exec(editContent)) !== null) {
+            const user = users.find(u => u.name === match![1])
+            if (user) editMentions.push({ userId: user.id, userName: user.name })
+        }
+        await onEditNote(editingNoteId, editContent, editMentions)
+        setEditingNoteId(null)
+        setEditContent("")
+        setIsSavingEdit(false)
     }
 
     const insertMention = useCallback((user: { id: string; name: string }) => {
@@ -231,6 +265,16 @@ export function NotesEditor({
                                             <span className="text-[10px] text-muted-foreground font-medium">
                                                 {new Date(note.createdAt).toLocaleDateString()}
                                             </span>
+                                            {onEditNote && editingNoteId !== note.id && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                                    onClick={() => startEditing(note)}
+                                                >
+                                                    <Pencil className="h-3 w-3" />
+                                                </Button>
+                                            )}
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
@@ -241,18 +285,43 @@ export function NotesEditor({
                                             </Button>
                                         </div>
                                     </div>
-                                    <p className={`text-sm text-muted-foreground leading-relaxed whitespace-pre-line ${!isExpanded && isLong ? "line-clamp-3" : ""}`}>
-                                        <NoteContent content={note.content} mentions={note.mentions} />
-                                    </p>
-                                    {isLong && (
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-7 text-xs text-primary px-0"
-                                            onClick={() => toggleExpanded(note.id)}
-                                        >
-                                            {isExpanded ? <><ChevronUp className="h-3.5 w-3.5 mr-1" /> Show less</> : <><ChevronDown className="h-3.5 w-3.5 mr-1" /> Show more</>}
-                                        </Button>
+                                    {editingNoteId === note.id ? (
+                                        <div className="space-y-2">
+                                            <textarea
+                                                className="w-full min-h-[80px] p-3 rounded-lg bg-background border text-sm focus:outline-none focus:ring-1 focus:ring-primary/30 resize-none"
+                                                value={editContent}
+                                                onChange={(e) => setEditContent(e.target.value)}
+                                                onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveEdit() }}
+                                                autoFocus
+                                            />
+                                            <div className="flex items-center gap-2">
+                                                <Button size="sm" className="h-7 text-xs gap-1" onClick={saveEdit} disabled={!editContent.trim() || isSavingEdit}>
+                                                    <Check className="h-3 w-3" />
+                                                    {isSavingEdit ? "Saving..." : "Save"}
+                                                </Button>
+                                                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={cancelEditing}>
+                                                    <X className="h-3 w-3" />
+                                                    Cancel
+                                                </Button>
+                                                <span className="text-[10px] text-muted-foreground ml-auto">⌘+Enter to save</span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <p className={`text-sm text-muted-foreground leading-relaxed whitespace-pre-line ${!isExpanded && isLong ? "line-clamp-3" : ""}`}>
+                                                <NoteContent content={note.content} mentions={note.mentions} />
+                                            </p>
+                                            {isLong && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-7 text-xs text-primary px-0"
+                                                    onClick={() => toggleExpanded(note.id)}
+                                                >
+                                                    {isExpanded ? <><ChevronUp className="h-3.5 w-3.5 mr-1" /> Show less</> : <><ChevronDown className="h-3.5 w-3.5 mr-1" /> Show more</>}
+                                                </Button>
+                                            )}
+                                        </>
                                     )}
                                 </div>
                             </div>

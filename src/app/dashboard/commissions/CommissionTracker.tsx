@@ -6,12 +6,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Loader2, DollarSign, CheckCircle2, Clock, Wallet, TrendingUp } from "lucide-react"
+import { Loader2, DollarSign, CheckCircle2, Clock, Wallet, TrendingUp, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import {
     getCommissionsData,
     markCommissionPaid,
 } from "./actions"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import type { CommissionsData, CommissionEntry } from "./types"
 
 function formatCurrency(value: number) {
@@ -26,6 +27,8 @@ export function CommissionTracker({ dateFilter }: { dateFilter?: { start: string
     const [filter, setFilter] = useState<"all" | "earned" | "paid">("all")
     const [payingId, setPayingId] = useState<string | null>(null)
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+    const [confirmPayId, setConfirmPayId] = useState<string | null>(null)
+    const [confirmBulkPay, setConfirmBulkPay] = useState(false)
 
     useEffect(() => {
         loadData()
@@ -278,7 +281,7 @@ export function CommissionTracker({ dateFilter }: { dateFilter?: { start: string
                     {selectedIds.size > 0 && (
                         <div className="flex items-center gap-3 px-4 sm:px-6 py-3 bg-primary/10 border-b border-primary/20">
                             <span className="text-sm font-semibold text-primary">{selectedIds.size} selected</span>
-                            <Button size="sm" className="h-7 text-xs" onClick={handleBulkMarkPaid} disabled={payingId !== null}>
+                            <Button size="sm" className="h-7 text-xs" onClick={() => setConfirmBulkPay(true)} disabled={payingId !== null}>
                                 {payingId === "bulk" ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
                                 Mark All Paid
                             </Button>
@@ -324,7 +327,7 @@ export function CommissionTracker({ dateFilter }: { dateFilter?: { start: string
                                                     variant="outline"
                                                     size="sm"
                                                     className="h-7 text-[10px] px-2.5 shrink-0 touch-manipulation"
-                                                    onClick={() => handleMarkPaid(entry.id)}
+                                                    onClick={() => setConfirmPayId(entry.id)}
                                                     disabled={payingId === entry.id}
                                                 >
                                                     {payingId === entry.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Mark Paid"}
@@ -417,6 +420,45 @@ export function CommissionTracker({ dateFilter }: { dateFilter?: { start: string
                     )}
                 </CardContent>
             </Card>
+
+            {/* Single Mark Paid Confirmation */}
+            <AlertDialog open={!!confirmPayId} onOpenChange={(open) => { if (!open) setConfirmPayId(null) }}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {(() => {
+                                const entry = filteredEntries.find(e => e.id === confirmPayId)
+                                return entry ? `Mark ${formatCurrency(entry.commissionAmount)} commission for ${entry.contactName} as paid? This action cannot be undone.` : "Mark this commission as paid?"
+                            })()}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => { if (confirmPayId) { handleMarkPaid(confirmPayId); setConfirmPayId(null) } }}>
+                            Mark Paid
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Bulk Mark Paid Confirmation */}
+            <AlertDialog open={confirmBulkPay} onOpenChange={setConfirmBulkPay}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Confirm Bulk Payment</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Mark {selectedIds.size} commission{selectedIds.size !== 1 ? "s" : ""} as paid? This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => { handleBulkMarkPaid(); setConfirmBulkPay(false) }}>
+                            Mark All Paid
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

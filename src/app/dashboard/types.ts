@@ -37,6 +37,7 @@ export interface DashboardData {
     }
     pipelineData: Record<string, {
         stageDistribution: { name: string; count: number; value: number; color: string }[]
+        statusDistribution: { name: string; count: number; color: string }[]
         valueOverTime: {
             "1m": { name: string; value: number }[]
             "6m": { name: string; value: number }[]

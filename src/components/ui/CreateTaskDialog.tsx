@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select"
 import { createTask, updateTask } from "@/app/calendar/actions"
 import { getAllContacts } from "@/app/communications/actions"
+import { getOpportunitiesList } from "@/app/pipeline/actions"
 
 interface Recurrence {
     type: "none" | "daily" | "weekly" | "monthly"
@@ -60,12 +61,19 @@ export function CreateTaskDialog({ isOpen, onClose, onSaved, initialData, initia
     const [recurrenceInterval, setRecurrenceInterval] = useState(1)
     const [recurrenceEndDate, setRecurrenceEndDate] = useState("")
     const [contacts, setContacts] = useState<{ id: string; name: string; email: string }[]>([])
+    const [contactSearchQuery, setContactSearchQuery] = useState("")
+    const [contactDropdownOpen, setContactDropdownOpen] = useState(false)
+    const [opportunities, setOpportunities] = useState<{ id: string; name: string }[]>([])
+    const [opportunityId, setOpportunityId] = useState<string>("")
     const [isLoading, setIsLoading] = useState(false)
 
     useEffect(() => {
         if (isOpen) {
             getAllContacts().then(r => {
                 if (r.success && r.contacts) setContacts(r.contacts)
+            })
+            getOpportunitiesList().then(r => {
+                if (r.success && r.opportunities) setOpportunities(r.opportunities)
             })
         }
     }, [isOpen])
@@ -90,6 +98,7 @@ export function CreateTaskDialog({ isOpen, onClose, onSaved, initialData, initia
                 }
                 setPriority(initialData.priority || "MEDIUM")
                 setContactId(initialData.contactId || initialContactId || "")
+                setOpportunityId(initialData.opportunityId || "")
                 setBlockedByTaskId(initialData.blockedByTaskId || "")
                 if (initialData.recurrence && initialData.recurrence.type !== "none") {
                     setRecurrenceType(initialData.recurrence.type as any)
@@ -125,6 +134,7 @@ export function CreateTaskDialog({ isOpen, onClose, onSaved, initialData, initia
                 }
                 setPriority("MEDIUM")
                 setContactId(initialContactId || "")
+                setOpportunityId("")
                 setRecurrenceType("none")
                 setRecurrenceInterval(1)
                 setRecurrenceEndDate("")
@@ -149,6 +159,8 @@ export function CreateTaskDialog({ isOpen, onClose, onSaved, initialData, initia
         }
         if (contactId && contactId !== "none") taskData.contactId = contactId
         else taskData.contactId = null
+        if (opportunityId && opportunityId !== "none") taskData.opportunityId = opportunityId
+        else taskData.opportunityId = null
         if (blockedByTaskId && blockedByTaskId !== "none") taskData.blockedByTaskId = blockedByTaskId
         else taskData.blockedByTaskId = null
 
@@ -220,14 +232,61 @@ export function CreateTaskDialog({ isOpen, onClose, onSaved, initialData, initia
                     </div>
                     <div className="flex flex-col gap-2">
                         <label className="text-sm font-medium">Link to contact</label>
-                        <Select value={contactId} onValueChange={setContactId}>
+                        <div className="relative">
+                            <Input
+                                placeholder="Search contacts..."
+                                value={contactDropdownOpen ? contactSearchQuery : (contacts.find(c => c.id === contactId)?.name || (contactId && contactId !== "none" ? "Selected" : ""))}
+                                onChange={(e) => { setContactSearchQuery(e.target.value); setContactDropdownOpen(true) }}
+                                onFocus={() => setContactDropdownOpen(true)}
+                                onBlur={() => setTimeout(() => setContactDropdownOpen(false), 200)}
+                            />
+                            {contactId && contactId !== "none" && !contactDropdownOpen && (
+                                <button
+                                    type="button"
+                                    onClick={() => { setContactId(""); setContactSearchQuery("") }}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                >
+                                    <span className="text-xs">Clear</span>
+                                </button>
+                            )}
+                            {contactDropdownOpen && (
+                                <div className="absolute z-50 top-full mt-1 w-full max-h-40 overflow-y-auto rounded-md border bg-popover shadow-md">
+                                    <button
+                                        type="button"
+                                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50 text-muted-foreground"
+                                        onClick={() => { setContactId("none"); setContactSearchQuery(""); setContactDropdownOpen(false) }}
+                                    >
+                                        None
+                                    </button>
+                                    {contacts
+                                        .filter(c => !contactSearchQuery || c.name?.toLowerCase().includes(contactSearchQuery.toLowerCase()) || c.email?.toLowerCase().includes(contactSearchQuery.toLowerCase()))
+                                        .map(c => (
+                                            <button
+                                                type="button"
+                                                key={c.id}
+                                                className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50 flex justify-between items-center"
+                                                onClick={() => { setContactId(c.id); setContactSearchQuery(""); setContactDropdownOpen(false) }}
+                                            >
+                                                <span className="font-medium">{c.name}</span>
+                                                {c.email && <span className="text-xs text-muted-foreground ml-2 truncate">{c.email}</span>}
+                                            </button>
+                                        ))
+                                    }
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                        <label className="text-sm font-medium">Link to deal</label>
+                        <Select value={opportunityId} onValueChange={setOpportunityId}>
                             <SelectTrigger>
                                 <SelectValue placeholder="None" />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="none">None</SelectItem>
-                                {contacts.map(c => (
-                                    <SelectItem key={c.id} value={c.id}>{c.name} {c.email ? `(${c.email})` : ''}</SelectItem>
+                                {opportunities.map(o => (
+                                    <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>

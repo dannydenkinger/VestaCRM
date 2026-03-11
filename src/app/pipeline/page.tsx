@@ -394,7 +394,7 @@ function PipelineContent() {
 
         const res = await softDeleteOpportunity(id);
         if (!res.success) {
-            toast.error("Failed to delete opportunity");
+            toast.error(res.error || "Failed to delete opportunity");
             fetchPipelines();
             return;
         }

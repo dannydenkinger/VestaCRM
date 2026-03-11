@@ -431,6 +431,48 @@ export async function updateTask(taskId: string, data: {
     return { success: true };
 }
 
+// ── Subtask Actions ──────────────────────────────────────────────────────────
+
+export async function addSubtask(taskId: string, title: string) {
+    const idParsed = firestoreIdSchema.safeParse(taskId);
+    if (!idParsed.success || !title?.trim()) return { success: false, error: "Invalid input" };
+    taskId = idParsed.data;
+
+    const subtask = { id: crypto.randomUUID(), title: title.trim(), completed: false };
+    const taskRef = adminDb.collection('tasks').doc(taskId);
+    const doc = await taskRef.get();
+    const subtasks = doc.data()?.subtasks || [];
+    subtasks.push(subtask);
+    await taskRef.update({ subtasks, updatedAt: new Date() });
+    return { success: true, subtask };
+}
+
+export async function toggleSubtask(taskId: string, subtaskId: string) {
+    const idParsed = firestoreIdSchema.safeParse(taskId);
+    if (!idParsed.success || !subtaskId) return { success: false, error: "Invalid input" };
+    taskId = idParsed.data;
+
+    const taskRef = adminDb.collection('tasks').doc(taskId);
+    const doc = await taskRef.get();
+    const subtasks = (doc.data()?.subtasks || []).map((s: any) =>
+        s.id === subtaskId ? { ...s, completed: !s.completed } : s
+    );
+    await taskRef.update({ subtasks, updatedAt: new Date() });
+    return { success: true };
+}
+
+export async function deleteSubtask(taskId: string, subtaskId: string) {
+    const idParsed = firestoreIdSchema.safeParse(taskId);
+    if (!idParsed.success || !subtaskId) return { success: false, error: "Invalid input" };
+    taskId = idParsed.data;
+
+    const taskRef = adminDb.collection('tasks').doc(taskId);
+    const doc = await taskRef.get();
+    const subtasks = (doc.data()?.subtasks || []).filter((s: any) => s.id !== subtaskId);
+    await taskRef.update({ subtasks, updatedAt: new Date() });
+    return { success: true };
+}
+
 function calculateNextDueDate(currentDueDate: Date, recurrence: { type: string; interval: number }): Date {
     const next = new Date(currentDueDate);
     const interval = recurrence.interval || 1;

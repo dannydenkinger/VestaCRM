@@ -34,12 +34,14 @@ import {
     TrendingUp,
     BarChart3,
     Filter,
+    ArrowUpCircle,
+    ArrowDownCircle,
 } from "lucide-react"
 import { toast } from "sonner"
 import ArticleEditor from "./ArticleEditor"
 import ClusterManager from "./ClusterManager"
 import AIGenerateDialog from "./AIGenerateDialog"
-import { getArticles, getArticle, getClusters, deleteArticle, getBlogStats, ensureArticleInCluster } from "./actions"
+import { getArticles, getArticle, getClusters, deleteArticle, getBlogStats, ensureArticleInCluster, updateArticle } from "./actions"
 import type { BlogArticle, ContentCluster, BlogStats, AIGenerateResponse } from "./types"
 
 type ViewMode = "list" | "editor" | "clusters"
@@ -107,6 +109,20 @@ export default function BlogDashboard() {
             loadData()
         } else {
             toast.error(result.error || "Failed to delete")
+        }
+    }
+
+    const handleCycleStatus = async (article: BlogArticle) => {
+        const cycle: Record<string, string> = { draft: "review", review: "published", published: "archived", archived: "draft" }
+        const nextStatus = cycle[article.status] || "draft"
+        // Optimistic update
+        setArticles(prev => prev.map(a => a.id === article.id ? { ...a, status: nextStatus as any } : a))
+        const res = await updateArticle(article.id, { status: nextStatus as any })
+        if (res.success) {
+            toast.success(`Status changed to ${nextStatus}`)
+        } else {
+            toast.error("Failed to update status")
+            setArticles(prev => prev.map(a => a.id === article.id ? { ...a, status: article.status } : a))
         }
     }
 
@@ -343,6 +359,67 @@ export default function BlogDashboard() {
                 </Card>
             </div>
 
+            {/* Content Performance Summary */}
+            {articles.length > 0 && (
+                <Card className="border-none shadow-sm bg-card/40 backdrop-blur-md">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                            <BarChart3 className="h-4 w-4 text-primary" />
+                            Content Performance
+                        </CardTitle>
+                        <CardDescription className="text-xs">Article quality and publishing velocity</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                        <div className="space-y-3">
+                            {articles
+                                .filter(a => a.status === "published")
+                                .sort((a, b) => b.seoScore - a.seoScore)
+                                .slice(0, 5)
+                                .map((article) => (
+                                    <div
+                                        key={article.id}
+                                        className="flex items-center justify-between p-2.5 rounded-lg bg-muted/20 hover:bg-muted/30 transition-colors cursor-pointer"
+                                        onClick={() => handleEditArticle(article.id)}
+                                    >
+                                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                                            <div className={`w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold shrink-0 ${
+                                                article.seoScore >= 80 ? "bg-emerald-500/10 text-emerald-600" :
+                                                article.seoScore >= 60 ? "bg-amber-500/10 text-amber-600" :
+                                                "bg-rose-500/10 text-rose-600"
+                                            }`}>
+                                                {article.seoScore}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-medium truncate">{article.title}</p>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <span className="text-[10px] text-muted-foreground">{article.wordCount.toLocaleString()} words</span>
+                                                    <span className="text-[10px] text-muted-foreground">{article.readingTime} min read</span>
+                                                    {article.publishedAt && (
+                                                        <span className="text-[10px] text-muted-foreground">
+                                                            Published {new Date(article.publishedAt).toLocaleDateString()}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            {article.focusKeyword && (
+                                                <Badge variant="outline" className="text-[9px] h-4 px-1.5">{article.focusKeyword}</Badge>
+                                            )}
+                                            {article.wpPublishedUrl && (
+                                                <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-emerald-500/10 text-emerald-600">WP</Badge>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            {articles.filter(a => a.status === "published").length === 0 && (
+                                <p className="text-xs text-muted-foreground text-center py-4">No published articles yet</p>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
             {/* Actions bar */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="flex items-center gap-2 flex-1">
@@ -475,12 +552,17 @@ export default function BlogDashboard() {
                                             <Badge variant="outline" className="text-[9px] h-5 px-1.5 capitalize">
                                                 {article.type}
                                             </Badge>
-                                            <Badge
-                                                variant="outline"
-                                                className={`text-[9px] h-5 px-1.5 ${statusConfig[article.status]?.class || ""}`}
+                                            <button
+                                                className="inline-flex items-center"
+                                                onClick={(e) => { e.stopPropagation(); handleCycleStatus(article) }}
                                             >
-                                                {statusConfig[article.status]?.label || article.status}
-                                            </Badge>
+                                                <Badge
+                                                    variant="outline"
+                                                    className={`text-[9px] h-5 px-1.5 ${statusConfig[article.status]?.class || ""}`}
+                                                >
+                                                    {statusConfig[article.status]?.label || article.status} ›
+                                                </Badge>
+                                            </button>
                                             <span className={`text-xs font-bold ${scoreColor(article.seoScore)}`}>
                                                 SEO: {article.seoScore}
                                             </span>
@@ -532,12 +614,19 @@ export default function BlogDashboard() {
                                                 </Badge>
                                             </TableCell>
                                             <TableCell>
-                                                <Badge
-                                                    variant="outline"
-                                                    className={`text-[8px] h-4 px-1.5 ${statusConfig[article.status]?.class || ""}`}
+                                                <button
+                                                    className="inline-flex items-center gap-1 group/status cursor-pointer"
+                                                    title="Click to cycle status"
+                                                    onClick={(e) => { e.stopPropagation(); handleCycleStatus(article) }}
                                                 >
-                                                    {statusConfig[article.status]?.label || article.status}
-                                                </Badge>
+                                                    <Badge
+                                                        variant="outline"
+                                                        className={`text-[8px] h-4 px-1.5 ${statusConfig[article.status]?.class || ""}`}
+                                                    >
+                                                        {statusConfig[article.status]?.label || article.status}
+                                                    </Badge>
+                                                    <ArrowUpCircle className="h-3 w-3 text-muted-foreground/0 group-hover/status:text-muted-foreground transition-opacity" />
+                                                </button>
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 <span className={`text-xs font-bold ${scoreColor(article.seoScore)}`}>

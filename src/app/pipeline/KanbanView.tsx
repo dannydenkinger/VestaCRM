@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { MapPin, DollarSign, CalendarIcon, Phone, MessageSquare, FileText, CheckSquare, ChevronRight, User, Ban } from "lucide-react"
+import { MapPin, DollarSign, CalendarIcon, Phone, MessageSquare, FileText, CheckSquare, ChevronRight, User, Ban, Clock, Palette } from "lucide-react"
 import { getLengthOfStay, formatDisplayDate } from "./utils"
 
 // Use the Calendar icon under an alias to match the original import name
@@ -133,8 +133,32 @@ const DealCard = React.memo(function DealCard({
                         <TooltipTrigger asChild>
                             <span className={`inline-block h-2.5 w-2.5 rounded-full ${aging.color} shrink-0 cursor-help`} />
                         </TooltipTrigger>
-                        <TooltipContent side="top">
-                            <p className="text-xs">{aging.label}</p>
+                        <TooltipContent side="top" className="max-w-[220px]">
+                            <div className="space-y-1.5">
+                                <p className="text-xs font-semibold">{aging.label}</p>
+                                {deal.createdAt && (
+                                    <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                        <Clock className="h-2.5 w-2.5" />
+                                        Created {new Date(deal.createdAt).toLocaleDateString()}
+                                    </p>
+                                )}
+                                {deal.updatedAt && (
+                                    <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                        <Clock className="h-2.5 w-2.5" />
+                                        Updated {new Date(deal.updatedAt).toLocaleDateString()}
+                                    </p>
+                                )}
+                                {deal.paymentStatus && deal.paymentStatus !== "unpaid" && (
+                                    <p className="text-[10px] text-emerald-500 font-medium capitalize">
+                                        Payment: {deal.paymentStatus}
+                                    </p>
+                                )}
+                                {deal.claimedByName && (
+                                    <p className="text-[10px] text-muted-foreground">
+                                        Claimed by {deal.claimedByName}
+                                    </p>
+                                )}
+                            </div>
                         </TooltipContent>
                     </Tooltip>
                     <Avatar title={`Assignee: ${deal.assignee}`} className="h-6 w-6 border border-background shadow-sm shrink-0">
@@ -318,6 +342,11 @@ interface KanbanViewProps {
     onOpenTasks: (deal: any) => void
 }
 
+const STAGE_COLORS = [
+    "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444",
+    "#06b6d4", "#ec4899", "#f97316", "#14b8a6", "#6366f1",
+]
+
 export const KanbanView = React.memo(function KanbanView({
     currentPipeline,
     mobileSelectedStage,
@@ -372,8 +401,9 @@ export const KanbanView = React.memo(function KanbanView({
         {/* Mobile kanban: stage pill selector + card list */}
         <div className="md:hidden flex flex-col h-full min-h-0">
             <div className="flex gap-2 overflow-x-auto no-scrollbar scroll-fade-x px-1 py-2 shrink-0">
-                {currentPipeline.stages.map((stage: any) => {
+                {currentPipeline.stages.map((stage: any, idx: number) => {
                     const stageName = typeof stage === 'string' ? stage : stage.name;
+                    const stageColor = (typeof stage === 'object' && stage.color) || STAGE_COLORS[idx % STAGE_COLORS.length];
                     const stageDeals = dealsByStage[stageName] || [];
                     return (
                         <button
@@ -382,6 +412,7 @@ export const KanbanView = React.memo(function KanbanView({
                             className={`shrink-0 px-4 py-2 rounded-full text-xs font-semibold min-h-[44px] touch-manipulation transition-colors ${mobileSelectedStage === stageName
                                 ? "bg-primary text-primary-foreground"
                                 : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}
+                            style={mobileSelectedStage === stageName ? { backgroundColor: stageColor } : undefined}
                         >
                             {stageName}
                             <span className="ml-1.5 text-[10px] opacity-70">({stageDeals.length})</span>
@@ -426,16 +457,28 @@ export const KanbanView = React.memo(function KanbanView({
                         onDragLeave={onDragLeave}
                         onDrop={(e) => onDrop(e, stageId, stageName)}
                     >
-                        <div className="p-4 font-semibold flex flex-col gap-1 border-b bg-muted/60">
+                        <div className="p-4 font-semibold flex flex-col gap-1 border-b bg-muted/60" style={{ borderTopColor: (stage as any).color || STAGE_COLORS[index % STAGE_COLORS.length], borderTopWidth: 3 }}>
                             <div className="flex items-center justify-between">
-                                <span className="text-sm uppercase tracking-wider">{stageName} ({stageDeals.length})</span>
-                                <Badge variant="secondary" className="px-2 py-0.5 rounded-full font-bold">
-                                    {stageDeals.length}
-                                </Badge>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: (stage as any).color || STAGE_COLORS[index % STAGE_COLORS.length] }} />
+                                    <span className="text-sm uppercase tracking-wider">{stageName}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <Badge variant="secondary" className="px-2 py-0.5 rounded-full font-bold text-[10px]">
+                                        {stageDeals.length} deal{stageDeals.length !== 1 ? "s" : ""}
+                                    </Badge>
+                                </div>
                             </div>
-                            <span className="text-xs text-muted-foreground font-mono">
-                                ${(stageValues[stageName] || 0).toLocaleString()}
-                            </span>
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground font-mono">
+                                    ${(stageValues[stageName] || 0).toLocaleString()}
+                                </span>
+                                {currentPipeline.deals.length > 0 && stageDeals.length > 0 && (
+                                    <span className="text-[10px] text-muted-foreground">
+                                        {Math.round((stageDeals.length / currentPipeline.deals.length) * 100)}% of pipeline
+                                    </span>
+                                )}
+                            </div>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">

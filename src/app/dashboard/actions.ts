@@ -96,6 +96,16 @@ export async function getDashboardData(startDate?: string, endDate?: string): Pr
             }
         })
 
+        // Fallback: non-open deals with no valid pipeline assignment go to the first pipeline
+        // (mirrors pipeline page logic where closed/lost/archived deals with deleted stages
+        //  are still counted under the first pipeline)
+        const firstPipelineId = pipelinesList[0]?.id || null
+        for (const opp of allOpps) {
+            if (!opp.pipelineId && opp.status !== 'open' && firstPipelineId) {
+                opp.pipelineId = firstPipelineId
+            }
+        }
+
         // Apply date range filter
         const opps = (rangeStart || rangeEnd)
             ? allOpps.filter(o => {
@@ -257,8 +267,31 @@ export async function getDashboardData(startDate?: string, endDate?: string): Pr
                 .slice(0, 8)
                 .map(([name, deals], i) => ({ name, deals, color: BASE_COLORS[i % BASE_COLORS.length] }))
 
+            // Status distribution (open/won/lost/archived)
+            // Use explicit status field first, then fall back to stage membership.
+            // Any closed stage that isn't a booked/won stage is considered lost.
+            const pipelineClosedNotWon = new Set(
+                [...closedStageIds].filter(id => !bookedStageIds.has(id))
+            )
+            let openCount = 0, wonCount = 0, lostCount = 0, archivedCount = 0
+            for (const opp of pipelineOpps) {
+                if (opp.status === 'archive') { archivedCount++ }
+                else if (opp.status === 'closed_lost') { lostCount++ }
+                else if (opp.status === 'closed_won') { wonCount++ }
+                else if (bookedStageIds.has(opp.stageId)) { wonCount++ }
+                else if (pipelineClosedNotWon.has(opp.stageId)) { lostCount++ }
+                else { openCount++ }
+            }
+            const statusDistribution = [
+                { name: 'Open', count: openCount, color: '#3b82f6' },
+                { name: 'Won', count: wonCount, color: '#10b981' },
+                { name: 'Lost', count: lostCount, color: '#f43f5e' },
+                { name: 'Archived', count: archivedCount, color: '#6b7280' },
+            ].filter(s => s.count > 0)
+
             pipelineData[pipeline.id] = {
                 stageDistribution,
+                statusDistribution,
                 valueOverTime: { "1m": daily, "6m": weekly, "1y": monthly },
                 dealsByBase,
                 totalValue: pipelineOpps.reduce((s, o) => s + o.value, 0),

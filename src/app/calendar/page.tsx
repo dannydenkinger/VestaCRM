@@ -15,7 +15,8 @@ import {
     LayoutGrid,
     X,
     Tag,
-    ArrowRight
+    ArrowRight,
+    Pencil
 } from "lucide-react"
 import {
     format,
@@ -60,6 +61,7 @@ export default function CalendarPage() {
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
     const [filterSheetOpen, setFilterSheetOpen] = useState(false)
     const [clickedDate, setClickedDate] = useState<Date | null>(null)
+    const [editingTaskData, setEditingTaskData] = useState<any>(null)
     const router = useRouter()
 
     const loadEvents = async () => {
@@ -197,6 +199,52 @@ export default function CalendarPage() {
             <TabsContent value="calendar" className="flex-1 flex flex-col md:flex-row overflow-hidden m-0 min-h-0">
                 {/* Sidebar */}
                 <aside className="hidden md:flex w-72 border-r bg-card/30 backdrop-blur-xl p-4 lg:p-6 flex-col gap-6 shrink-0 overflow-y-auto">
+                    {/* Mini Calendar */}
+                    <div>
+                        {(() => {
+                            const miniStart = startOfWeek(startOfMonth(currentDate), { weekStartsOn: 0 })
+                            const miniEnd = endOfWeek(endOfMonth(currentDate), { weekStartsOn: 0 })
+                            const miniDays: Date[] = []
+                            let d = miniStart
+                            while (d <= miniEnd) { miniDays.push(d); d = addDays(d, 1) }
+                            return (
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-1 rounded hover:bg-muted/30"><ChevronLeft className="h-3 w-3" /></button>
+                                        <span className="text-[11px] font-bold">{format(currentDate, "MMMM yyyy")}</span>
+                                        <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-1 rounded hover:bg-muted/30"><ChevronRight className="h-3 w-3" /></button>
+                                    </div>
+                                    <div className="grid grid-cols-7 gap-0">
+                                        {["Su","Mo","Tu","We","Th","Fr","Sa"].map(day => (
+                                            <div key={day} className="text-[9px] font-bold text-muted-foreground/50 text-center py-1">{day}</div>
+                                        ))}
+                                        {miniDays.map((day, i) => {
+                                            const dayEvents = events.filter(e => isSameDay(new Date(e.start), day))
+                                            return (
+                                                <button
+                                                    key={i}
+                                                    onClick={() => { setCurrentDate(day); setViewMode("day") }}
+                                                    className={cn(
+                                                        "relative h-7 w-full text-[10px] rounded-md transition-colors",
+                                                        !isSameMonth(day, currentDate) && "text-muted-foreground/30",
+                                                        isToday(day) && "bg-primary text-primary-foreground font-bold",
+                                                        isSameDay(day, currentDate) && !isToday(day) && "bg-muted font-bold",
+                                                        !isToday(day) && !isSameDay(day, currentDate) && "hover:bg-muted/30",
+                                                    )}
+                                                >
+                                                    {day.getDate()}
+                                                    {dayEvents.length > 0 && !isToday(day) && (
+                                                        <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-primary" />
+                                                    )}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )
+                        })()}
+                    </div>
+
                     <div>
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Event Sources</h3>
@@ -376,12 +424,31 @@ export default function CalendarPage() {
 
             <CreateTaskDialog
                 isOpen={isCreateDialogOpen}
-                onClose={() => { setIsCreateDialogOpen(false); setClickedDate(null); }}
-                onSaved={() => { toast.success("Event created"); loadEvents(); }}
+                onClose={() => { setIsCreateDialogOpen(false); setClickedDate(null); setEditingTaskData(null); }}
+                onSaved={() => { toast.success(editingTaskData ? "Task updated" : "Event created"); loadEvents(); setEditingTaskData(null); }}
                 initialDate={clickedDate}
+                initialData={editingTaskData}
             />
             {selectedEvent && (
-                <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} onNavigate={(url) => { setSelectedEvent(null); router.push(url); }} />
+                <EventDetailModal
+                    event={selectedEvent}
+                    onClose={() => setSelectedEvent(null)}
+                    onNavigate={(url) => { setSelectedEvent(null); router.push(url); }}
+                    onEditTask={(taskId) => {
+                        setSelectedEvent(null)
+                        // Load task data and open edit dialog
+                        import("./actions").then(async ({ getTasks }) => {
+                            const allTasks = await getTasks()
+                            const task = allTasks.find((t: any) => t.id === taskId)
+                            if (task) {
+                                setClickedDate(null)
+                                // Store task for editing via a small state trick
+                                setEditingTaskData(task)
+                                setIsCreateDialogOpen(true)
+                            }
+                        })
+                    }}
+                />
             )}
         </Tabs>
     )
@@ -673,8 +740,50 @@ function DayView({
     onEventDrop: (eventId: string, newDate: Date) => void
 }) {
     const [dragOverHour, setDragOverHour] = useState<number | null>(null)
+    const [dragSelectStart, setDragSelectStart] = useState<number | null>(null)
+    const [dragSelectEnd, setDragSelectEnd] = useState<number | null>(null)
+    const [isDragSelecting, setIsDragSelecting] = useState(false)
     const dayEvents = getEvents(date)
     const hours = Array.from({ length: 24 }, (_, i) => i)
+
+    const handleSlotMouseDown = (hour: number) => {
+        setDragSelectStart(hour)
+        setDragSelectEnd(hour)
+        setIsDragSelecting(true)
+    }
+
+    const handleSlotMouseEnter = (hour: number) => {
+        if (isDragSelecting && dragSelectStart !== null) {
+            setDragSelectEnd(hour)
+        }
+    }
+
+    const handleSlotMouseUp = () => {
+        if (isDragSelecting && dragSelectStart !== null && dragSelectEnd !== null) {
+            const startHour = Math.min(dragSelectStart, dragSelectEnd)
+            const endHour = Math.max(dragSelectStart, dragSelectEnd)
+            if (startHour !== endHour) {
+                // Multi-hour selection: create event spanning the range
+                const slotDate = new Date(date)
+                slotDate.setHours(startHour, 0, 0, 0)
+                onCellClick(slotDate)
+            } else {
+                const slotDate = new Date(date)
+                slotDate.setHours(startHour, 0, 0, 0)
+                onCellClick(slotDate)
+            }
+        }
+        setDragSelectStart(null)
+        setDragSelectEnd(null)
+        setIsDragSelecting(false)
+    }
+
+    const isInDragRange = (hour: number) => {
+        if (dragSelectStart === null || dragSelectEnd === null || !isDragSelecting) return false
+        const min = Math.min(dragSelectStart, dragSelectEnd)
+        const max = Math.max(dragSelectStart, dragSelectEnd)
+        return hour >= min && hour <= max
+    }
 
     return (
         <div className="h-full flex flex-col gap-4 sm:gap-6 max-w-4xl mx-auto">
@@ -730,20 +839,24 @@ function DayView({
                 </div>
                 <div className="p-4 sm:p-8 bg-muted/5 flex-1">
                     <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest mb-4 sm:mb-6 border-l-2 border-white/10 pl-4">Availability</h3>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-3">
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-3 select-none" onMouseUp={handleSlotMouseUp} onMouseLeave={() => { if (isDragSelecting) handleSlotMouseUp() }}>
                         {hours.slice(8, 20).map(hour => {
                             const slotDate = new Date(date)
                             slotDate.setHours(hour, 0, 0, 0)
                             const isDragOver = dragOverHour === hour
+                            const isSelected = isInDragRange(hour)
 
                             return (
                                 <div
                                     key={hour}
                                     className={cn(
                                         "p-4 rounded-xl border border-white/5 bg-background/20 flex flex-col gap-1 items-center justify-center opacity-40 hover:opacity-100 hover:bg-primary/5 hover:border-primary/20 transition-all cursor-pointer",
-                                        isDragOver && "opacity-100 bg-primary/10 border-primary/30 ring-2 ring-primary/20"
+                                        isDragOver && "opacity-100 bg-primary/10 border-primary/30 ring-2 ring-primary/20",
+                                        isSelected && "opacity-100 bg-primary/15 border-primary/30 ring-1 ring-primary/20"
                                     )}
-                                    onClick={() => onCellClick(slotDate)}
+                                    onMouseDown={() => handleSlotMouseDown(hour)}
+                                    onMouseEnter={() => handleSlotMouseEnter(hour)}
+                                    onClick={() => { if (!isDragSelecting) onCellClick(slotDate) }}
                                     onDragOver={(e) => {
                                         e.preventDefault()
                                         e.dataTransfer.dropEffect = "move"
@@ -770,7 +883,7 @@ function DayView({
 
 // ── Event Detail Modal ──────────────────────────────────────────────────────
 
-function EventDetailModal({ event, onClose, onNavigate }: { event: CalendarEvent, onClose: () => void, onNavigate: (url: string) => void }) {
+function EventDetailModal({ event, onClose, onNavigate, onEditTask }: { event: CalendarEvent, onClose: () => void, onNavigate: (url: string) => void, onEditTask?: (taskId: string) => void }) {
     const sourceLabels: Record<string, string> = { GOOGLE: "Google Calendar", APPLE: "Apple Calendar", SYSTEM: "CRM -- Stay Event", TASK: "CRM Task" }
     const isAllDay = event.start instanceof Date && event.start.getHours() === 0 && event.start.getMinutes() === 0
 
@@ -822,6 +935,12 @@ function EventDetailModal({ event, onClose, onNavigate }: { event: CalendarEvent
                         <Tag className="h-3 w-3 text-muted-foreground" />
                         <span className="text-xs text-muted-foreground font-medium">{sourceLabels[event.source]}</span>
                     </div>
+                    {event.source === "TASK" && onEditTask && (
+                        <Button variant="outline" className="w-full h-9 gap-2 text-sm font-semibold" onClick={() => onEditTask(event.id.replace("task-", ""))}>
+                            <Pencil className="h-3.5 w-3.5" />
+                            Edit Task
+                        </Button>
+                    )}
                 </div>
                 {event.navigationUrl && (
                     <div className="p-4 sm:p-6 border-t border-white/10">

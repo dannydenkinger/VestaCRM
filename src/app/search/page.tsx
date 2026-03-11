@@ -6,7 +6,7 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, User, LayoutGrid, FileText, Loader2 } from "lucide-react"
+import { Search, User, LayoutGrid, FileText, Loader2, Clock, X } from "lucide-react"
 import { globalSearch } from "./actions"
 import type { SearchResult } from "./types"
 
@@ -32,6 +32,11 @@ function SearchContent() {
     }>({ contacts: [], opportunities: [], notes: [] })
     const [loading, setLoading] = useState(false)
     const [searched, setSearched] = useState(false)
+    const [categoryFilter, setCategoryFilter] = useState<"all" | "contacts" | "opportunities" | "notes">("all")
+    const [recentSearches, setRecentSearches] = useState<string[]>(() => {
+        if (typeof window === 'undefined') return []
+        try { return JSON.parse(localStorage.getItem('recent-searches') || '[]') } catch { return [] }
+    })
 
     useEffect(() => {
         if (debouncedQuery.length < 2) {
@@ -46,6 +51,12 @@ function SearchContent() {
                 setResults(res)
                 setSearched(true)
                 setLoading(false)
+                // Save to recent searches
+                setRecentSearches(prev => {
+                    const updated = [debouncedQuery, ...prev.filter(s => s !== debouncedQuery)].slice(0, 5)
+                    localStorage.setItem('recent-searches', JSON.stringify(updated))
+                    return updated
+                })
             }
         })
         return () => { cancelled = true }
@@ -87,6 +98,61 @@ function SearchContent() {
                     )}
                 </div>
 
+                {/* Category Filter Tabs */}
+                {searched && totalResults > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        {([
+                            { value: "all", label: "All", count: totalResults },
+                            { value: "contacts", label: "Contacts", count: results.contacts.length },
+                            { value: "opportunities", label: "Deals", count: results.opportunities.length },
+                            { value: "notes", label: "Notes", count: results.notes.length },
+                        ] as const).map(cat => (
+                            <button
+                                key={cat.value}
+                                onClick={() => setCategoryFilter(cat.value)}
+                                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border touch-manipulation ${
+                                    categoryFilter === cat.value
+                                        ? "bg-primary text-primary-foreground border-primary"
+                                        : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                                }`}
+                            >
+                                {cat.label}
+                                {cat.count > 0 && <span className="ml-1 opacity-70">{cat.count}</span>}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                {/* Recent Searches */}
+                {!searched && !loading && recentSearches.length > 0 && (
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                <Clock className="h-3 w-3" />
+                                Recent Searches
+                            </h3>
+                            <button
+                                onClick={() => { setRecentSearches([]); localStorage.removeItem('recent-searches') }}
+                                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                                Clear all
+                            </button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {recentSearches.map((term, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => setQuery(term)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/30 border border-white/5 text-sm hover:bg-muted/50 transition-colors"
+                                >
+                                    <Search className="h-3 w-3 text-muted-foreground" />
+                                    {term}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {searched && !loading && totalResults === 0 && (
                     <Card className="border-none shadow-md bg-card/40 backdrop-blur-md">
                         <CardContent className="py-12 flex flex-col items-center justify-center text-muted-foreground">
@@ -97,7 +163,7 @@ function SearchContent() {
                     </Card>
                 )}
 
-                {results.contacts.length > 0 && (
+                {results.contacts.length > 0 && (categoryFilter === "all" || categoryFilter === "contacts") && (
                     <div>
                         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                             Contacts ({results.contacts.length})
@@ -127,7 +193,7 @@ function SearchContent() {
                     </div>
                 )}
 
-                {results.opportunities.length > 0 && (
+                {results.opportunities.length > 0 && (categoryFilter === "all" || categoryFilter === "opportunities") && (
                     <div>
                         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                             Deals ({results.opportunities.length})
@@ -156,7 +222,7 @@ function SearchContent() {
                     </div>
                 )}
 
-                {results.notes.length > 0 && (
+                {results.notes.length > 0 && (categoryFilter === "all" || categoryFilter === "notes") && (
                     <div>
                         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                             Notes ({results.notes.length})

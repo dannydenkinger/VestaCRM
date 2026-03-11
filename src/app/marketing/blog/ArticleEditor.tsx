@@ -86,6 +86,7 @@ export default function ArticleEditor({
     const [categories, setCategories] = useState(article?.categories?.join(", ") || "")
     const [tags, setTags] = useState(article?.tags?.join(", ") || "")
     const [clusterId, setClusterId] = useState(article?.clusterId || "")
+    const [scheduledPublishDate, setScheduledPublishDate] = useState(article?.scheduledPublishDate || "")
 
     // ── Featured image state ──
     const [featuredImageData, setFeaturedImageData] = useState<string | null>(article?.featuredImageData || null)
@@ -164,6 +165,7 @@ export default function ArticleEditor({
                 schemaMarkup,
                 categories: categories.split(",").map((c) => c.trim()).filter(Boolean),
                 tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+                scheduledPublishDate: scheduledPublishDate || undefined,
                 featuredImageData: featuredImageData || undefined,
                 featuredImageMime: featuredImageData ? featuredImageMime : undefined,
                 featuredImageAlt: featuredImageAlt || undefined,
@@ -291,6 +293,23 @@ export default function ArticleEditor({
                                 <SelectItem value="archived">Archived</SelectItem>
                             </SelectContent>
                         </Select>
+                        {status === "draft" && (
+                            <div className="flex items-center gap-1.5">
+                                <Clock className="h-3 w-3 text-muted-foreground" />
+                                <input
+                                    type="datetime-local"
+                                    value={scheduledPublishDate ? scheduledPublishDate.slice(0, 16) : ""}
+                                    onChange={(e) => setScheduledPublishDate(e.target.value ? new Date(e.target.value).toISOString() : "")}
+                                    className="h-6 text-[10px] bg-muted/50 border-0 rounded px-1.5 text-muted-foreground focus:ring-1 focus:ring-primary"
+                                    title="Schedule publish date"
+                                />
+                                {scheduledPublishDate && (
+                                    <button onClick={() => setScheduledPublishDate("")} className="text-muted-foreground hover:text-foreground">
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
                 <div className="flex items-center gap-2">

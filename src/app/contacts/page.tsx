@@ -49,7 +49,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { getContacts, getContactsPaginated, getContactDetail, createNote, deleteNote, updateContact, updateFormTracking, bulkCreateContacts, createContact, deleteContact, bulkDeleteContacts, bulkUpdateContactStatus, bulkAddTag, mergeContacts, findDuplicateContacts, softDeleteContact, restoreContact, permanentlyDeleteContact, bulkSoftDeleteContacts, bulkRestoreContacts, bulkPermanentlyDeleteContacts } from "./actions"
+import { getContacts, getContactsPaginated, getContactDetail, createNote, deleteNote, updateNote, updateContact, updateFormTracking, bulkCreateContacts, createContact, deleteContact, bulkDeleteContacts, bulkUpdateContactStatus, bulkAddTag, mergeContacts, findDuplicateContacts, softDeleteContact, restoreContact, permanentlyDeleteContact, bulkSoftDeleteContacts, bulkRestoreContacts, bulkPermanentlyDeleteContacts } from "./actions"
 import { sendMessage } from "@/app/communications/actions"
 import { getContactStatuses } from "@/app/settings/system-properties/actions"
 import { getTags } from "@/app/settings/tags/actions"
@@ -168,6 +168,12 @@ function ContactsContent() {
     const [dedicatedMergeOpen, setDedicatedMergeOpen] = useState(false);
     const [mergeContactA, setMergeContactA] = useState<any>(null);
     const [mergeContactB, setMergeContactB] = useState<any>(null);
+
+    // Quick note from list
+    const [quickNoteContactId, setQuickNoteContactId] = useState<string | null>(null);
+    const [quickNoteContent, setQuickNoteContent] = useState("");
+    const [isSavingQuickNote, setIsSavingQuickNote] = useState(false);
+    const quickNoteContact = quickNoteContactId ? allContacts.find(c => c.id === quickNoteContactId) : null;
 
     // Pagination state
     const [lastDocId, setLastDocId] = useState<string | null>(null);
@@ -402,6 +408,34 @@ function ContactsContent() {
         } else {
             toast.error("Failed to add note")
         }
+    };
+
+    const handleEditNote = async (contactId: string, noteId: string, content: string, mentions: { userId: string; userName: string }[]) => {
+        const res = await updateNote(contactId, noteId, content, mentions);
+        if (res.success) {
+            toast.success("Note updated");
+            const detailRes = await getContactDetail(contactId);
+            if (detailRes.success && selectedContact?.id === contactId) {
+                setSelectedContact(detailRes.contact);
+            }
+        } else {
+            toast.error("Failed to update note");
+        }
+    };
+
+    const handleQuickNote = async () => {
+        if (!quickNoteContent.trim() || !quickNoteContactId) return;
+        setIsSavingQuickNote(true);
+        const res = await createNote(quickNoteContactId, quickNoteContent);
+        if (res.success) {
+            toast.success("Note added");
+            setQuickNoteContent("");
+            setQuickNoteContactId(null);
+            fetchAllContacts();
+        } else {
+            toast.error("Failed to add note");
+        }
+        setIsSavingQuickNote(false);
     };
 
     const toggleNoteExpanded = (noteId: string) => {
@@ -1260,6 +1294,13 @@ function ContactsContent() {
                                                 <Badge variant={contact.status === "Active Stay" ? "default" : "outline"} className="shrink-0 text-xs">
                                                     {contact.status || "—"}
                                                 </Badge>
+                                                <button
+                                                    className="p-1.5 rounded-md hover:bg-muted/50 shrink-0 touch-manipulation"
+                                                    title="Quick note"
+                                                    onClick={(e) => { e.stopPropagation(); setQuickNoteContactId(contact.id); }}
+                                                >
+                                                    <FileText className="h-4 w-4 text-muted-foreground" />
+                                                </button>
                                                 <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                                             </div>
                                         </div>
@@ -1331,6 +1372,7 @@ function ContactsContent() {
                 setNoteContent={setNoteContent}
                 onAddNote={handleAddNote}
                 onAddNoteWithMentions={handleAddNoteWithMentions}
+                onEditNote={handleEditNote}
                 isSavingNote={isSavingNote}
                 expandedNoteIds={expandedNoteIds}
                 toggleNoteExpanded={toggleNoteExpanded}
@@ -1537,6 +1579,33 @@ function ContactsContent() {
                 onClose={() => setIsImportMappingOpen(false)}
                 onImportComplete={fetchAllContacts}
             />
+
+            {/* Quick Note Dialog */}
+            <Dialog open={!!quickNoteContactId} onOpenChange={(open) => { if (!open) { setQuickNoteContactId(null); setQuickNoteContent(""); } }}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <FileText className="h-4 w-4" />
+                            Quick Note{quickNoteContact ? ` — ${quickNoteContact.name}` : ""}
+                        </DialogTitle>
+                    </DialogHeader>
+                    <textarea
+                        className="w-full min-h-[100px] p-3 rounded-md border bg-muted/20 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                        placeholder="Type your note..."
+                        value={quickNoteContent}
+                        onChange={(e) => setQuickNoteContent(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleQuickNote(); }}
+                        autoFocus
+                    />
+                    <DialogFooter>
+                        <span className="text-[10px] text-muted-foreground mr-auto mt-1">⌘+Enter to save</span>
+                        <Button variant="outline" size="sm" onClick={() => { setQuickNoteContactId(null); setQuickNoteContent(""); }}>Cancel</Button>
+                        <Button size="sm" onClick={handleQuickNote} disabled={!quickNoteContent.trim() || isSavingQuickNote}>
+                            {isSavingQuickNote ? "Saving..." : "Save Note"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
             </div>
         </div>
     )

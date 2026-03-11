@@ -463,6 +463,44 @@ export async function getNotes(contactId: string) {
     }
 }
 
+/** Update an existing note's content and mentions. */
+export async function updateNote(contactId: string, noteId: string, content: string, mentions?: { userId: string; userName: string }[]) {
+    if (!contactId || !noteId || !content?.trim()) return { success: false, error: "Invalid input" };
+
+    try {
+        const session = await auth();
+        const editorName = session?.user?.name ?? session?.user?.email ?? "Unknown user";
+        const editorId = (session?.user as any)?.id ?? null;
+
+        const noteRef = adminDb.collection('contacts').doc(contactId).collection('notes').doc(noteId);
+        const noteSnap = await noteRef.get();
+        if (!noteSnap.exists) return { success: false, error: "Note not found" };
+
+        await noteRef.update({
+            content: content.trim(),
+            mentions: mentions ?? [],
+            updatedAt: new Date(),
+        });
+
+        // Record edit in timeline
+        await adminDb.collection('contacts').doc(contactId).collection('timeline').add({
+            type: "note_edited",
+            noteId,
+            contentPreview: content.trim().slice(0, 120) + (content.trim().length > 120 ? "…" : ""),
+            editedById: editorId,
+            editedByName: editorName,
+            createdAt: new Date(),
+        });
+
+        revalidatePath("/contacts");
+        revalidatePath("/pipeline");
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to update note:", error);
+        return { success: false, error: "Failed to update note" };
+    }
+}
+
 /** Delete a note and record a "note_deleted" event in the contact timeline (includes who deleted it). */
 export async function deleteNote(contactId: string, noteId: string) {
     const parsed = deleteNoteSchema.safeParse({ contactId, noteId });

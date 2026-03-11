@@ -1052,9 +1052,9 @@ export async function deleteOpportunity(id: string) {
 
     try {
         const session = await auth();
-        if (!session?.user || (session.user as any).role === "AGENT") {
-            throw new Error("Unauthorized");
-        }
+        if (!session?.user) throw new Error("Unauthorized");
+        const role = await getCurrentUserRole();
+        if (role === "AGENT") throw new Error("Unauthorized");
 
         const snap = await adminDb.collection('opportunities').doc(id).get();
         const name = snap.data()?.name || "";
@@ -1084,7 +1084,9 @@ export async function softDeleteOpportunity(id: string) {
 
     try {
         const session = await auth();
-        if (!session?.user || (session.user as any).role === "AGENT") {
+        if (!session?.user) throw new Error("Unauthorized");
+        const role = await getCurrentUserRole();
+        if (role === "AGENT") {
             throw new Error("Unauthorized");
         }
 
@@ -1696,5 +1698,18 @@ export async function getDealExpenses(dealId: string) {
     } catch (error: any) {
         console.error("Failed to get deal expenses:", error);
         return { success: false, expenses: null };
+    }
+}
+
+export async function getOpportunitiesList() {
+    try {
+        const snap = await adminDb.collection('opportunities').orderBy('createdAt', 'desc').get();
+        const opportunities = snap.docs.map(doc => ({
+            id: doc.id,
+            name: doc.data().name || doc.data().contactName || "Untitled Deal",
+        }));
+        return { success: true, opportunities };
+    } catch {
+        return { success: false, opportunities: [] };
     }
 }
