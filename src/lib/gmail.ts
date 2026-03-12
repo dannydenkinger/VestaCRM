@@ -25,7 +25,7 @@ async function refreshAccessToken(tokens: GmailTokens): Promise<string> {
         }),
     })
     const data = await response.json()
-    if (!data.access_token) throw new Error("Failed to refresh Gmail token")
+    if (!data.access_token) throw new Error(`Failed to refresh Gmail token: ${data.error || data.error_description || JSON.stringify(data)}`)
 
     // Update stored token
     await adminDb.collection("oauth_tokens").doc("gmail").update({
@@ -41,7 +41,8 @@ async function getValidAccessToken(): Promise<string> {
     const tokens = await getGmailTokens()
     if (!tokens) throw new Error("No Gmail tokens found. Please sign out and sign back in to grant Gmail access.")
 
-    if (Date.now() < tokens.accessTokenExpires - 60000) {
+    // Always refresh if expired or within 60s of expiry
+    if (tokens.accessTokenExpires && Date.now() < tokens.accessTokenExpires - 60000) {
         return tokens.accessToken
     }
 
@@ -60,7 +61,7 @@ export async function fetchHaroEmails(opts?: {
     maxResults?: number
     afterDate?: string
 }): Promise<GmailMessage[]> {
-    const accessToken = await getValidAccessToken()
+    let accessToken = await getValidAccessToken()
     const maxResults = opts?.maxResults || 5
 
     // Search for HARO emails
@@ -71,9 +72,20 @@ export async function fetchHaroEmails(opts?: {
 
     // List messages matching the query
     const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`
-    const listRes = await fetch(listUrl, {
+    let listRes = await fetch(listUrl, {
         headers: { Authorization: `Bearer ${accessToken}` },
     })
+
+    // If 401, force-refresh the token and retry once
+    if (listRes.status === 401) {
+        const tokens = await getGmailTokens()
+        if (tokens) {
+            accessToken = await refreshAccessToken(tokens)
+            listRes = await fetch(listUrl, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+            })
+        }
+    }
 
     if (!listRes.ok) {
         const err = await listRes.text()
