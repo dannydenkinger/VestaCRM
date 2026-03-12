@@ -70,6 +70,7 @@ import {
     getHaroQueries,
     getHaroMetrics,
     triggerHaroFetch,
+    triggerProcessSingleEmail,
     updateHaroQuery,
     sendHaroResponse,
     markPlacement,
@@ -99,9 +100,11 @@ export function HaroDashboard() {
     const [statusFilter, setStatusFilter] = useState<string>("all")
     const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null)
 
-    // Gmail fetch
+    // Gmail fetch + processing progress
     const [fetching, setFetching] = useState(false)
     const [fetchResult, setFetchResult] = useState<any>(null)
+    const [processing, setProcessing] = useState(false)
+    const [processProgress, setProcessProgress] = useState({ current: 0, total: 0, currentSubject: "" })
 
     // Query detail dialog
     const [selectedQuery, setSelectedQuery] = useState<HaroQuery | null>(null)
@@ -141,16 +144,35 @@ export function HaroDashboard() {
     const handleFetchEmails = async () => {
         setFetching(true)
         setFetchResult(null)
+        setProcessing(false)
         try {
+            // Step 1: Quick fetch — just get email list from Gmail
             const result = await triggerHaroFetch()
-            setFetchResult(result)
-            if (result.success && result.processed > 0) {
-                fetchData()
+
+            if (!result.emails || result.emails.length === 0) {
+                setFetchResult({ success: true, message: result.message })
+                setFetching(false)
+                return
             }
+
+            // Step 2: Process each email one by one with progress
+            setFetching(false)
+            setProcessing(true)
+            const emails = result.emails
+            setProcessProgress({ current: 0, total: emails.length, currentSubject: "" })
+
+            for (let i = 0; i < emails.length; i++) {
+                setProcessProgress({ current: i + 1, total: emails.length, currentSubject: emails[i].subject })
+                await triggerProcessSingleEmail(emails[i].id)
+            }
+
+            setFetchResult({ success: true, message: `Processed ${emails.length} HARO email(s)` })
+            setProcessing(false)
+            fetchData()
         } catch (err: any) {
             setFetchResult({ success: false, message: err.message })
-        } finally {
             setFetching(false)
+            setProcessing(false)
         }
     }
 
@@ -232,20 +254,25 @@ export function HaroDashboard() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {fetchResult && (
+                    {fetchResult && !processing && (
                         <span className={`text-xs ${fetchResult.success ? "text-emerald-600" : "text-rose-600"}`}>
-                            {fetchResult.message || (fetchResult.success ? `${fetchResult.processed} email(s) processed` : "Fetch failed")}
+                            {fetchResult.message || "Fetch failed"}
                         </span>
                     )}
                     <Button variant="outline" size="sm" onClick={() => setView("settings")}>
                         <Settings2 className="h-3.5 w-3.5 mr-1.5" />
                         Settings
                     </Button>
-                    <Button size="sm" onClick={handleFetchEmails} disabled={fetching}>
+                    <Button size="sm" onClick={handleFetchEmails} disabled={fetching || processing}>
                         {fetching ? (
                             <>
                                 <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                                Fetching...
+                                Checking Gmail...
+                            </>
+                        ) : processing ? (
+                            <>
+                                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                Processing {processProgress.current}/{processProgress.total}
                             </>
                         ) : (
                             <>
@@ -256,6 +283,31 @@ export function HaroDashboard() {
                     </Button>
                 </div>
             </div>
+
+            {/* Processing Progress Banner */}
+            {processing && (
+                <Card className="border-none shadow-md bg-primary/5 backdrop-blur-md">
+                    <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                            <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium">
+                                    Processing email {processProgress.current} of {processProgress.total}
+                                </p>
+                                <p className="text-xs text-muted-foreground truncate mt-0.5">
+                                    {processProgress.currentSubject || "Parsing queries & generating responses..."}
+                                </p>
+                                <div className="w-full bg-muted/30 rounded-full h-1.5 mt-2">
+                                    <div
+                                        className="bg-primary h-1.5 rounded-full transition-all duration-500"
+                                        style={{ width: `${processProgress.total > 0 ? (processProgress.current / processProgress.total) * 100 : 0}%` }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Metrics Cards */}
             {metrics && (

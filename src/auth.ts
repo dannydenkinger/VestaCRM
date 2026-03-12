@@ -23,6 +23,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         async jwt({ token, user, trigger, account }) {
             // On sign-in, store OAuth tokens and persist to Firestore
             if (account) {
+                console.log("[AUTH] Sign-in account received:", {
+                    hasAccessToken: !!account.access_token,
+                    hasRefreshToken: !!account.refresh_token,
+                    expiresAt: account.expires_at,
+                    scope: account.scope,
+                    tokenType: account.token_type,
+                })
                 token.accessToken = account.access_token
                 token.refreshToken = account.refresh_token
                 token.accessTokenExpires = account.expires_at ? account.expires_at * 1000 : 0
@@ -31,6 +38,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 try {
                     const { adminDb } = await import(/* webpackIgnore: true */ "@/lib/firebase-admin")
                     const email = token.email || user?.email || account.providerAccountId
+                    console.log("[AUTH] Persisting tokens to Firestore for:", email, "hasRefresh:", !!token.refreshToken)
                     if (email && token.refreshToken) {
                         await adminDb.collection("oauth_tokens").doc("gmail").set({
                             accessToken: token.accessToken,
@@ -39,9 +47,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                             email,
                             updatedAt: new Date().toISOString(),
                         }, { merge: true })
+                        console.log("[AUTH] Tokens persisted successfully")
                     }
                 } catch (err) {
-                    console.error("Failed to persist Gmail tokens:", err)
+                    console.error("[AUTH] Failed to persist Gmail tokens:", err)
                 }
             }
 

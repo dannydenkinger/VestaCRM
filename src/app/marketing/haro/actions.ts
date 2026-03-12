@@ -416,18 +416,67 @@ export async function bulkUpdateQueryStatus(queryIds: string[], status: HaroQuer
 
 // ─── Gmail Auto-Fetch ───────────────────────────────────────────────────────
 
-export async function fetchAndProcessHaroEmails() {
-    // This can be called from the UI (with auth) or from the cron (without auth)
+// Step 1: Quick fetch — just get unprocessed HARO emails from Gmail
+export async function fetchNewHaroEmails() {
     const { fetchHaroEmails } = await import("@/lib/gmail")
 
-    // Get last processed date to avoid re-processing
     const lastBatch = await adminDb
         .collection("haro_batches")
         .orderBy("createdAt", "desc")
         .limit(1)
         .get()
 
-    // Default to 2 days ago if no batches exist
+    const twoDaysAgo = new Date()
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
+    const afterDate = lastBatch.empty
+        ? twoDaysAgo.toISOString().split("T")[0]
+        : undefined
+
+    const emails = await fetchHaroEmails({ maxResults: 10, afterDate })
+    if (emails.length === 0) return { emails: [], message: "No HARO emails found in Gmail" }
+
+    // Filter out already-processed emails
+    const emailIds = emails.map(e => e.id).slice(0, 10)
+    let processedIds = new Set<string>()
+    if (emailIds.length > 0) {
+        const processedSnap = await adminDb.collection("haro_batches")
+            .where("gmailMessageId", "in", emailIds)
+            .get()
+        processedIds = new Set(processedSnap.docs.map(d => d.data().gmailMessageId))
+    }
+
+    const newEmails = emails.filter(e => !processedIds.has(e.id))
+    if (newEmails.length === 0) return { emails: [], message: "All HARO emails already processed" }
+
+    return {
+        emails: newEmails.map(e => ({ id: e.id, subject: e.subject, date: e.date })),
+        message: `Found ${newEmails.length} new HARO email(s)`,
+        _fullEmails: newEmails, // kept server-side for processSingleHaroEmail
+    }
+}
+
+// Step 2: Process a single email by Gmail ID (called one at a time from UI)
+export async function processSingleHaroEmail(gmailMessageId: string) {
+    const { fetchHaroEmails } = await import("@/lib/gmail")
+
+    // Fetch this specific email
+    const emails = await fetchHaroEmails({ maxResults: 10 })
+    const email = emails.find(e => e.id === gmailMessageId)
+    if (!email) return { success: false, error: "Email not found in Gmail" }
+
+    return processHaroEmailInternal(email.body, email.subject, gmailMessageId)
+}
+
+// Full pipeline for cron (non-interactive, processes all at once)
+export async function fetchAndProcessHaroEmails() {
+    const { fetchHaroEmails } = await import("@/lib/gmail")
+
+    const lastBatch = await adminDb
+        .collection("haro_batches")
+        .orderBy("createdAt", "desc")
+        .limit(1)
+        .get()
+
     const twoDaysAgo = new Date()
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2)
     const afterDate = lastBatch.empty
@@ -437,7 +486,6 @@ export async function fetchAndProcessHaroEmails() {
     const emails = await fetchHaroEmails({ maxResults: 10, afterDate })
     if (emails.length === 0) return { success: true, message: "No new HARO emails found", processed: 0 }
 
-    // Check which emails we've already processed (by Gmail message ID)
     const emailIds = emails.map(e => e.id).slice(0, 10)
     let processedIds = new Set<string>()
     if (emailIds.length > 0) {
@@ -464,12 +512,29 @@ export async function fetchAndProcessHaroEmails() {
     }
 }
 
-// Wrapper for UI-triggered fetch (requires auth)
-// Also ensures Gmail tokens are persisted to Firestore from the session
+// Debug: check what tokens are stored
+export async function debugGmailTokens() {
+    await requireAuth()
+    const tokenDoc = await adminDb.collection("oauth_tokens").doc("gmail").get()
+    if (!tokenDoc.exists) return { stored: false }
+    const data = tokenDoc.data()!
+    return {
+        stored: true,
+        hasAccessToken: !!data.accessToken,
+        accessTokenPrefix: data.accessToken ? data.accessToken.substring(0, 20) + "..." : "none",
+        hasRefreshToken: !!data.refreshToken,
+        refreshTokenPrefix: data.refreshToken ? data.refreshToken.substring(0, 10) + "..." : "none",
+        accessTokenExpires: data.accessTokenExpires,
+        expiresDate: data.accessTokenExpires ? new Date(data.accessTokenExpires).toISOString() : "none",
+        email: data.email,
+    }
+}
+
+// Ensures Gmail tokens are in Firestore, then fetches email list (fast)
 export async function triggerHaroFetch() {
     const session = await requireAuth()
     try {
-        // Check if Gmail tokens exist in Firestore; if not, persist from session
+        // Ensure Gmail tokens exist in Firestore
         const tokenDoc = await adminDb.collection("oauth_tokens").doc("gmail").get()
         if (!tokenDoc.exists || !tokenDoc.data()?.refreshToken) {
             const s = session as any
@@ -482,13 +547,24 @@ export async function triggerHaroFetch() {
                     updatedAt: new Date().toISOString(),
                 }, { merge: true })
             } else {
-                return { success: false, message: "No Gmail refresh token in session. Please sign out, then sign back in and approve Gmail access.", processed: 0 }
+                return { success: false, emails: [], message: "No Gmail refresh token in session. Please sign out, then sign back in and approve Gmail access." }
             }
         }
-        return await fetchAndProcessHaroEmails()
+        return await fetchNewHaroEmails()
     } catch (err: any) {
         console.error("HARO fetch error:", err)
-        return { success: false, message: err.message || "Failed to fetch emails", processed: 0 }
+        return { success: false, emails: [], message: err.message || "Failed to fetch emails" }
+    }
+}
+
+// Process a single email (called from UI one at a time for progress)
+export async function triggerProcessSingleEmail(gmailMessageId: string) {
+    await requireAuth()
+    try {
+        return await processSingleHaroEmail(gmailMessageId)
+    } catch (err: any) {
+        console.error("HARO process error:", err)
+        return { success: false, error: err.message || "Failed to process email" }
     }
 }
 
