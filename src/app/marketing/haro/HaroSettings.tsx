@@ -23,6 +23,7 @@ interface Props {
 export function HaroSettings({ settings: initial, onBack, onSaved }: Props) {
     const [settings, setSettings] = useState<HaroSettingsType>(initial || DEFAULT_HARO_SETTINGS)
     const [saving, setSaving] = useState(false)
+    const [saveError, setSaveError] = useState("")
     const [newTopic, setNewTopic] = useState("")
 
     const update = <K extends keyof HaroSettingsType>(key: K, value: HaroSettingsType[K]) =>
@@ -41,11 +42,16 @@ export function HaroSettings({ settings: initial, onBack, onSaved }: Props) {
 
     const handleSave = async () => {
         setSaving(true)
+        setSaveError("")
         try {
-            await saveHaroSettings(settings)
-            onSaved()
-        } catch (err) {
-            console.error("Failed to save settings:", err)
+            const result = await saveHaroSettings(settings)
+            if (result.success) {
+                onSaved()
+            } else {
+                setSaveError(result.error || "Failed to save")
+            }
+        } catch (err: any) {
+            setSaveError(err.message || "Failed to save settings")
         } finally {
             setSaving(false)
         }
@@ -61,7 +67,8 @@ export function HaroSettings({ settings: initial, onBack, onSaved }: Props) {
                     <h2 className="text-lg font-semibold">HARO Settings</h2>
                     <p className="text-xs text-muted-foreground">Configure your profile, expertise, and automation preferences</p>
                 </div>
-                <div className="ml-auto">
+                <div className="ml-auto flex items-center gap-3">
+                    {saveError && <span className="text-xs text-rose-500">{saveError}</span>}
                     <Button onClick={handleSave} disabled={saving} size="sm">
                         <Save className="h-3.5 w-3.5 mr-1.5" />
                         {saving ? "Saving..." : "Save Settings"}

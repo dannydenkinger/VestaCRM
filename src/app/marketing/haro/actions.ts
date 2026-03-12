@@ -32,8 +32,15 @@ export async function getHaroSettings(): Promise<HaroSettings | null> {
 
 export async function saveHaroSettings(settings: HaroSettings) {
     await requireAuth()
-    await adminDb.collection("haro_settings").doc("default").set(settings, { merge: true })
-    return { success: true }
+    try {
+        // Convert to plain object to ensure Firestore compatibility
+        const data = JSON.parse(JSON.stringify(settings))
+        await adminDb.collection("haro_settings").doc("default").set(data, { merge: true })
+        return { success: true }
+    } catch (err: any) {
+        console.error("Failed to save HARO settings:", err)
+        return { success: false, error: err.message || "Failed to save settings" }
+    }
 }
 
 // ─── Batches ────────────────────────────────────────────────────────────────
