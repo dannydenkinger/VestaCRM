@@ -57,7 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     // ─── Mobile Layout ──────────────────────────────────────────────
     if (isMobile) {
         return (
-            <div className="flex flex-col h-dvh bg-zinc-950 text-white dark">
+            <div className="flex flex-col h-dvh w-full bg-zinc-950 text-white dark">
                 <MobileTopNav onNotificationsClick={() => setNotificationPanelOpen(true)} unreadCount={mobileUnreadCount} />
                 <main id="main-content" className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden" role="main">
                     <ErrorBoundary section="Page content">

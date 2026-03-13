@@ -76,7 +76,7 @@ function SearchContent() {
 
     return (
         <div className="flex-1 min-h-0 overflow-y-auto">
-            <div className="space-y-6 p-4 sm:p-6 lg:p-8 pt-4 sm:pt-6 pb-8 max-w-4xl">
+            <div className="space-y-6 p-4 sm:p-6 lg:p-8 pt-4 sm:pt-6 pb-24 md:pb-8 max-w-4xl">
                 <div>
                     <h2 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
                         Search

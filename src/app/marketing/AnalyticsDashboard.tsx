@@ -259,6 +259,7 @@ export default function AnalyticsDashboard() {
                                     axisLine={false}
                                     tickLine={false}
                                     tick={{ fontSize: 10, fill: '#666' }}
+                                    width={35}
                                 />
                                 <Tooltip
                                     contentStyle={{ backgroundColor: '#18181b', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '11px' }}

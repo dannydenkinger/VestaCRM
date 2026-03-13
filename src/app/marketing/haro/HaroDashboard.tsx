@@ -447,7 +447,7 @@ export function HaroDashboard() {
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
                                     <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#666' }} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#666' }} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#666' }} width={35} />
                                     <Tooltip contentStyle={{ backgroundColor: '#18181b', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '11px' }} />
                                     <Area type="monotone" dataKey="queries" name="Queries" stroke="#8b5cf6" strokeWidth={2} fill="url(#haroQueries)" />
                                     <Area type="monotone" dataKey="sent" name="Sent" stroke="#10b981" strokeWidth={2} fill="url(#haroSent)" />
