@@ -741,7 +741,7 @@ export default function DashboardPage() {
                                 <div className="h-[240px] sm:h-[280px] w-full min-h-0">
                                     {valueData.some(d => d.value > 0) ? (
                                         <ResponsiveContainer width="100%" height="100%">
-                                            <AreaChart data={valueData}>
+                                            <AreaChart data={valueData} margin={{ left: -10, right: 5 }}>
                                                 <defs>
                                                     <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                                                         <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
@@ -757,7 +757,7 @@ export default function DashboardPage() {
                                                     dy={10}
                                                     interval={timeframe === "1m" ? 4 : timeframe === "6m" ? 3 : 1}
                                                 />
-                                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#666' }} tickFormatter={(value) => value >= 1000000 ? `$${(value / 1000000).toFixed(1)}M` : `$${Math.round(value / 1000)}K`} />
+                                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#666' }} width={45} tickFormatter={(value) => value >= 1000000 ? `$${(value / 1000000).toFixed(1)}M` : `$${Math.round(value / 1000)}K`} />
                                                 <Tooltip
                                                     contentStyle={{ backgroundColor: '#18181b', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '12px' }}
                                                     itemStyle={{ color: '#10b981', padding: '0' }}

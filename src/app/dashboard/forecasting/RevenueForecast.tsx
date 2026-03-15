@@ -105,7 +105,7 @@ export function RevenueForecast({ pipelineId }: RevenueForecastProps) {
                 <div className={`h-[240px] w-full transition-opacity duration-300 ${transitioning ? "opacity-50" : "opacity-100"}`}>
                     {data.forecastByMonth.some((m: any) => m.bestCase > 0) ? (
                         <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={data.forecastByMonth}>
+                            <AreaChart data={data.forecastByMonth} margin={{ left: -10, right: 5 }}>
                                 <defs>
                                     <linearGradient id="colorExpected" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
@@ -128,6 +128,7 @@ export function RevenueForecast({ pipelineId }: RevenueForecastProps) {
                                     axisLine={false}
                                     tickLine={false}
                                     tick={{ fontSize: 10, fill: "#666" }}
+                                    width={45}
                                     tickFormatter={(v) => `$${v / 1000}k`}
                                 />
                                 <Tooltip

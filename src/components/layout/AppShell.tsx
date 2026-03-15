@@ -34,9 +34,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     useKeyboardShortcuts()
 
-    // Fetch unread notification count for mobile
+    // Fetch unread notification count for mobile (only when tab is visible)
     const fetchMobileNotifications = useCallback(async () => {
-        if (!isMobile) return
+        if (!isMobile || document.hidden) return
         const res = await getNotifications()
         if (res.success) setMobileUnreadCount(res.unreadCount || 0)
     }, [isMobile])
@@ -44,8 +44,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         fetchMobileNotifications()
         if (!isMobile) return
-        const interval = setInterval(fetchMobileNotifications, 30000)
-        return () => clearInterval(interval)
+        // Poll every 60s instead of 30s, and pause when tab is hidden
+        const interval = setInterval(fetchMobileNotifications, 60000)
+        const onVisibilityChange = () => { if (!document.hidden) fetchMobileNotifications() }
+        document.addEventListener("visibilitychange", onVisibilityChange)
+        return () => { clearInterval(interval); document.removeEventListener("visibilitychange", onVisibilityChange) }
     }, [fetchMobileNotifications, isMobile])
 
     // Standalone pages render without the shell
@@ -59,7 +62,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         return (
             <div className="flex flex-col h-dvh w-full bg-zinc-950 text-white dark">
                 <MobileTopNav onNotificationsClick={() => setNotificationPanelOpen(true)} unreadCount={mobileUnreadCount} />
-                <main id="main-content" className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden" role="main">
+                <main id="main-content" className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pb-28" role="main">
                     <ErrorBoundary section="Page content">
                         {children}
                     </ErrorBoundary>

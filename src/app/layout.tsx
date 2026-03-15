@@ -6,7 +6,7 @@ import { Providers } from "@/components/providers/Providers";
 import { AppShell } from "@/components/layout/AppShell";
 import { GoogleAnalytics } from "@next/third-parties/google";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
   title: "AFCrashpad CRM",

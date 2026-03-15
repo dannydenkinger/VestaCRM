@@ -4,22 +4,10 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { MapPin, DollarSign, CalendarIcon, Phone, MessageSquare, FileText, CheckSquare, ChevronRight, User, Ban, Clock, Palette } from "lucide-react"
-import { getLengthOfStay, formatDisplayDate } from "./utils"
+import { getLengthOfStay, formatDisplayDate, getAgingInfo } from "./utils"
 
 // Use the Calendar icon under an alias to match the original import name
 const Calendar = CalendarIcon
-
-/** Compute days a deal has been in its current stage and return color info */
-function getAgingInfo(deal: any): { days: number; color: string; bgClass: string; label: string } {
-    const enteredAt = deal.stageEnteredAt ? new Date(deal.stageEnteredAt) : null
-    if (!enteredAt) return { days: 0, color: "bg-emerald-500", bgClass: "border-l-emerald-500", label: "Just entered" }
-    const now = new Date()
-    const days = Math.max(0, Math.floor((now.getTime() - enteredAt.getTime()) / (1000 * 60 * 60 * 24)))
-    if (days <= 7) return { days, color: "bg-emerald-500", bgClass: "border-l-emerald-500", label: `In this stage for ${days} day${days !== 1 ? "s" : ""}` }
-    if (days <= 14) return { days, color: "bg-amber-400", bgClass: "border-l-amber-400", label: `In this stage for ${days} days` }
-    if (days <= 30) return { days, color: "bg-orange-500", bgClass: "border-l-orange-500", label: `In this stage for ${days} days` }
-    return { days, color: "bg-red-500", bgClass: "border-l-red-500", label: `In this stage for ${days} days` }
-}
 
 interface DealCardProps {
     deal: any

@@ -74,6 +74,7 @@ import {
     triggerProcessSingleEmail,
     updateHaroQuery,
     sendHaroResponse,
+    regenerateHaroResponse,
     markPlacement,
     deleteHaroBatch,
 } from "./actions"
@@ -111,6 +112,7 @@ export function HaroDashboard() {
     const [batches, setBatches] = useState<HaroBatch[]>([])
     const [queries, setQueries] = useState<HaroQuery[]>([])
     const [statusFilter, setStatusFilter] = useState<string>("all")
+    const [sortBy, setSortBy] = useState<"deadline" | "relevancy" | "domain" | "featured">("deadline")
     const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null)
 
     // Gmail fetch + processing progress
@@ -129,6 +131,9 @@ export function HaroDashboard() {
     const [placementQueryId, setPlacementQueryId] = useState("")
     const [placementUrl, setPlacementUrl] = useState("")
     const [placementDA, setPlacementDA] = useState("")
+
+    // Regenerate response
+    const [regenerating, setRegenerating] = useState(false)
 
     // Delete confirmation
     const [deleteBatchId, setDeleteBatchId] = useState<string | null>(null)
@@ -231,11 +236,32 @@ export function HaroDashboard() {
             return q.status === statusFilter
         })
         .sort((a, b) => {
-            // Sort by deadline urgency (soonest first), then relevance score
-            const aDeadline = a.deadlineParsed ? new Date(a.deadlineParsed).getTime() : Infinity
-            const bDeadline = b.deadlineParsed ? new Date(b.deadlineParsed).getTime() : Infinity
-            if (aDeadline !== bDeadline) return aDeadline - bDeadline
-            return b.relevanceScore - a.relevanceScore
+            switch (sortBy) {
+                case "relevancy":
+                    return b.relevanceScore - a.relevanceScore
+                case "domain":
+                    if (b.placementDomainAuthority !== a.placementDomainAuthority) return b.placementDomainAuthority - a.placementDomainAuthority
+                    return (b.mediaUrl ? 1 : 0) - (a.mediaUrl ? 1 : 0)
+                case "featured": {
+                    const now = Date.now()
+                    const urgencyScore = (q: HaroQuery) => {
+                        if (!q.deadlineParsed) return 1
+                        const hoursLeft = (new Date(q.deadlineParsed).getTime() - now) / (1000 * 60 * 60)
+                        if (hoursLeft <= 0) return 0
+                        if (hoursLeft <= 6) return 2
+                        if (hoursLeft <= 24) return 1.5
+                        return 1
+                    }
+                    return (b.relevanceScore * urgencyScore(b)) - (a.relevanceScore * urgencyScore(a))
+                }
+                case "deadline":
+                default: {
+                    const aDeadline = a.deadlineParsed ? new Date(a.deadlineParsed).getTime() : Infinity
+                    const bDeadline = b.deadlineParsed ? new Date(b.deadlineParsed).getTime() : Infinity
+                    if (aDeadline !== bDeadline) return aDeadline - bDeadline
+                    return b.relevanceScore - a.relevanceScore
+                }
+            }
         })
 
     if (view === "settings") {
@@ -543,6 +569,20 @@ export function HaroDashboard() {
                                         ))}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" size="sm" className="h-7 text-xs">
+                                            {sortBy === "deadline" ? "Expiring Soon" : sortBy === "relevancy" ? "Relevancy" : sortBy === "domain" ? "Domain Rating" : "Featured"}
+                                            <ChevronDown className="h-3 w-3 ml-1" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem className="text-xs" onClick={() => setSortBy("deadline")}>Expiring Soon</DropdownMenuItem>
+                                        <DropdownMenuItem className="text-xs" onClick={() => setSortBy("relevancy")}>Relevancy</DropdownMenuItem>
+                                        <DropdownMenuItem className="text-xs" onClick={() => setSortBy("domain")}>Domain Rating</DropdownMenuItem>
+                                        <DropdownMenuItem className="text-xs" onClick={() => setSortBy("featured")}>Featured</DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </div>
                         </div>
                     </CardHeader>
@@ -579,6 +619,14 @@ export function HaroDashboard() {
                                                         <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                                                             <Globe className="h-2.5 w-2.5" />{query.mediaOutlet}
                                                         </span>
+                                                    )}
+                                                    {query.mediaUrl && (
+                                                        <a href={query.mediaUrl} target="_blank" rel="noopener noreferrer"
+                                                            className="text-[10px] text-primary/70 hover:text-primary flex items-center gap-0.5"
+                                                            onClick={(e) => e.stopPropagation()}>
+                                                            <Link2 className="h-2.5 w-2.5" />
+                                                            {(() => { try { return new URL(query.mediaUrl).hostname.replace("www.", "") } catch { return query.mediaUrl } })()}
+                                                        </a>
                                                     )}
                                                     {query.reporterName && (
                                                         <span className="text-[10px] text-muted-foreground">{query.reporterName}</span>
@@ -635,6 +683,13 @@ export function HaroDashboard() {
                                     <DialogDescription className="text-xs">
                                         {[selectedQuery.mediaOutlet, selectedQuery.reporterName, selectedQuery.deadline && `Deadline: ${selectedQuery.deadline}`].filter(Boolean).join(" · ")}
                                     </DialogDescription>
+                                    {selectedQuery.mediaUrl && (
+                                        <a href={selectedQuery.mediaUrl} target="_blank" rel="noopener noreferrer"
+                                            className="text-xs text-primary hover:underline flex items-center gap-1 mt-1">
+                                            <ExternalLink className="h-3 w-3" />
+                                            {selectedQuery.mediaUrl}
+                                        </a>
+                                    )}
                                 </DialogHeader>
 
                                 <div className="space-y-4">
@@ -696,6 +751,33 @@ export function HaroDashboard() {
                                 </div>
 
                                 <DialogFooter className="flex-wrap gap-2">
+                                    {selectedQuery.status !== "sent" && selectedQuery.status !== "placed" && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={async () => {
+                                                setRegenerating(true)
+                                                try {
+                                                    const result = await regenerateHaroResponse(selectedQuery.id)
+                                                    if (result.success && result.response) {
+                                                        setEditedResponse(result.response)
+                                                        setSelectedQuery({ ...selectedQuery, aiResponse: result.response, editedResponse: "", status: "reviewing" })
+                                                        fetchData()
+                                                    }
+                                                } finally {
+                                                    setRegenerating(false)
+                                                }
+                                            }}
+                                            disabled={regenerating}
+                                        >
+                                            {regenerating ? (
+                                                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                            ) : (
+                                                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                                            )}
+                                            {regenerating ? "Generating..." : "Regenerate Response"}
+                                        </Button>
+                                    )}
                                     {selectedQuery.status !== "placed" && (
                                         <Button
                                             variant="outline"

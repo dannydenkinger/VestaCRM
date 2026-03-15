@@ -41,10 +41,13 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog"
 import { ConversionMetrics } from "./analytics/ConversionMetrics"
-import { DealDetailSheet } from "./DealDetailSheet"
+const DealDetailSheet = dynamic(() => import("./DealDetailSheet").then(mod => mod.DealDetailSheet), {
+    loading: () => null,
+    ssr: false,
+})
 import { Skeleton } from "@/components/ui/skeleton"
 import { exportToCSV } from "@/lib/export"
-import { getLengthOfStay } from "./utils"
+import { getLengthOfStay, getAgingInfo, getPriorityColor } from "./utils"
 import { KanbanView } from "./KanbanView"
 import { ListView } from "./ListView"
 import { SavedViews, type PipelineViewState } from "./SavedViews"
@@ -194,23 +197,24 @@ function PipelineContent() {
     });
 
     useEffect(() => {
-        fetchPipelines();
-        getBaseNames().then(setBaseNames);
-        getUsers().then(res => { if (res.success) setAllUsers(res.users || []); });
-        getSpecialAccommodations().then(res => { if (res.success) setSpecialAccommodations(res.items || []); });
-        getPipelinePrioritySettings().then(res => { if (res.success && res.settings) setPriorityRanges(res.settings); });
+        // Fetch all initial data in parallel for faster load
+        Promise.all([
+            fetchPipelines(),
+            getBaseNames().then(setBaseNames),
+            getUsers().then(res => { if (res.success) setAllUsers(res.users || []); }),
+            getSpecialAccommodations().then(res => { if (res.success) setSpecialAccommodations(res.items || []); }),
+            getPipelinePrioritySettings().then(res => { if (res.success && res.settings) setPriorityRanges(res.settings); }),
+        ]);
 
-        // Auto-advance opportunities if enabled
+        // Non-critical: auto-advance and reminders run after initial load
         getAutomationSettings().then(async (res) => {
             if (res.success && res.settings?.autoAdvanceEnabled) {
                 const advRes = await autoAdvanceOpportunities();
                 if (advRes.success && advRes.advancedCount && advRes.advancedCount > 0) {
-                    fetchPipelines(); // Refresh to show moved deals
+                    fetchPipelines();
                 }
             }
         });
-
-        // Check-in/check-out reminders
         runStayReminders();
     }, []);
 
@@ -858,7 +862,7 @@ function PipelineContent() {
                                 ]}
                             >
                                 <button
-                                    className="w-full mobile-card p-3.5 flex items-center gap-3 touch-manipulation text-left"
+                                    className={`w-full mobile-card p-3.5 flex items-center gap-3 touch-manipulation text-left border-l-2 ${getAgingInfo(deal).bgClass} ${deal.unread ? "ring-1 ring-primary/50 shadow-[0_0_8px_rgba(59,130,246,0.3)]" : ""}`}
                                     onClick={() => openDeal(deal)}
                                 >
                                     <Avatar className="h-10 w-10 border-2 border-zinc-800 shrink-0">
@@ -870,8 +874,16 @@ function PipelineContent() {
                                         <div className="flex items-center gap-2">
                                             <span className="text-sm font-semibold text-white truncate">{deal.name}</span>
                                             {deal.unread && (
-                                                <span className="shrink-0 text-[9px] font-bold bg-primary text-primary-foreground px-1.5 py-0 rounded">New</span>
+                                                <span className="shrink-0 text-[9px] font-bold bg-primary text-primary-foreground px-1.5 py-0 rounded animate-pulse">New</span>
                                             )}
+                                            {(() => {
+                                                const priority = getPriorityColor(deal)
+                                                return priority.label ? (
+                                                    <span className={`shrink-0 text-[8px] font-bold text-white px-1.5 py-0.5 rounded ${priority.colorClass}`}>
+                                                        {priority.label}
+                                                    </span>
+                                                ) : null
+                                            })()}
                                         </div>
                                         <div className="flex items-center gap-2 mt-0.5 text-[11px] text-zinc-500">
                                             {deal.base && (

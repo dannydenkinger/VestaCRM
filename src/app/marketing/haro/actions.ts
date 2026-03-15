@@ -177,6 +177,89 @@ export async function markPlacement(
     return { success: true }
 }
 
+function buildResponsePrompt(
+    settings: HaroSettings,
+    query: { title: string; reporterName: string; mediaOutlet: string; description: string }
+): string {
+    return `You are ${settings.name}. Write an email to a journalist. You run ${settings.businessName}, ${settings.businessIntro}. You're also a former Air Force pilot.
+
+TONE — this is critical:
+- Professional but warm. Think "friendly expert", not "formal essay" and not "texting a buddy".
+- Use contractions naturally (I'm, don't, we've) but don't force slang or overly casual language.
+- Avoid stiff AI phrases: "I'd be happy to", "furthermore", "it's worth noting", "in addition", "I believe that".
+- Keep it concise — 2-3 short paragraphs for the response body. Reporters are busy.
+- Share a specific example or anecdote from your real experience when possible — this is what makes a response stand out.
+- No bullet points or numbered lists. Write in natural paragraphs.
+- Sound like a knowledgeable professional writing a quick, genuine email.
+
+The journalist's query:
+Title: ${query.title}
+Reporter: ${query.reporterName}
+Outlet: ${query.mediaOutlet}
+Details: ${query.description}
+
+Format your response exactly like this:
+
+Hi ${query.reporterName || "[Reporter Name]"},
+
+[1 sentence intro — who you are and why you're relevant.]
+
+[Your response — 2-3 short paragraphs. Be specific, give them something quotable.]
+
+Here's my info if you need it:
+${settings.name}, Founder/CEO
+${settings.website}
+${settings.linkedIn ? settings.linkedIn : ""}
+${settings.headshotUrl ? `Headshot: ${settings.headshotUrl}` : ""}
+
+${settings.signoff}`
+}
+
+export async function regenerateHaroResponse(queryId: string) {
+    await requireAuth()
+
+    const doc = await adminDb.collection("haro_queries").doc(queryId).get()
+    if (!doc.exists) return { success: false, error: "Query not found" }
+
+    const query = { id: doc.id, ...doc.data() } as HaroQuery
+    const settings = await getHaroSettings()
+    if (!settings) return { success: false, error: "HARO settings not configured" }
+
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) return { success: false, error: "ANTHROPIC_API_KEY not configured" }
+
+    const Anthropic = (await import("@anthropic-ai/sdk")).default
+    const anthropic = new Anthropic({ apiKey })
+
+    const cleanDescription = query.description.replace("[Note: No AI Pitches Considered]", "").trim()
+
+    try {
+        const responseMsg = await anthropic.messages.create({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 800,
+            messages: [{
+                role: "user",
+                content: buildResponsePrompt(settings, { title: query.title, reporterName: query.reporterName, mediaOutlet: query.mediaOutlet, description: cleanDescription })
+            }],
+        })
+
+        const aiText = responseMsg.content[0].type === "text" ? responseMsg.content[0].text : ""
+        if (!aiText) return { success: false, error: "No response generated" }
+
+        await adminDb.collection("haro_queries").doc(queryId).update({
+            aiResponse: aiText,
+            editedResponse: "",
+            responseSubject: `RE: ${query.title} — ${settings.businessName}`,
+            status: "reviewing",
+            updatedAt: FieldValue.serverTimestamp(),
+        })
+
+        return { success: true, response: aiText }
+    } catch (err: any) {
+        return { success: false, error: err.message || "Failed to generate response" }
+    }
+}
+
 // ─── Email Processing Pipeline ──────────────────────────────────────────────
 
 interface ParsedQuery {
@@ -630,7 +713,10 @@ async function processHaroEmailInternal(emailContent: string, emailSubject?: str
         const anthropic = new Anthropic({ apiKey })
 
         const topicsList = settings.expertiseTopics.join(", ")
-        const titlesText = parsedQueries.map((q, i) => `${i + 1}) ${q.title} (${q.mediaOutlet || "Unknown"})`).join("\n")
+        const titlesText = parsedQueries.map((q, i) => {
+            const cleanDesc = q.description.replace(/\[Note: No AI Pitches Considered\]/g, "").replace(/\n/g, " ").trim()
+            return `${i + 1}) Title: ${q.title} (${q.mediaOutlet || "Unknown"})\n   Details: ${cleanDesc.slice(0, 300)}`
+        }).join("\n\n")
 
         const filterResponse = await anthropic.messages.create({
             model: "claude-sonnet-4-20250514",
@@ -641,7 +727,9 @@ async function processHaroEmailInternal(emailContent: string, emailSubject?: str
 
 My business: ${settings.businessName} — ${settings.businessIntro}.
 
-Below are queries from reporters. For each query, determine if it's relevant to my expertise. Return a JSON object with this exact format:
+IMPORTANT: I am NOT a licensed professional (not a CPA, attorney, doctor, therapist, financial advisor, etc.) unless one of my expertise topics explicitly states otherwise. If a query requires specific professional credentials or licenses (e.g. "looking for a CPA", "must be a licensed therapist", "input from an MD", "certified financial planner"), and my expertise does not include that credential, score it 20-40 at most — it is low relevance because I cannot credibly respond.
+
+Below are queries from reporters. For each query, read both the title AND details to determine relevance to my expertise. Return a JSON object with this exact format:
 
 {"results": [{"index": 1, "relevant": true, "score": 85, "reason": "Brief reason"}, ...]}
 
@@ -681,7 +769,7 @@ ${titlesText}`
                 mediaOutlet: pq.mediaOutlet,
                 mediaUrl: pq.mediaUrl,
                 deadline: pq.deadline,
-                deadlineParsed: parseHaroDeadline(pq.deadline) || undefined,
+                deadlineParsed: parseHaroDeadline(pq.deadline) || "",
                 relevanceScore: relevance?.score || 0,
                 isRelevant,
                 relevanceReason: relevance?.reason || "",
@@ -714,39 +802,7 @@ ${titlesText}`
                     max_tokens: 800,
                     messages: [{
                         role: "user",
-                        content: `You are writing an email response to a journalist query on behalf of ${settings.name}.
-
-About me:
-- Name: ${settings.name}
-- Business: ${settings.businessName} — ${settings.businessIntro}
-- Website: ${settings.website}
-- LinkedIn: ${settings.linkedIn}
-${settings.headshotUrl ? `- Headshot: ${settings.headshotUrl}` : ""}
-
-The journalist's query:
-Title: ${sq.title}
-Reporter: ${sq.reporterName}
-Outlet: ${sq.mediaOutlet}
-Details: ${cleanDescription}
-
-Write a concise, professional email response. Format:
-
-Hi ${sq.reporterName || "[Reporter Name]"},
-
-I'm ${settings.name}, founder of ${settings.businessName}, ${settings.businessIntro}. I also have a background as a pilot in the US Air Force.
-
-[Your expert response — be concise, knowledgeable, provide genuine value. 2-4 paragraphs max.]
-
-Here's my info:
-Name: ${settings.name}
-Role: Founder/CEO
-Business website: ${settings.website}
-${settings.linkedIn ? `LinkedIn: ${settings.linkedIn}` : ""}
-${settings.headshotUrl ? `Headshot: ${settings.headshotUrl}` : ""}
-
-${settings.signoff}
-
-IMPORTANT: Be genuine and helpful. Provide real, substantive answers — not generic fluff.`
+                        content: buildResponsePrompt(settings, { title: sq.title, reporterName: sq.reporterName, mediaOutlet: sq.mediaOutlet, description: cleanDescription })
                     }],
                 })
 

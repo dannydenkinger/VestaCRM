@@ -7,6 +7,9 @@ const withBundleAnalyzer = bundleAnalyzer({
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["googleapis", "node-ical", "firebase-admin"],
+  experimental: {
+    optimizePackageImports: ["lucide-react", "date-fns", "recharts", "framer-motion"],
+  },
   images: {
     remotePatterns: [
       {

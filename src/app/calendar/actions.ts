@@ -158,8 +158,10 @@ export async function getUnifiedEvents(days: number = 30): Promise<CalendarEvent
 
     // 2. Fetch CRM Stay Dates from Contacts (using Firebase)
     try {
-        const contactsSnapshot = await adminDb.collection('contacts').get();
-        const oppsSnapshot = await adminDb.collection('opportunities').get();
+        const [contactsSnapshot, oppsSnapshot] = await Promise.all([
+            adminDb.collection('contacts').get(),
+            adminDb.collection('opportunities').get(),
+        ]);
         
         // Map opportunities to contacts
         const oppsByContact: Record<string, string> = {};

@@ -41,11 +41,11 @@ import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { BookingCalendar } from "@/app/dashboard/bookings/BookingCalendar"
 import { toast } from "sonner"
 import dynamic from "next/dynamic"
 
 const TasksPage = dynamic(() => import("@/app/tasks/page"), { ssr: false })
+const BookingCalendar = dynamic(() => import("@/app/dashboard/bookings/BookingCalendar").then(mod => mod.BookingCalendar), { ssr: false })
 
 type ViewMode = "month" | "week" | "day"
 

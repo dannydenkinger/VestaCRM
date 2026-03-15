@@ -63,7 +63,10 @@ import {
 } from "@/components/ui/dialog"
 import { CreateTaskDialog } from "@/components/ui/CreateTaskDialog"
 import { DocumentManager } from "./documents/DocumentManager"
-import { ContactDetailSheet } from "./ContactDetailSheet"
+const ContactDetailSheet = dynamic(() => import("./ContactDetailSheet").then(mod => mod.ContactDetailSheet), {
+    loading: () => null,
+    ssr: false,
+})
 import { DuplicateDetector } from "./DuplicateDetector"
 import { exportToCSV } from "@/lib/export"
 import dynamic from "next/dynamic"
@@ -334,9 +337,12 @@ function ContactsContent() {
     });
 
     useEffect(() => {
-        fetchContactStatuses();
-        fetchTags();
-        getUsers().then(res => { if (res.success) setAllUsers((res.users || []) as { id: string; name: string; email: string }[]); });
+        // Fetch all supplementary data in parallel
+        Promise.all([
+            fetchContactStatuses(),
+            fetchTags(),
+            getUsers().then(res => { if (res.success) setAllUsers((res.users || []) as { id: string; name: string; email: string }[]); }),
+        ]);
     }, []);
 
     // Auto-select contact from ?contact= URL param
@@ -954,7 +960,14 @@ function ContactsContent() {
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
                                     {contact.status && (
-                                        <Badge variant="outline" className="text-[9px] h-5 border-white/10">
+                                        <Badge variant="outline" className={`text-[9px] h-5 ${
+                                            contact.status === "Active Stay" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" :
+                                            contact.status === "Lead" ? "bg-blue-500/10 text-blue-400 border-blue-500/30" :
+                                            contact.status === "Forms Pending" ? "bg-amber-500/10 text-amber-400 border-amber-500/30" :
+                                            contact.status === "Booked" ? "bg-primary/10 text-primary border-primary/30" :
+                                            contact.status === "Past Tenant" ? "bg-gray-500/10 text-gray-400 border-gray-500/30" :
+                                            "border-white/10"
+                                        }`}>
                                             {contact.status}
                                         </Badge>
                                     )}
