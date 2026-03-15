@@ -116,7 +116,7 @@ export function RevenueForecast({ pipelineId }: RevenueForecastProps) {
                                         <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" strokeOpacity={0.08} />
                                 <XAxis
                                     dataKey="month"
                                     axisLine={false}

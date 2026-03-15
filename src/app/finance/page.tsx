@@ -78,7 +78,7 @@ export default function FinancePage() {
                                 className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all shrink-0 touch-manipulation ${
                                     dateRange === f.value
                                         ? "bg-primary text-primary-foreground"
-                                        : "bg-zinc-900 text-zinc-500 hover:text-zinc-300"
+                                        : "bg-muted text-muted-foreground hover:text-foreground"
                                 }`}
                             >
                                 {f.label}
@@ -86,14 +86,14 @@ export default function FinancePage() {
                         ))}
                         <button
                             onClick={handleExportCSV}
-                            className="ml-auto px-3 py-1.5 rounded-full text-xs font-semibold bg-zinc-900 text-zinc-500 hover:text-zinc-300 shrink-0 touch-manipulation flex items-center gap-1.5"
+                            className="ml-auto px-3 py-1.5 rounded-full text-xs font-semibold bg-muted text-muted-foreground hover:text-foreground shrink-0 touch-manipulation flex items-center gap-1.5"
                         >
                             <Download className="h-3 w-3" />
                             Export
                         </button>
                     </div>
                     {/* Tab pills */}
-                    <div className="flex gap-1 bg-zinc-900 rounded-xl p-1">
+                    <div className="flex gap-1 bg-muted rounded-xl p-1">
                         {[
                             { value: "commissions", label: "Commissions" },
                             { value: "referrals", label: "Referrals" },
@@ -105,8 +105,8 @@ export default function FinancePage() {
                                 onClick={() => setActiveTab(tab.value)}
                                 className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all touch-manipulation ${
                                     activeTab === tab.value
-                                        ? "bg-white/10 text-white"
-                                        : "text-zinc-500 hover:text-zinc-300"
+                                        ? "bg-primary/15 text-foreground"
+                                        : "text-muted-foreground hover:text-foreground"
                                 }`}
                             >
                                 {tab.label}
@@ -115,7 +115,7 @@ export default function FinancePage() {
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto overflow-x-hidden pb-24 p-4">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden pb-28 p-4">
                     {activeTab === "commissions" && <CommissionTracker dateFilter={dateFilter} />}
                     {activeTab === "referrals" && <ReferralTracker dateFilter={dateFilter} />}
                     {activeTab === "revenue" && <RevenueTracker dateFilter={dateFilter} />}

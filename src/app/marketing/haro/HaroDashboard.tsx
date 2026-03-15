@@ -476,7 +476,7 @@ export function HaroDashboard() {
                                             <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                                         </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" strokeOpacity={0.08} />
                                     <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#666' }} />
                                     <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#666' }} width={35} />
                                     <Tooltip contentStyle={{ backgroundColor: '#18181b', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '11px' }} />

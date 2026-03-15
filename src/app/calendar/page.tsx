@@ -158,14 +158,14 @@ export default function CalendarPage() {
         return (
             <div className="flex flex-col h-full bg-background">
                 {/* Header */}
-                <div className="px-4 pt-3 pb-2 border-b border-white/5">
+                <div className="px-4 pt-3 pb-2 border-b border-border">
                     <div className="flex items-center justify-between mb-3">
                         <div>
-                            <h2 className="text-lg font-bold text-white">{format(currentDate, "MMMM yyyy")}</h2>
+                            <h2 className="text-lg font-bold text-foreground">{format(currentDate, "MMMM yyyy")}</h2>
                         </div>
                         <div className="flex items-center gap-2">
                             <button
-                                className="px-3 py-1.5 text-xs font-semibold text-zinc-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
+                                className="px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-muted"
                                 onClick={() => setCurrentDate(new Date())}
                             >
                                 Today
@@ -179,7 +179,7 @@ export default function CalendarPage() {
                         </div>
                     </div>
                     {/* Tab pills */}
-                    <div className="flex gap-1 bg-zinc-900 rounded-xl p-1">
+                    <div className="flex gap-1 bg-muted rounded-xl p-1">
                         {[
                             { value: "calendar", label: "Calendar" },
                             { value: "bookings", label: "Stays" },
@@ -191,8 +191,8 @@ export default function CalendarPage() {
                                 className={cn(
                                     "flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all",
                                     activeTab === tab.value
-                                        ? "bg-white/10 text-white"
-                                        : "text-zinc-500 hover:text-zinc-300"
+                                        ? "bg-primary/15 text-foreground"
+                                        : "text-muted-foreground hover:text-foreground"
                                 )}
                             >
                                 {tab.label}
@@ -204,12 +204,12 @@ export default function CalendarPage() {
                 {activeTab === "calendar" && (
                     <div className="flex-1 flex flex-col min-h-0">
                         {/* Week strip */}
-                        <div className="flex items-center border-b border-white/5 px-2 py-2">
+                        <div className="flex items-center border-b border-border px-2 py-2">
                             <button
-                                className="p-2 rounded-lg hover:bg-white/5 touch-manipulation"
+                                className="p-2 rounded-lg hover:bg-muted touch-manipulation"
                                 onClick={() => setCurrentDate(addDays(currentDate, -7))}
                             >
-                                <ChevronLeft className="h-4 w-4 text-zinc-400" />
+                                <ChevronLeft className="h-4 w-4 text-muted-foreground" />
                             </button>
                             <div className="flex-1 flex justify-around">
                                 {weekDays.map(day => {
@@ -222,13 +222,13 @@ export default function CalendarPage() {
                                             className="flex flex-col items-center gap-1 py-1 touch-manipulation"
                                             onClick={() => setCurrentDate(day)}
                                         >
-                                            <span className="text-[10px] font-medium text-zinc-500">{format(day, "EEE")}</span>
+                                            <span className="text-[10px] font-medium text-muted-foreground">{format(day, "EEE")}</span>
                                             <span className={cn(
                                                 "flex items-center justify-center h-9 w-9 rounded-full text-sm font-bold transition-all",
                                                 selected && today && "bg-primary text-primary-foreground shadow-lg shadow-primary/30",
-                                                selected && !today && "bg-white/15 text-white",
+                                                selected && !today && "bg-primary/20 text-foreground",
                                                 !selected && today && "text-primary font-black",
-                                                !selected && !today && "text-zinc-400"
+                                                !selected && !today && "text-muted-foreground"
                                             )}>
                                                 {format(day, "d")}
                                             </span>
@@ -236,7 +236,7 @@ export default function CalendarPage() {
                                                 <span className="h-1 w-1 rounded-full bg-primary" />
                                             )}
                                             {dayEvts.length > 0 && selected && (
-                                                <span className="h-1 w-1 rounded-full bg-white/60" />
+                                                <span className="h-1 w-1 rounded-full bg-foreground/60" />
                                             )}
                                             {dayEvts.length === 0 && <span className="h-1" />}
                                         </button>
@@ -244,32 +244,32 @@ export default function CalendarPage() {
                                 })}
                             </div>
                             <button
-                                className="p-2 rounded-lg hover:bg-white/5 touch-manipulation"
+                                className="p-2 rounded-lg hover:bg-muted touch-manipulation"
                                 onClick={() => setCurrentDate(addDays(currentDate, 7))}
                             >
-                                <ChevronRight className="h-4 w-4 text-zinc-400" />
+                                <ChevronRight className="h-4 w-4 text-muted-foreground" />
                             </button>
                         </div>
 
                         {/* Day heading */}
                         <div className="px-4 pt-3 pb-2">
-                            <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">
+                            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                                 {isToday(currentDate) ? "Today" : format(currentDate, "EEEE, MMM d")}
                                 {todayEvents.length > 0 && ` · ${todayEvents.length} event${todayEvents.length !== 1 ? "s" : ""}`}
                             </span>
                         </div>
 
                         {/* Events list */}
-                        <div className="flex-1 overflow-y-auto px-4 pb-24">
+                        <div className="flex-1 overflow-y-auto px-4 pb-28">
                             {isLoading ? (
                                 <div className="flex items-center justify-center py-12">
                                     <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                                 </div>
                             ) : todayEvents.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center py-16 text-center">
-                                    <CalendarIcon className="h-10 w-10 text-zinc-700 mb-3" />
-                                    <p className="text-sm font-medium text-zinc-400">No events</p>
-                                    <p className="text-xs text-zinc-600 mt-1">Tap + to add an event</p>
+                                    <CalendarIcon className="h-10 w-10 text-muted-foreground/50 mb-3" />
+                                    <p className="text-sm font-medium text-muted-foreground">No events</p>
+                                    <p className="text-xs text-muted-foreground mt-1">Tap + to add an event</p>
                                 </div>
                             ) : (
                                 <div className="space-y-2">
@@ -279,7 +279,7 @@ export default function CalendarPage() {
                                         return (
                                             <button
                                                 key={event.id}
-                                                className="w-full flex items-start gap-3 p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] active:bg-white/[0.08] transition-colors text-left touch-manipulation"
+                                                className="w-full flex items-start gap-3 p-3 rounded-xl bg-muted/50 border border-border active:bg-muted transition-colors text-left touch-manipulation"
                                                 onClick={() => setSelectedEvent(event)}
                                             >
                                                 <div
@@ -287,17 +287,17 @@ export default function CalendarPage() {
                                                     style={{ backgroundColor: event.color || "#3B82F6" }}
                                                 />
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-semibold text-white truncate">{event.title}</p>
+                                                    <p className="text-sm font-semibold text-foreground truncate">{event.title}</p>
                                                     <div className="flex items-center gap-2 mt-1">
-                                                        <span className="text-xs text-zinc-400">
+                                                        <span className="text-xs text-muted-foreground">
                                                             {isAllDay ? "All day" : format(startTime, "h:mm a")}
                                                         </span>
-                                                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-white/10 text-zinc-400">
+                                                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-border text-muted-foreground">
                                                             {event.source === "GOOGLE" ? "Google" : event.source === "APPLE" ? "iCal" : event.source === "TASK" ? "Task" : event.source === "EVENT" ? "Event" : "Stay"}
                                                         </Badge>
                                                     </div>
                                                 </div>
-                                                <ChevronRight className="h-4 w-4 text-zinc-600 mt-1 shrink-0" />
+                                                <ChevronRight className="h-4 w-4 text-muted-foreground mt-1 shrink-0" />
                                             </button>
                                         )
                                     })}
@@ -307,7 +307,7 @@ export default function CalendarPage() {
 
                         {/* Filter button */}
                         <button
-                            className="fixed bottom-20 left-4 z-30 flex items-center gap-2 px-3 py-2 rounded-full bg-zinc-800 border border-white/10 text-xs font-medium text-zinc-300 shadow-lg touch-manipulation"
+                            className="fixed bottom-20 left-4 z-30 flex items-center gap-2 px-3 py-2 rounded-full bg-card border border-border text-xs font-medium text-foreground shadow-lg touch-manipulation"
                             onClick={() => setFilterSheetOpen(true)}
                         >
                             <Filter className="h-3.5 w-3.5" />
@@ -317,13 +317,13 @@ export default function CalendarPage() {
                 )}
 
                 {activeTab === "bookings" && (
-                    <div className="flex-1 overflow-y-auto pb-24 p-4">
+                    <div className="flex-1 overflow-y-auto pb-28 p-4">
                         <BookingCalendar />
                     </div>
                 )}
 
                 {activeTab === "tasks" && (
-                    <div className="flex-1 overflow-y-auto pb-24">
+                    <div className="flex-1 overflow-y-auto pb-28">
                         <TasksPage />
                     </div>
                 )}
@@ -337,7 +337,7 @@ export default function CalendarPage() {
                         <div className="space-y-1 mt-4">
                             <div className="rounded-xl overflow-hidden">
                                 <div className="flex items-center w-full p-3 rounded-xl hover:bg-muted/20 transition-colors">
-                                    <button onClick={() => setGoogleFolderOpen(o => !o)} className="flex items-center justify-center h-8 w-8 shrink-0 rounded hover:bg-white/10 transition-colors touch-manipulation">
+                                    <button onClick={() => setGoogleFolderOpen(o => !o)} className="flex items-center justify-center h-8 w-8 shrink-0 rounded hover:bg-muted transition-colors touch-manipulation">
                                         <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200", !googleFolderOpen && "-rotate-90")} />
                                     </button>
                                     <button onClick={toggleAllGoogle} className="flex items-center gap-3 flex-1 min-w-0 ml-1 text-sm font-semibold text-foreground text-left touch-manipulation">
@@ -365,7 +365,7 @@ export default function CalendarPage() {
                                         <div className="h-3 w-3 rounded-sm shrink-0" style={{ backgroundColor: source.color }} />
                                         <span className={cn("transition-opacity", activeSources.includes(source.id) ? "opacity-100" : "opacity-40")}>{source.label}</span>
                                     </div>
-                                    <div className={cn("h-5 w-5 rounded border flex items-center justify-center shrink-0 transition-all", activeSources.includes(source.id) ? "border-blue-500 bg-blue-500" : "border-white/20 bg-transparent")}>
+                                    <div className={cn("h-5 w-5 rounded border flex items-center justify-center shrink-0 transition-all", activeSources.includes(source.id) ? "border-blue-500 bg-blue-500" : "border-border bg-transparent")}>
                                         {activeSources.includes(source.id) && <Check className="h-3 w-3 text-white" />}
                                     </div>
                                 </button>
@@ -421,7 +421,7 @@ export default function CalendarPage() {
                                 <Filter className="h-4 w-4" />
                                 Filters
                             </Button>
-                            <div className="flex items-center rounded-xl bg-muted/30 p-1 border border-white/5">
+                            <div className="flex items-center rounded-xl bg-muted/30 p-1 border border-border">
                                 <Button variant={viewMode === "month" ? "secondary" : "ghost"} size="sm" className="h-8 rounded-lg text-xs font-semibold px-3 sm:px-4 touch-manipulation" onClick={() => setViewMode("month")}>Month</Button>
                                 <Button variant={viewMode === "week" ? "secondary" : "ghost"} size="sm" className="h-8 rounded-lg text-xs font-semibold px-3 sm:px-4 touch-manipulation" onClick={() => setViewMode("week")}>Week</Button>
                                 <Button variant={viewMode === "day" ? "secondary" : "ghost"} size="sm" className="h-8 rounded-lg text-xs font-semibold px-3 sm:px-4 touch-manipulation" onClick={() => setViewMode("day")}>Day</Button>
@@ -433,7 +433,7 @@ export default function CalendarPage() {
                         </div>
                     )}
                 </div>
-                <TabsList className="bg-muted/30 border border-white/5 flex-wrap h-auto gap-0.5 p-1 mt-4">
+                <TabsList className="bg-muted/30 border border-border flex-wrap h-auto gap-0.5 p-1 mt-4">
                     <TabsTrigger value="calendar" className="text-xs font-semibold">Calendar</TabsTrigger>
                     <TabsTrigger value="bookings" className="text-xs font-semibold">Stays</TabsTrigger>
                     <TabsTrigger value="tasks" className="text-xs font-semibold">Tasks</TabsTrigger>
@@ -511,7 +511,7 @@ export default function CalendarPage() {
                             {/* Google Calendar folder */}
                             <div className="rounded-xl overflow-hidden">
                                 <div className="flex items-center w-full p-2.5 rounded-xl hover:bg-muted/20 transition-colors">
-                                    <button onClick={() => setGoogleFolderOpen(o => !o)} className="flex items-center justify-center h-5 w-5 shrink-0 rounded hover:bg-white/10 transition-colors">
+                                    <button onClick={() => setGoogleFolderOpen(o => !o)} className="flex items-center justify-center h-5 w-5 shrink-0 rounded hover:bg-muted transition-colors">
                                         <ChevronDown className={cn("h-3 w-3 text-muted-foreground transition-transform duration-200", !googleFolderOpen && "-rotate-90")} />
                                     </button>
                                     <button onClick={toggleAllGoogle} className="flex items-center gap-2.5 flex-1 min-w-0 ml-1 text-xs font-semibold text-foreground text-left">
@@ -520,7 +520,7 @@ export default function CalendarPage() {
                                         </div>
                                         <span className="truncate">Google Calendar</span>
                                     </button>
-                                    <button onClick={toggleAllGoogle} className={cn("h-4 w-4 rounded border flex items-center justify-center shrink-0 ml-2 transition-all", allGoogleEnabled ? "border-blue-500 bg-blue-500" : someGoogleEnabled ? "border-blue-500/60 bg-blue-500/30" : "border-white/20 bg-transparent hover:border-blue-400")}>
+                                    <button onClick={toggleAllGoogle} className={cn("h-4 w-4 rounded border flex items-center justify-center shrink-0 ml-2 transition-all", allGoogleEnabled ? "border-blue-500 bg-blue-500" : someGoogleEnabled ? "border-blue-500/60 bg-blue-500/30" : "border-border bg-transparent hover:border-blue-400")}>
                                         {allGoogleEnabled && <Check className="h-2.5 w-2.5 text-white" />}
                                         {!allGoogleEnabled && someGoogleEnabled && <div className="h-1.5 w-1.5 rounded-sm bg-blue-400" />}
                                     </button>
@@ -533,7 +533,7 @@ export default function CalendarPage() {
                                             <button key={`google-${cal.id}`} onClick={() => toggleGoogleCategory(cal.id)} className="flex items-center gap-2 w-full px-2 py-2 rounded-lg text-[11px] font-medium transition-all hover:bg-muted/20">
                                                 <div className="w-[3px] h-3.5 rounded-full shrink-0 self-center" style={{ backgroundColor: cal.color, opacity: activeGoogleCalendars.includes(cal.id) ? 1 : 0.3 }} />
                                                 <span className={cn("truncate flex-1 text-left transition-opacity", activeGoogleCalendars.includes(cal.id) ? "opacity-100" : "opacity-40")}>{cal.name}</span>
-                                                <div className="relative h-4 w-7 rounded-full shrink-0 transition-all duration-200" style={{ backgroundColor: activeGoogleCalendars.includes(cal.id) ? cal.color : "rgba(255,255,255,0.12)" }}>
+                                                <div className="relative h-4 w-7 rounded-full shrink-0 transition-all duration-200" style={{ backgroundColor: activeGoogleCalendars.includes(cal.id) ? cal.color : "var(--muted)" }}>
                                                     <div className={cn("absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-all duration-200", activeGoogleCalendars.includes(cal.id) ? "left-3.5" : "left-0.5")} />
                                                 </div>
                                             </button>
@@ -553,7 +553,7 @@ export default function CalendarPage() {
                                         <div className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: source.color }} />
                                         <span className={cn("transition-opacity", activeSources.includes(source.id) ? "opacity-100" : "opacity-40")}>{source.label}</span>
                                     </div>
-                                    <div className={cn("h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-all", activeSources.includes(source.id) ? "border-blue-500 bg-blue-500" : "border-white/20 bg-transparent hover:border-blue-400")}>
+                                    <div className={cn("h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-all", activeSources.includes(source.id) ? "border-blue-500 bg-blue-500" : "border-border bg-transparent hover:border-blue-400")}>
                                         {activeSources.includes(source.id) && <Check className="h-2.5 w-2.5 text-white" />}
                                     </div>
                                 </button>
@@ -565,7 +565,7 @@ export default function CalendarPage() {
                         <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-4">Quick Tasks</h3>
                         <div className="space-y-3">
                             {events.filter(e => e.source === "TASK" && !isSameDay(new Date(e.start), new Date())).slice(0, 3).map(task => (
-                                <div key={task.id} className="group flex items-start gap-3 p-3 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 hover:bg-white/10 transition-all cursor-pointer">
+                                <div key={task.id} className="group flex items-start gap-3 p-3 rounded-xl bg-muted/50 border border-border hover:border-border hover:bg-muted transition-all cursor-pointer">
                                     <div className="mt-0.5 h-4 w-4 rounded border border-white/20 flex items-center justify-center group-hover:border-primary/50 transition-colors">
                                         <div className="h-2 w-2 rounded-sm bg-primary opacity-0 group-hover:opacity-20 transition-opacity" />
                                     </div>
@@ -590,7 +590,7 @@ export default function CalendarPage() {
                             <h2 className="text-lg sm:text-xl font-black tracking-tight capitalize truncate">
                                 {format(currentDate, viewMode === "month" ? "MMMM yyyy" : "MMMM d, yyyy")}
                             </h2>
-                            <div className="flex items-center gap-1 rounded-xl bg-muted/30 p-1 border border-white/5">
+                            <div className="flex items-center gap-1 rounded-xl bg-muted/30 p-1 border border-border">
                                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg touch-manipulation" onClick={prevTime}>
                                     <ChevronLeft className="h-4 w-4 text-muted-foreground" />
                                 </Button>
@@ -628,7 +628,7 @@ export default function CalendarPage() {
                         {/* Google Calendar folder */}
                         <div className="rounded-xl overflow-hidden">
                             <div className="flex items-center w-full p-3 rounded-xl hover:bg-muted/20 transition-colors">
-                                <button onClick={() => setGoogleFolderOpen(o => !o)} className="flex items-center justify-center h-8 w-8 shrink-0 rounded hover:bg-white/10 transition-colors touch-manipulation">
+                                <button onClick={() => setGoogleFolderOpen(o => !o)} className="flex items-center justify-center h-8 w-8 shrink-0 rounded hover:bg-muted transition-colors touch-manipulation">
                                     <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-200", !googleFolderOpen && "-rotate-90")} />
                                 </button>
                                 <button onClick={toggleAllGoogle} className="flex items-center gap-3 flex-1 min-w-0 ml-1 text-sm font-semibold text-foreground text-left touch-manipulation">
@@ -637,7 +637,7 @@ export default function CalendarPage() {
                                     </div>
                                     <span className="truncate">Google Calendar</span>
                                 </button>
-                                <button onClick={toggleAllGoogle} className={cn("h-5 w-5 rounded border flex items-center justify-center shrink-0 ml-2 transition-all touch-manipulation", allGoogleEnabled ? "border-blue-500 bg-blue-500" : someGoogleEnabled ? "border-blue-500/60 bg-blue-500/30" : "border-white/20 bg-transparent hover:border-blue-400")}>
+                                <button onClick={toggleAllGoogle} className={cn("h-5 w-5 rounded border flex items-center justify-center shrink-0 ml-2 transition-all touch-manipulation", allGoogleEnabled ? "border-blue-500 bg-blue-500" : someGoogleEnabled ? "border-blue-500/60 bg-blue-500/30" : "border-border bg-transparent hover:border-blue-400")}>
                                     {allGoogleEnabled && <Check className="h-3 w-3 text-white" />}
                                     {!allGoogleEnabled && someGoogleEnabled && <div className="h-2 w-2 rounded-sm bg-blue-400" />}
                                 </button>
@@ -650,7 +650,7 @@ export default function CalendarPage() {
                                         <button key={`mobile-google-${cal.id}`} onClick={() => toggleGoogleCategory(cal.id)} className="flex items-center gap-3 w-full px-3 py-3 rounded-lg text-sm font-medium transition-all hover:bg-muted/20 min-h-[44px] touch-manipulation">
                                             <div className="w-[3px] h-4 rounded-full shrink-0 self-center" style={{ backgroundColor: cal.color, opacity: activeGoogleCalendars.includes(cal.id) ? 1 : 0.3 }} />
                                             <span className={cn("truncate flex-1 text-left transition-opacity", activeGoogleCalendars.includes(cal.id) ? "opacity-100" : "opacity-40")}>{cal.name}</span>
-                                            <div className="relative h-5 w-9 rounded-full shrink-0 transition-all duration-200" style={{ backgroundColor: activeGoogleCalendars.includes(cal.id) ? cal.color : "rgba(255,255,255,0.12)" }}>
+                                            <div className="relative h-5 w-9 rounded-full shrink-0 transition-all duration-200" style={{ backgroundColor: activeGoogleCalendars.includes(cal.id) ? cal.color : "var(--muted)" }}>
                                                 <div className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all duration-200", activeGoogleCalendars.includes(cal.id) ? "left-4.5" : "left-0.5")} />
                                             </div>
                                         </button>
@@ -669,7 +669,7 @@ export default function CalendarPage() {
                                     <div className="h-3 w-3 rounded-sm shrink-0" style={{ backgroundColor: source.color }} />
                                     <span className={cn("transition-opacity", activeSources.includes(source.id) ? "opacity-100" : "opacity-40")}>{source.label}</span>
                                 </div>
-                                <div className={cn("h-5 w-5 rounded border flex items-center justify-center shrink-0 transition-all", activeSources.includes(source.id) ? "border-blue-500 bg-blue-500" : "border-white/20 bg-transparent hover:border-blue-400")}>
+                                <div className={cn("h-5 w-5 rounded border flex items-center justify-center shrink-0 transition-all", activeSources.includes(source.id) ? "border-blue-500 bg-blue-500" : "border-border bg-transparent hover:border-blue-400")}>
                                     {activeSources.includes(source.id) && <Check className="h-3 w-3 text-white" />}
                                 </div>
                             </button>
@@ -761,7 +761,7 @@ function MonthView({
                 <div
                     key={day.toString()}
                     className={cn(
-                        "bg-card min-h-[60px] sm:min-h-[100px] md:min-h-[140px] p-1.5 sm:p-3 border-r border-b border-white/5 transition-all flex flex-col gap-1 sm:gap-2 group cursor-pointer",
+                        "bg-card min-h-[60px] sm:min-h-[100px] md:min-h-[140px] p-1.5 sm:p-3 border-r border-b border-border transition-all flex flex-col gap-1 sm:gap-2 group cursor-pointer",
                         !isSameMonth(day, monthStart) ? "bg-muted/10 opacity-30" : "hover:bg-muted/10",
                         isDragOver && "bg-primary/10 ring-2 ring-primary/30 ring-inset"
                     )}
@@ -842,8 +842,8 @@ function MonthView({
     }
 
     return (
-        <div className="rounded-2xl border border-white/5 overflow-hidden shadow-2xl">
-            <div className="grid grid-cols-7 bg-muted/20 border-b border-white/5">
+        <div className="rounded-2xl border border-border overflow-hidden shadow-2xl">
+            <div className="grid grid-cols-7 bg-muted/20 border-b border-border">
                 {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
                     <div key={d} className="py-2 sm:py-4 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
                         <span className="sm:hidden">{d.slice(0, 1)}</span>
@@ -876,15 +876,15 @@ function WeekView({
         const day = addDays(startDate, i)
         const dayEvents = getEvents(day)
         days.push(
-            <div key={i} className="flex-1 min-w-[100px] sm:min-w-[150px] bg-card/40 border-r border-white/5 last:border-0 group">
-                <div className="text-center p-2 sm:p-4 border-b border-white/5 sticky top-0 bg-card/60 backdrop-blur-sm z-10">
+            <div key={i} className="flex-1 min-w-[100px] sm:min-w-[150px] bg-card/40 border-r border-border last:border-0 group">
+                <div className="text-center p-2 sm:p-4 border-b border-border sticky top-0 bg-card/60 backdrop-blur-sm z-10">
                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">{format(day, "EEE")}</p>
                     <p className={cn("text-lg font-black w-10 h-10 flex items-center justify-center rounded-xl mx-auto transition-all", isToday(day) ? "bg-primary text-primary-foreground shadow-xl shadow-primary/20" : "text-foreground")}>
                         {format(day, "d")}
                     </p>
                 </div>
                 {/* All-day events at top */}
-                <div className="px-1 sm:px-2 py-1 border-b border-white/5 min-h-[28px]">
+                <div className="px-1 sm:px-2 py-1 border-b border-border min-h-[28px]">
                     {dayEvents.filter(e => {
                         const s = new Date(e.start)
                         return s.getHours() === 0 && s.getMinutes() === 0
@@ -975,7 +975,7 @@ function WeekView({
     }
 
     return (
-        <div className="flex h-full rounded-2xl border border-white/5 overflow-hidden shadow-2xl bg-muted/10 min-h-[600px]">
+        <div className="flex h-full rounded-2xl border border-border overflow-hidden shadow-2xl bg-muted/10 min-h-[600px]">
             {days}
         </div>
     )
@@ -1040,7 +1040,7 @@ function DayView({
 
     return (
         <div className="h-full flex flex-col gap-4 sm:gap-6 max-w-4xl mx-auto">
-            <div className="flex items-center justify-between p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-card border border-white/5 shadow-xl">
+            <div className="flex items-center justify-between p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-card border border-border shadow-xl">
                 <div>
                     <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-1">{format(date, "EEEE")}</p>
                     <h2 className="text-xl sm:text-3xl font-black">{format(date, "MMMM d, yyyy")}</h2>
@@ -1048,8 +1048,8 @@ function DayView({
                 {isToday(date) && <Badge className="bg-primary/10 text-primary border-primary/20 font-black px-4 py-1.5 uppercase tracking-widest text-[10px]">Today</Badge>}
             </div>
 
-            <div className="flex-1 bg-card rounded-2xl sm:rounded-3xl border border-white/5 shadow-2xl overflow-hidden flex flex-col">
-                <div className="p-4 sm:p-8 border-b border-white/5">
+            <div className="flex-1 bg-card rounded-2xl sm:rounded-3xl border border-border shadow-2xl overflow-hidden flex flex-col">
+                <div className="p-4 sm:p-8 border-b border-border">
                     <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest mb-6 border-l-2 border-primary pl-4">Schedule</h3>
                     <div className="space-y-4">
                         {dayEvents.map(event => (
@@ -1091,7 +1091,7 @@ function DayView({
                     </div>
                 </div>
                 <div className="p-4 sm:p-8 bg-muted/5 flex-1">
-                    <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest mb-4 sm:mb-6 border-l-2 border-white/10 pl-4">Availability</h3>
+                    <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest mb-4 sm:mb-6 border-l-2 border-border pl-4">Availability</h3>
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-3 select-none" onMouseUp={handleSlotMouseUp} onMouseLeave={() => { if (isDragSelecting) handleSlotMouseUp() }}>
                         {hours.slice(8, 20).map(hour => {
                             const slotDate = new Date(date)
@@ -1103,7 +1103,7 @@ function DayView({
                                 <div
                                     key={hour}
                                     className={cn(
-                                        "p-4 rounded-xl border border-white/5 bg-background/20 flex flex-col gap-1 items-center justify-center opacity-40 hover:opacity-100 hover:bg-primary/5 hover:border-primary/20 transition-all cursor-pointer",
+                                        "p-4 rounded-xl border border-border bg-background/20 flex flex-col gap-1 items-center justify-center opacity-40 hover:opacity-100 hover:bg-primary/5 hover:border-primary/20 transition-all cursor-pointer",
                                         isDragOver && "opacity-100 bg-primary/10 border-primary/30 ring-2 ring-primary/20",
                                         isSelected && "opacity-100 bg-primary/15 border-primary/30 ring-1 ring-primary/20"
                                     )}
@@ -1143,8 +1143,8 @@ function EventDetailModal({ event, onClose, onNavigate, onEditTask }: { event: C
     return (
         <>
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-in fade-in duration-200" onClick={onClose} />
-            <div className="fixed right-0 top-0 h-full w-full sm:w-[420px] z-50 flex flex-col bg-card border-l border-white/10 shadow-2xl animate-in slide-in-from-right duration-300">
-                <div className="p-4 sm:p-6 border-b border-white/10 flex items-start justify-between gap-4">
+            <div className="fixed right-0 top-0 h-full w-full sm:w-[420px] z-50 flex flex-col bg-card border-l border-border shadow-2xl animate-in slide-in-from-right duration-300">
+                <div className="p-4 sm:p-6 border-b border-border flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 min-w-0">
                         <div className="mt-1 h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: event.color || "#6366f1" }} />
                         <div className="min-w-0">
@@ -1155,12 +1155,12 @@ function EventDetailModal({ event, onClose, onNavigate, onEditTask }: { event: C
                             </p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="h-10 w-10 sm:h-7 sm:w-7 rounded-lg flex items-center justify-center hover:bg-white/10 transition-colors shrink-0">
+                    <button onClick={onClose} className="h-10 w-10 sm:h-7 sm:w-7 rounded-lg flex items-center justify-center hover:bg-muted transition-colors shrink-0">
                         <X className="h-4 w-4 text-muted-foreground" />
                     </button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-                    <div className="rounded-2xl bg-muted/20 border border-white/5 p-4 space-y-3">
+                    <div className="rounded-2xl bg-muted/20 border border-border p-4 space-y-3">
                         <div className="flex items-center gap-3">
                             <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0"><CalendarIcon className="h-4 w-4 text-primary" /></div>
                             <div>
@@ -1196,7 +1196,7 @@ function EventDetailModal({ event, onClose, onNavigate, onEditTask }: { event: C
                     )}
                 </div>
                 {event.navigationUrl && (
-                    <div className="p-4 sm:p-6 border-t border-white/10">
+                    <div className="p-4 sm:p-6 border-t border-border">
                         <Button className="w-full h-11 gap-3 font-black tracking-wide shadow-lg" style={{ backgroundColor: event.color, color: "white" }} onClick={() => onNavigate(event.navigationUrl!)}>
                             View Opportunity
                             <ArrowRight className="h-4 w-4" />

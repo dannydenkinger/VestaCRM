@@ -116,14 +116,14 @@ function MobileDashboard({
                         <div className="pull-spinner" />
                     ) : (
                         <div
-                            className="w-5 h-5 border-2 border-white/20 border-t-white/60 rounded-full"
+                            className="w-5 h-5 border-2 border-foreground/20 border-t-foreground/60 rounded-full"
                             style={{ transform: `rotate(${pullDistance * 3}deg)`, opacity: Math.min(pullDistance / 60, 1) }}
                         />
                     )}
                 </div>
             )}
 
-            <div className="px-4 pt-3 pb-24 space-y-5" style={{ transform: `translateY(${pullDistance}px)` }}>
+            <div className="px-4 pt-3 pb-28 space-y-5" style={{ transform: `translateY(${pullDistance}px)` }}>
                 {/* 2x2 KPI Grid */}
                 <div className="grid grid-cols-2 gap-3">
                     {kpiCards.map((card) => {
@@ -135,10 +135,10 @@ function MobileDashboard({
                                 onClick={() => router.push(card.href)}
                             >
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{card.label}</span>
+                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{card.label}</span>
                                     <Icon className={`h-3.5 w-3.5 ${card.color} opacity-60`} />
                                 </div>
-                                <div className="text-xl font-bold text-white">{card.value}</div>
+                                <div className="text-xl font-bold text-foreground">{card.value}</div>
                                 {card.trend != null && (
                                     <div className={`flex items-center gap-1 mt-1 text-[10px] font-medium ${card.trend >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                                         {card.trend >= 0 ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
@@ -174,9 +174,9 @@ function MobileDashboard({
                                 {stageData.slice(0, 5).map((stage, idx) => (
                                     <div key={idx} className="flex items-center gap-2.5">
                                         <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
-                                        <span className="text-xs font-medium text-zinc-300 flex-1 truncate">{stage.name}</span>
-                                        <span className="text-xs font-bold text-white">{stage.count}</span>
-                                        <span className="text-[10px] text-zinc-500 w-14 text-right">{formatCurrency(stage.value)}</span>
+                                        <span className="text-xs font-medium text-foreground flex-1 truncate">{stage.name}</span>
+                                        <span className="text-xs font-bold text-foreground">{stage.count}</span>
+                                        <span className="text-[10px] text-muted-foreground w-14 text-right">{formatCurrency(stage.value)}</span>
                                     </div>
                                 ))}
                             </div>
@@ -198,14 +198,14 @@ function MobileDashboard({
                                     <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
                                         task.status === "Completed"
                                             ? "bg-emerald-500 border-emerald-500"
-                                            : "border-zinc-600"
+                                            : "border-input"
                                     }`}>
-                                        {task.status === "Completed" && <CheckCircle2 className="h-3 w-3 text-white" />}
+                                        {task.status === "Completed" && <CheckCircle2 className="h-3 w-3 text-primary-foreground" />}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <span className="text-sm font-medium text-white block truncate">{task.title}</span>
+                                        <span className="text-sm font-medium text-foreground block truncate">{task.title}</span>
                                         {task.dueDate && (
-                                            <span className="text-[10px] text-zinc-500">{task.dueDate.split('-').slice(1).join('/')}</span>
+                                            <span className="text-[10px] text-muted-foreground">{task.dueDate.split('-').slice(1).join('/')}</span>
                                         )}
                                     </div>
                                     <div className={`w-2 h-2 rounded-full shrink-0 ${
@@ -215,7 +215,7 @@ function MobileDashboard({
                             ))}
                         </div>
                     ) : (
-                        <div className="mobile-card p-6 text-center text-zinc-500 text-sm">
+                        <div className="mobile-card p-6 text-center text-muted-foreground text-sm">
                             No pending tasks
                         </div>
                     )}
@@ -748,7 +748,7 @@ export default function DashboardPage() {
                                                         <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                                                     </linearGradient>
                                                 </defs>
-                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" strokeOpacity={0.08} />
                                                 <XAxis
                                                     dataKey="name"
                                                     axisLine={false}

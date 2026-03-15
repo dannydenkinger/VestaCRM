@@ -189,7 +189,7 @@ function MobileTasksView({
                         <div className="pull-spinner" />
                     ) : (
                         <div
-                            className="w-5 h-5 border-2 border-white/20 border-t-white/60 rounded-full"
+                            className="w-5 h-5 border-2 border-foreground/20 border-t-foreground/60 rounded-full"
                             style={{ transform: `rotate(${pullDistance * 3}deg)`, opacity: Math.min(pullDistance / 60, 1) }}
                         />
                     )}
@@ -200,10 +200,10 @@ function MobileTasksView({
                 {/* Search + filter */}
                 <div className="px-4 pt-3 pb-2 space-y-2">
                     <div className="relative">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                         <input
                             placeholder="Search tasks..."
-                            className="w-full h-9 pl-9 pr-3 rounded-xl bg-zinc-900 border border-white/5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                            className="w-full h-9 pl-9 pr-3 rounded-xl bg-input border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
@@ -214,7 +214,7 @@ function MobileTasksView({
                                 key={f}
                                 className={cn(
                                     "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest touch-manipulation transition-colors",
-                                    filter === f ? "bg-primary text-primary-foreground" : "bg-zinc-900 text-zinc-500 border border-white/5"
+                                    filter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground border border-border"
                                 )}
                                 onClick={() => setFilter(f)}
                             >
@@ -225,7 +225,7 @@ function MobileTasksView({
                 </div>
 
                 {/* Task groups */}
-                <div className="flex-1 overflow-y-auto px-4 pb-24 space-y-4">
+                <div className="flex-1 overflow-y-auto px-4 pb-28 space-y-4">
                     {isLoading ? (
                         <div className="space-y-3 pt-4">
                             {[1,2,3,4,5].map(i => (
@@ -233,7 +233,7 @@ function MobileTasksView({
                             ))}
                         </div>
                     ) : groupedTasks.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-40 text-zinc-500 text-sm">
+                        <div className="flex flex-col items-center justify-center h-40 text-muted-foreground text-sm">
                             {filter === "active" ? "No active tasks" : "No tasks found"}
                         </div>
                     ) : (
@@ -258,16 +258,16 @@ function MobileTasksView({
                                                 "w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
                                                 task.completed
                                                     ? "bg-emerald-500 border-emerald-500"
-                                                    : "border-zinc-600"
+                                                    : "border-input"
                                             )}>
-                                                {task.completed && <CheckCircle2 className="h-3.5 w-3.5 text-white" />}
+                                                {task.completed && <CheckCircle2 className="h-3.5 w-3.5 text-primary-foreground" />}
                                             </div>
 
                                             {/* Task content */}
                                             <div className="flex-1 min-w-0">
                                                 <span className={cn(
                                                     "text-sm font-medium block truncate",
-                                                    task.completed ? "text-zinc-500 line-through" : "text-white"
+                                                    task.completed ? "text-muted-foreground line-through" : "text-foreground"
                                                 )}>
                                                     {task.title}
                                                 </span>
@@ -279,13 +279,13 @@ function MobileTasksView({
                                                                 ? "text-rose-400 font-semibold"
                                                                 : isToday(new Date(task.dueDate))
                                                                 ? "text-primary font-semibold"
-                                                                : "text-zinc-500"
+                                                                : "text-muted-foreground"
                                                         )}>
                                                             {format(new Date(task.dueDate), "MMM d")}
                                                         </span>
                                                     )}
                                                     {task.assigneeName && (
-                                                        <span className="text-[10px] text-zinc-600 truncate">{task.assigneeName}</span>
+                                                        <span className="text-[10px] text-muted-foreground truncate">{task.assigneeName}</span>
                                                     )}
                                                 </div>
                                             </div>
@@ -777,12 +777,12 @@ export default function TasksPage() {
                     <input
                         type="text"
                         placeholder="Search tasks..."
-                        className="w-full bg-muted/20 border-white/5 rounded-xl py-2.5 sm:py-2 pl-10 pr-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all min-h-[44px] sm:min-h-0"
+                        className="w-full bg-muted/20 border-border rounded-xl py-2.5 sm:py-2 pl-10 pr-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all min-h-[44px] sm:min-h-0"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
                 </div>
-                <div className="flex items-center rounded-xl bg-muted/30 p-1 border border-white/5">
+                <div className="flex items-center rounded-xl bg-muted/30 p-1 border border-border">
                     <Button
                         variant={filter === "active" ? "secondary" : "ghost"}
                         size="sm"
@@ -809,7 +809,7 @@ export default function TasksPage() {
                     </Button>
                 </div>
                 <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
-                    <SelectTrigger className="w-[140px] h-8 rounded-lg text-[11px] font-black uppercase tracking-widest bg-muted/30 border-white/5">
+                    <SelectTrigger className="w-[140px] h-8 rounded-lg text-[11px] font-black uppercase tracking-widest bg-muted/30 border-border">
                         <SelectValue placeholder="Sort by" />
                     </SelectTrigger>
                     <SelectContent>
@@ -833,7 +833,7 @@ export default function TasksPage() {
                             "px-3 py-1 rounded-full text-[11px] font-bold border transition-all touch-manipulation",
                             quickFilters.has(chip.key)
                                 ? chip.color
-                                : "text-muted-foreground border-white/10 bg-muted/20 hover:bg-muted/40"
+                                : "text-muted-foreground border-border bg-muted/20 hover:bg-muted/40"
                         )}
                     >
                         {chip.label}
@@ -865,7 +865,7 @@ export default function TasksPage() {
             <div className="flex-1 overflow-auto pr-2 space-y-3">
                 {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
-                        <div key={i} className="h-20 rounded-2xl border border-white/5 bg-muted/5 animate-pulse" />
+                        <div key={i} className="h-20 rounded-2xl border border-border bg-muted/5 animate-pulse" />
                     ))
                 ) : groupedTasks.length > 0 ? (
                     groupedTasks.map((group) => (
@@ -883,7 +883,7 @@ export default function TasksPage() {
 
                                 return (
                                     <Card key={task.id} className={cn(
-                                        "border-white/5 bg-card/40 backdrop-blur-md hover:bg-card/60 active:bg-card/70 transition-all group overflow-hidden touch-manipulation",
+                                        "border-border bg-card/40 backdrop-blur-md hover:bg-card/60 active:bg-card/70 transition-all group overflow-hidden touch-manipulation",
                                         task.completed && "opacity-60",
                                         isBlocked && "border-amber-500/20"
                                     )}>
@@ -894,7 +894,7 @@ export default function TasksPage() {
                                                         <Checkbox
                                                             checked={selectedTaskIds.has(task.id)}
                                                             onCheckedChange={() => toggleSelectTask(task.id)}
-                                                            className="h-4 w-4 rounded border-white/10 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+                                                            className="h-4 w-4 rounded border-border data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
                                                             aria-label={`Select ${task.title}`}
                                                         />
                                                     </div>
@@ -902,7 +902,7 @@ export default function TasksPage() {
                                                         checked={task.completed}
                                                         onCheckedChange={() => handleToggleTask(task.id, task.completed)}
                                                         className={cn(
-                                                            "h-5 w-5 rounded-lg border-white/20 data-[state=checked]:bg-primary data-[state=checked]:border-primary transition-all",
+                                                            "h-5 w-5 rounded-lg border-border data-[state=checked]:bg-primary data-[state=checked]:border-primary transition-all",
                                                             isBlocked && "border-amber-500/40"
                                                         )}
                                                     />
@@ -968,7 +968,7 @@ export default function TasksPage() {
                                                     </Button>
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg transition-colors border border-transparent hover:border-white/5">
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg transition-colors border border-transparent hover:border-border">
                                                                 <MoreHorizontal className="h-4 w-4" />
                                                             </Button>
                                                         </DropdownMenuTrigger>
@@ -1170,7 +1170,7 @@ export default function TasksPage() {
                             </div>
                         ) : (
                             comments.map(comment => (
-                                <div key={comment.id} className="flex gap-3 p-3 rounded-xl bg-muted/10 border border-white/5">
+                                <div key={comment.id} className="flex gap-3 p-3 rounded-xl bg-muted/10 border border-border">
                                     <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-xs font-black text-primary">
                                         {comment.userName.charAt(0).toUpperCase()}
                                     </div>
@@ -1188,7 +1188,7 @@ export default function TasksPage() {
                         )}
                     </div>
 
-                    <div className="border-t border-white/10 pt-4 mt-4 flex gap-2">
+                    <div className="border-t border-border pt-4 mt-4 flex gap-2">
                         <Textarea
                             placeholder="Write a comment..."
                             value={newComment}
@@ -1321,7 +1321,7 @@ function TemplateDialog({
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { onClose(); setIsCreating(false); } }}>
-            <DialogContent className="sm:max-w-[600px] border-white/10 bg-background/95 backdrop-blur-xl max-h-[85vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-[600px] border-border bg-background/95 backdrop-blur-xl max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <LayoutTemplate className="h-5 w-5 text-primary" />
@@ -1350,7 +1350,7 @@ function TemplateDialog({
                             </div>
                             <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                                 {templateTasks.map((task, index) => (
-                                    <div key={index} className="flex items-start gap-2 p-3 rounded-xl bg-muted/10 border border-white/5">
+                                    <div key={index} className="flex items-start gap-2 p-3 rounded-xl bg-muted/10 border border-border">
                                         <div className="flex-1 space-y-2">
                                             <Input
                                                 value={task.title}
@@ -1416,7 +1416,7 @@ function TemplateDialog({
                                     <div className="space-y-2">
                                         <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Saved Templates</h3>
                                         {templates.map(template => (
-                                            <div key={template.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/10 border border-white/5 hover:bg-muted/20 transition-all group">
+                                            <div key={template.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/10 border border-border hover:bg-muted/20 transition-all group">
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-sm font-bold truncate">{template.name}</p>
                                                     <p className="text-[10px] text-muted-foreground">{template.tasks.length} tasks</p>
@@ -1442,7 +1442,7 @@ function TemplateDialog({
                                     <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Quick-Start Templates</h3>
                                     <p className="text-xs text-muted-foreground">Click to save these as your own templates.</p>
                                     {DEFAULT_TEMPLATES.map((template, index) => (
-                                        <div key={index} className="flex items-center gap-3 p-3 rounded-xl bg-muted/5 border border-white/5 border-dashed hover:bg-muted/10 hover:border-white/10 transition-all cursor-pointer" onClick={() => handleCreateDefault(template)}>
+                                        <div key={index} className="flex items-center gap-3 p-3 rounded-xl bg-muted/5 border border-border border-dashed hover:bg-muted/10 hover:border-border transition-all cursor-pointer" onClick={() => handleCreateDefault(template)}>
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-bold truncate">{template.name}</p>
                                                 <p className="text-[10px] text-muted-foreground">{template.tasks.length} tasks</p>

@@ -247,21 +247,21 @@ export default function CommunicationsPage() {
             return (
                 <div className="flex flex-col h-full bg-background">
                     {/* Thread header */}
-                    <div className="px-3 py-2.5 border-b border-white/5 flex items-center gap-3 shrink-0">
+                    <div className="px-3 py-2.5 border-b border-border flex items-center gap-3 shrink-0">
                         <button
-                            className="p-1.5 rounded-lg hover:bg-white/5 touch-manipulation"
+                            className="p-1.5 rounded-lg hover:bg-muted touch-manipulation"
                             onClick={() => setSelectedContactId(null)}
                         >
-                            <ArrowLeft className="h-5 w-5 text-zinc-400" />
+                            <ArrowLeft className="h-5 w-5 text-muted-foreground" />
                         </button>
                         <Avatar className="h-8 w-8 shrink-0">
-                            <AvatarFallback className="bg-gradient-to-br from-zinc-700 to-zinc-900 text-white text-xs font-medium">
+                            <AvatarFallback className="bg-gradient-to-br from-muted to-muted/80 text-muted-foreground text-xs font-medium">
                                 {contact?.name?.charAt(0)}
                             </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-white truncate">{contact?.name}</p>
-                            <p className="text-[10px] text-zinc-500 truncate">{contact?.email}</p>
+                            <p className="text-sm font-semibold text-foreground truncate">{contact?.name}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">{contact?.email}</p>
                         </div>
                     </div>
 
@@ -273,9 +273,9 @@ export default function CommunicationsPage() {
                             </div>
                         ) : filteredMessages.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-16 text-center">
-                                <MessageSquare className="h-10 w-10 text-zinc-700 mb-3" />
-                                <p className="text-sm font-medium text-zinc-400">No messages yet</p>
-                                <p className="text-xs text-zinc-600 mt-1">Send the first message below</p>
+                                <MessageSquare className="h-10 w-10 text-muted-foreground/50 mb-3" />
+                                <p className="text-sm font-medium text-muted-foreground">No messages yet</p>
+                                <p className="text-xs text-muted-foreground mt-1">Send the first message below</p>
                             </div>
                         ) : filteredMessages.map((msg: any) => {
                             const isOutbound = msg.direction === "outbound" || msg.direction === "OUTBOUND"
@@ -284,13 +284,13 @@ export default function CommunicationsPage() {
                             return (
                                 <div key={msg.id} className={`flex ${isOutbound ? "justify-end" : "justify-start"}`}>
                                     <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 space-y-1 ${
-                                        isCancelled ? "bg-zinc-800/50 opacity-60" :
+                                        isCancelled ? "bg-muted/50 opacity-60" :
                                         isScheduled ? "bg-amber-500/10 border border-amber-500/20" :
                                         isOutbound ? "bg-primary text-primary-foreground rounded-br-md" :
-                                        "bg-zinc-800 rounded-bl-md"
+                                        "bg-muted rounded-bl-md"
                                     }`}>
                                         <div className="flex items-center gap-1.5 flex-wrap">
-                                            <Badge variant="outline" className={`text-[9px] px-1 py-0 gap-0.5 border-white/10 ${isOutbound && !isScheduled && !isCancelled ? "text-primary-foreground/70" : "text-zinc-400"}`}>
+                                            <Badge variant="outline" className={`text-[9px] px-1 py-0 gap-0.5 border-border ${isOutbound && !isScheduled && !isCancelled ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
                                                 {typeIcon(msg.type)}
                                                 {msg.type}
                                             </Badge>
@@ -302,7 +302,7 @@ export default function CommunicationsPage() {
                                         </div>
                                         <p className={`text-sm leading-relaxed ${isCancelled ? "line-through" : ""}`}>{msg.content}</p>
                                         <div className="flex items-center justify-between">
-                                            <p className={`text-[10px] ${isOutbound && !isScheduled && !isCancelled ? "text-primary-foreground/50" : "text-zinc-500"}`}>
+                                            <p className={`text-[10px] ${isOutbound && !isScheduled && !isCancelled ? "text-primary-foreground/50" : "text-muted-foreground"}`}>
                                                 {formatTime(msg.createdAt)}
                                             </p>
                                             {isScheduled && (
@@ -317,12 +317,12 @@ export default function CommunicationsPage() {
                     </div>
 
                     {/* Compose */}
-                    <div className="px-3 py-2.5 pb-4 border-t border-white/5 bg-zinc-900/80 backdrop-blur-sm shrink-0">
+                    <div className="px-3 py-2.5 pb-4 border-t border-border bg-background/95 backdrop-blur-sm shrink-0">
                         {replyToMessage && (
                             <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-lg bg-primary/5 border border-primary/10">
                                 <Reply className="h-3 w-3 text-primary shrink-0" />
-                                <p className="text-xs text-zinc-400 truncate flex-1">Replying to: {replyToMessage.content?.substring(0, 60)}</p>
-                                <button onClick={() => setReplyToMessage(null)}><X className="h-3 w-3 text-zinc-500" /></button>
+                                <p className="text-xs text-muted-foreground truncate flex-1">Replying to: {replyToMessage.content?.substring(0, 60)}</p>
+                                <button onClick={() => setReplyToMessage(null)}><X className="h-3 w-3 text-muted-foreground" /></button>
                             </div>
                         )}
                         <div className="flex items-center gap-1.5 mb-2">
@@ -330,7 +330,7 @@ export default function CommunicationsPage() {
                                 <button
                                     key={t}
                                     onClick={() => setMessageType(t)}
-                                    className={`px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider transition-colors border touch-manipulation ${messageType === t ? `${typeColor(t)} border-current` : "text-zinc-500 border-transparent"}`}
+                                    className={`px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider transition-colors border touch-manipulation ${messageType === t ? `${typeColor(t)} border-current` : "text-muted-foreground border-transparent"}`}
                                 >
                                     {t}
                                 </button>
@@ -344,7 +344,7 @@ export default function CommunicationsPage() {
                                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                                 placeholder="Type your message..."
                                 rows={1}
-                                className="flex-1 min-w-0 resize-none rounded-xl border border-white/10 bg-zinc-800 px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-primary min-h-[44px]"
+                                className="flex-1 min-w-0 resize-none rounded-xl border border-border bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary min-h-[44px]"
                             />
                             <Button
                                 onClick={handleSend}
@@ -363,37 +363,37 @@ export default function CommunicationsPage() {
         if (showNewConvo) {
             return (
                 <div className="flex flex-col h-full bg-background">
-                    <div className="px-3 py-2.5 border-b border-white/5 flex items-center gap-3 shrink-0">
-                        <button className="p-1.5 rounded-lg hover:bg-white/5 touch-manipulation" onClick={() => setShowNewConvo(false)}>
-                            <ArrowLeft className="h-5 w-5 text-zinc-400" />
+                    <div className="px-3 py-2.5 border-b border-border flex items-center gap-3 shrink-0">
+                        <button className="p-1.5 rounded-lg hover:bg-muted touch-manipulation" onClick={() => setShowNewConvo(false)}>
+                            <ArrowLeft className="h-5 w-5 text-muted-foreground" />
                         </button>
-                        <span className="text-sm font-semibold text-white">New Conversation</span>
+                        <span className="text-sm font-semibold text-foreground">New Conversation</span>
                     </div>
                     <div className="p-3">
                         <div className="relative">
-                            <Search className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
+                            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                             <Input
                                 placeholder="Search contacts..."
                                 value={contactSearch}
                                 onChange={(e) => setContactSearch(e.target.value)}
-                                className="pl-9 bg-zinc-900 border-white/10 text-white min-h-[44px]"
+                                className="pl-9 bg-input border-border text-foreground min-h-[44px]"
                                 autoFocus
                             />
                         </div>
                     </div>
-                    <div className="flex-1 overflow-y-auto pb-24">
+                    <div className="flex-1 overflow-y-auto pb-28">
                         {filteredContacts.map(c => (
                             <button
                                 key={c.id}
                                 onClick={() => selectNewContact(c.id)}
-                                className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/5 active:bg-white/10 transition-colors touch-manipulation"
+                                className="flex items-center gap-3 w-full px-4 py-3 hover:bg-muted active:bg-white/10 transition-colors touch-manipulation"
                             >
                                 <Avatar className="h-10 w-10">
-                                    <AvatarFallback className="bg-gradient-to-br from-zinc-700 to-zinc-900 text-white text-xs">{c.name?.charAt(0)}</AvatarFallback>
+                                    <AvatarFallback className="bg-gradient-to-br from-muted to-muted/80 text-muted-foreground text-xs">{c.name?.charAt(0)}</AvatarFallback>
                                 </Avatar>
                                 <div className="text-left min-w-0">
-                                    <p className="text-sm font-medium text-white truncate">{c.name}</p>
-                                    <p className="text-xs text-zinc-500 truncate">{c.email}</p>
+                                    <p className="text-sm font-medium text-foreground truncate">{c.name}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{c.email}</p>
                                 </div>
                             </button>
                         ))}
@@ -406,15 +406,15 @@ export default function CommunicationsPage() {
         return (
             <div className="flex flex-col h-full bg-background">
                 {/* Search & filters */}
-                <div className="px-4 pt-3 pb-2 space-y-2 border-b border-white/5">
+                <div className="px-4 pt-3 pb-2 space-y-2 border-b border-border">
                     <div className="flex items-center gap-2">
                         <div className="relative flex-1">
-                            <Search className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
+                            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                             <Input
                                 placeholder="Search conversations..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="pl-9 bg-zinc-900 border-white/10 text-white min-h-[44px]"
+                                className="pl-9 bg-input border-border text-foreground min-h-[44px]"
                             />
                         </div>
                         <button
@@ -435,7 +435,7 @@ export default function CommunicationsPage() {
                                 key={f.value}
                                 onClick={() => setTypeFilter(f.value)}
                                 className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors touch-manipulation ${typeFilter === f.value
-                                    ? "bg-primary text-primary-foreground" : "bg-zinc-900 text-zinc-500 hover:text-zinc-300"
+                                    ? "bg-primary text-primary-foreground" : "bg-input text-muted-foreground hover:text-foreground"
                                 }`}
                             >
                                 {f.label}
@@ -445,16 +445,16 @@ export default function CommunicationsPage() {
                 </div>
 
                 {/* Conversation list */}
-                <div className="flex-1 overflow-y-auto pb-24">
+                <div className="flex-1 overflow-y-auto pb-28">
                     {isLoading ? (
                         <div className="flex items-center justify-center py-12">
                             <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                         </div>
                     ) : filteredConversations.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-16 text-center">
-                            <MessageSquare className="h-10 w-10 text-zinc-700 mb-3" />
-                            <p className="text-sm font-medium text-zinc-400">No conversations</p>
-                            <p className="text-xs text-zinc-600 mt-1">Start a new conversation</p>
+                            <MessageSquare className="h-10 w-10 text-muted-foreground/50 mb-3" />
+                            <p className="text-sm font-medium text-muted-foreground">No conversations</p>
+                            <p className="text-xs text-muted-foreground mt-1">Start a new conversation</p>
                         </div>
                     ) : filteredConversations.map(convo => {
                         const needsAttention = convo.lastMessageDirection === "inbound"
@@ -462,30 +462,30 @@ export default function CommunicationsPage() {
                             <button
                                 key={convo.contactId}
                                 onClick={() => openThread(convo.contactId)}
-                                className="flex items-start gap-3 w-full px-4 py-3 border-b border-white/5 hover:bg-white/[0.03] active:bg-white/[0.06] transition-colors text-left touch-manipulation"
+                                className="flex items-start gap-3 w-full px-4 py-3 border-b border-border hover:bg-white/[0.03] active:bg-white/[0.06] transition-colors text-left touch-manipulation"
                             >
                                 <div className="relative">
                                     <Avatar className="h-11 w-11">
-                                        <AvatarFallback className="bg-gradient-to-br from-zinc-700 to-zinc-900 text-white text-sm font-medium">
+                                        <AvatarFallback className="bg-gradient-to-br from-muted to-muted/80 text-muted-foreground text-sm font-medium">
                                             {convo.contactName?.charAt(0)}
                                         </AvatarFallback>
                                     </Avatar>
                                     {needsAttention && (
-                                        <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-blue-500 border-2 border-zinc-950" />
+                                        <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-blue-500 border-2 border-background" />
                                     )}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center justify-between mb-0.5">
-                                        <span className={`text-sm truncate ${needsAttention ? "font-bold text-white" : "font-medium text-zinc-300"}`}>{convo.contactName}</span>
-                                        <span className="text-[10px] text-zinc-600 shrink-0 ml-2">{formatTime(convo.lastMessageTime)}</span>
+                                        <span className={`text-sm truncate ${needsAttention ? "font-bold text-foreground" : "font-medium text-foreground"}`}>{convo.contactName}</span>
+                                        <span className="text-[10px] text-muted-foreground shrink-0 ml-2">{formatTime(convo.lastMessageTime)}</span>
                                     </div>
                                     <div className="flex items-center gap-1.5 mb-1">
-                                        <Badge variant="outline" className={`text-[9px] px-1.5 py-0 gap-0.5 border-white/10 ${typeColor(convo.lastMessageType)}`}>
+                                        <Badge variant="outline" className={`text-[9px] px-1.5 py-0 gap-0.5 border-border ${typeColor(convo.lastMessageType)}`}>
                                             {typeIcon(convo.lastMessageType)}
                                             {convo.lastMessageType}
                                         </Badge>
                                     </div>
-                                    <p className="text-xs text-zinc-500 truncate">{convo.lastMessage}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{convo.lastMessage}</p>
                                 </div>
                             </button>
                         )
@@ -629,7 +629,7 @@ export default function CommunicationsPage() {
                                     <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 mt-4" />
                                 )}
                                 <Avatar className={`h-10 w-10 shrink-0 mt-0.5 ${needsAttention ? "-ml-1" : ""}`}>
-                                    <AvatarFallback className="bg-gradient-to-br from-slate-700 to-slate-900 text-white text-xs font-medium">
+                                    <AvatarFallback className="bg-gradient-to-br from-slate-700 to-slate-900 text-foreground text-xs font-medium">
                                         {convo.contactName?.charAt(0)}
                                     </AvatarFallback>
                                 </Avatar>
@@ -686,7 +686,7 @@ export default function CommunicationsPage() {
                                         <ArrowLeft className="h-4 w-4" />
                                     </Button>
                                     <Avatar className="h-8 w-8 sm:h-10 sm:w-10 shrink-0">
-                                        <AvatarFallback className="bg-gradient-to-br from-slate-700 to-slate-900 text-white text-xs sm:text-sm font-medium">
+                                        <AvatarFallback className="bg-gradient-to-br from-slate-700 to-slate-900 text-foreground text-xs sm:text-sm font-medium">
                                             {contact?.name?.charAt(0)}
                                         </AvatarFallback>
                                     </Avatar>
@@ -815,7 +815,7 @@ export default function CommunicationsPage() {
                                                                         Opened{tracking.openCount > 1 ? ` (${tracking.openCount})` : ""}
                                                                     </Badge>
                                                                 ) : (
-                                                                    <Badge variant="outline" className="text-[9px] px-1 py-0 gap-0.5 border-white/10 text-primary-foreground/40">
+                                                                    <Badge variant="outline" className="text-[9px] px-1 py-0 gap-0.5 border-border text-primary-foreground/40">
                                                                         <Eye className="h-2.5 w-2.5" />
                                                                         Not opened
                                                                     </Badge>

@@ -787,10 +787,10 @@ function PipelineContent() {
                 {/* Search */}
                 <div className="px-4 pt-3 pb-2">
                     <div className="relative">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                         <input
                             placeholder="Search deals..."
-                            className="w-full h-9 pl-9 pr-3 rounded-xl bg-zinc-900 border border-white/5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                            className="w-full h-9 pl-9 pr-3 rounded-xl bg-input border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
                             value={pipelineSearch}
                             onChange={(e) => setPipelineSearch(e.target.value)}
                         />
@@ -808,7 +808,7 @@ function PipelineContent() {
                                 key={name}
                                 onClick={() => setMobileSelectedStage(name)}
                                 className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold touch-manipulation transition-colors ${
-                                    isActive ? "bg-primary text-primary-foreground" : "bg-zinc-900 text-zinc-400 border border-white/5"
+                                    isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground border border-border"
                                 }`}
                             >
                                 {name}
@@ -819,23 +819,23 @@ function PipelineContent() {
                 </div>
 
                 {/* Deal cards */}
-                <div className="flex-1 overflow-y-auto px-4 pb-24 space-y-2">
+                <div className="flex-1 overflow-y-auto px-4 pb-28 space-y-2">
                     {isLoading ? (
                         <div className="space-y-3 pt-4">
                             {[1,2,3,4].map(i => (
                                 <div key={i} className="mobile-card p-4 space-y-3 animate-pulse">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-zinc-800" />
+                                        <div className="w-10 h-10 rounded-full bg-muted" />
                                         <div className="space-y-2 flex-1">
-                                            <div className="h-4 w-32 bg-zinc-800 rounded" />
-                                            <div className="h-3 w-24 bg-zinc-800 rounded" />
+                                            <div className="h-4 w-32 bg-muted rounded" />
+                                            <div className="h-3 w-24 bg-muted rounded" />
                                         </div>
                                     </div>
                                 </div>
                             ))}
                         </div>
                     ) : mobileStageDeals.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-40 text-zinc-500 text-sm">
+                        <div className="flex flex-col items-center justify-center h-40 text-muted-foreground text-sm">
                             No deals in this stage
                         </div>
                     ) : (
@@ -865,14 +865,14 @@ function PipelineContent() {
                                     className={`w-full mobile-card p-3.5 flex items-center gap-3 touch-manipulation text-left border-l-2 ${getAgingInfo(deal).bgClass} ${deal.unread ? "ring-1 ring-primary/50 shadow-[0_0_8px_rgba(59,130,246,0.3)]" : ""}`}
                                     onClick={() => openDeal(deal)}
                                 >
-                                    <Avatar className="h-10 w-10 border-2 border-zinc-800 shrink-0">
-                                        <AvatarFallback className="bg-gradient-to-br from-zinc-700 to-zinc-900 text-white text-xs font-medium">
+                                    <Avatar className="h-10 w-10 border-2 border-border shrink-0">
+                                        <AvatarFallback className="bg-gradient-to-br from-muted to-muted/80 text-muted-foreground text-xs font-medium">
                                             {(deal.name || "?").slice(0, 2).toUpperCase()}
                                         </AvatarFallback>
                                     </Avatar>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
-                                            <span className="text-sm font-semibold text-white truncate">{deal.name}</span>
+                                            <span className="text-sm font-semibold text-foreground truncate">{deal.name}</span>
                                             {deal.unread && (
                                                 <span className="shrink-0 text-[9px] font-bold bg-primary text-primary-foreground px-1.5 py-0 rounded animate-pulse">New</span>
                                             )}
@@ -893,11 +893,11 @@ function PipelineContent() {
                                                 </span>
                                             )}
                                             {deal.value > 0 && (
-                                                <span className="font-mono font-semibold text-zinc-400">${deal.value.toLocaleString()}</span>
+                                                <span className="font-mono font-semibold text-muted-foreground">${deal.value.toLocaleString()}</span>
                                             )}
                                         </div>
                                     </div>
-                                    <ChevronRight className="h-4 w-4 text-zinc-600 shrink-0" />
+                                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                                 </button>
                             </SwipeableCard>
                         ))

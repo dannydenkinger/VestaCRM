@@ -82,7 +82,7 @@ const DealCard = React.memo(function DealCard({
             <div className="flex items-start justify-between pl-1">
                 <div className="flex items-center gap-3">
                     <Avatar className="h-9 w-9 border-2 border-background shadow-sm shrink-0">
-                        <AvatarFallback className="bg-gradient-to-br from-slate-700 to-slate-900 text-white text-xs font-medium">{deal.name.charAt(6)}</AvatarFallback>
+                        <AvatarFallback className="bg-gradient-to-br from-muted to-muted/80 text-muted-foreground text-xs font-medium">{deal.name.charAt(6)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -280,7 +280,7 @@ const MobileDealCard = React.memo(function MobileDealCard({
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 min-w-0">
                     <Avatar className="h-10 w-10 border-2 border-background shadow-sm shrink-0">
-                        <AvatarFallback className="bg-gradient-to-br from-slate-700 to-slate-900 text-white text-xs font-medium">{(deal.name || "?").slice(0, 2).toUpperCase()}</AvatarFallback>
+                        <AvatarFallback className="bg-gradient-to-br from-muted to-muted/80 text-muted-foreground text-xs font-medium">{(deal.name || "?").slice(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
                         <div className="flex items-center gap-2">
