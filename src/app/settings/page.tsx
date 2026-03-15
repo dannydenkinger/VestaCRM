@@ -87,7 +87,7 @@ export default async function SettingsPage() {
 
     return (
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-            <div className="p-4 sm:p-6 lg:p-8 pt-4 sm:pt-6 pb-24 md:pb-8 max-w-full">
+            <div className="p-4 sm:p-6 lg:p-8 pt-4 sm:pt-6 pb-28 md:pb-8 max-w-full">
                 <div className="mb-6 sm:mb-8">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div>
