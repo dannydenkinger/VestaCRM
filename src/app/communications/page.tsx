@@ -245,7 +245,7 @@ export default function CommunicationsPage() {
         if (selectedContactId) {
             const filteredMessages = messages.filter(m => !threadSearch || m.content?.toLowerCase().includes(threadSearch.toLowerCase()))
             return (
-                <div className="flex flex-col h-full bg-zinc-950">
+                <div className="flex flex-col h-full bg-background">
                     {/* Thread header */}
                     <div className="px-3 py-2.5 border-b border-white/5 flex items-center gap-3 shrink-0">
                         <button
@@ -362,7 +362,7 @@ export default function CommunicationsPage() {
         // New conversation picker
         if (showNewConvo) {
             return (
-                <div className="flex flex-col h-full bg-zinc-950">
+                <div className="flex flex-col h-full bg-background">
                     <div className="px-3 py-2.5 border-b border-white/5 flex items-center gap-3 shrink-0">
                         <button className="p-1.5 rounded-lg hover:bg-white/5 touch-manipulation" onClick={() => setShowNewConvo(false)}>
                             <ArrowLeft className="h-5 w-5 text-zinc-400" />
@@ -404,7 +404,7 @@ export default function CommunicationsPage() {
 
         // Conversation list
         return (
-            <div className="flex flex-col h-full bg-zinc-950">
+            <div className="flex flex-col h-full bg-background">
                 {/* Search & filters */}
                 <div className="px-4 pt-3 pb-2 space-y-2 border-b border-white/5">
                     <div className="flex items-center gap-2">

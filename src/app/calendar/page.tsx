@@ -156,7 +156,7 @@ export default function CalendarPage() {
         const todayEvents = getEventsForDay(currentDate).sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
 
         return (
-            <div className="flex flex-col h-full bg-zinc-950">
+            <div className="flex flex-col h-full bg-background">
                 {/* Header */}
                 <div className="px-4 pt-3 pb-2 border-b border-white/5">
                     <div className="flex items-center justify-between mb-3">

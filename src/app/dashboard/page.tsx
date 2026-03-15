@@ -108,7 +108,7 @@ function MobileDashboard({
     ]
 
     return (
-        <div className="relative min-h-full bg-zinc-950 overflow-x-hidden">
+        <div className="relative min-h-full bg-background overflow-x-hidden">
             {/* Pull-to-refresh indicator */}
             {pullDistance > 0 && (
                 <div className="pull-indicator flex items-center justify-center" style={{ height: pullDistance }}>

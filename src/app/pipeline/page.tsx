@@ -783,7 +783,7 @@ function PipelineContent() {
         const mobileStageDeals = sortedDeals.filter((d: any) => d.stage === mobileStageName)
 
         return (
-            <div className="flex flex-col h-full min-h-0 bg-zinc-950 overflow-x-hidden">
+            <div className="flex flex-col h-full min-h-0 bg-background overflow-x-hidden">
                 {/* Search */}
                 <div className="px-4 pt-3 pb-2">
                     <div className="relative">

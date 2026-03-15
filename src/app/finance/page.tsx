@@ -62,7 +62,7 @@ export default function FinancePage() {
     // ─── Mobile Layout ──────────────────────────────────────────────
     if (isMobile) {
         return (
-            <div className="flex flex-col h-full bg-zinc-950">
+            <div className="flex flex-col h-full bg-background">
                 <div className="px-4 pt-3 pb-2 border-b border-white/5">
                     {/* Date range pills */}
                     <div className="flex items-center gap-1 mb-3 overflow-x-auto">
