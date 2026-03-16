@@ -19,6 +19,7 @@ import {
     X,
     Sun,
     Moon,
+    FileText,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useHapticFeedback } from "@/hooks/useHapticFeedback"
@@ -40,6 +41,7 @@ const MAIN_TABS: TabItem[] = [
 
 const MORE_ITEMS: TabItem[] = [
     { label: "Calendar", icon: Calendar, href: "/calendar" },
+    { label: "Documents", icon: FileText, href: "/documents" },
     { label: "Messages", icon: MessageSquare, href: "/communications" },
     { label: "Tasks", icon: CheckSquare, href: "/tasks" },
     { label: "Finance", icon: Wallet, href: "/finance" },

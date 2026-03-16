@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { NotificationPanel } from "@/components/NotificationPanel"
 import { Toaster } from "@/components/ui/sonner"
 import { PushNotificationListener } from "@/components/PushNotificationListener"
+import { PushNotificationPrompt } from "@/components/PushNotificationPrompt"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { OfflineIndicator } from "@/components/OfflineIndicator"
 import { KeyboardShortcutsDialog } from "@/components/KeyboardShortcutsDialog"
@@ -71,6 +72,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <NotificationPanel open={notificationPanelOpen} onClose={() => setNotificationPanelOpen(false)} />
                 <Toaster />
                 <PushNotificationListener />
+                <PushNotificationPrompt />
                 <OfflineIndicator />
                 <SessionTimeoutWarning />
             </div>
@@ -118,6 +120,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <NotificationPanel open={notificationPanelOpen} onClose={() => setNotificationPanelOpen(false)} />
             <Toaster />
             <PushNotificationListener />
+            <PushNotificationPrompt />
             <OfflineIndicator />
             <KeyboardShortcutsDialog />
             <SessionTimeoutWarning />

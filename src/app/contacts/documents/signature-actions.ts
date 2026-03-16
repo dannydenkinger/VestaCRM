@@ -83,10 +83,13 @@ export async function getSignatureRequest(token: string) {
                 documentUrl: data.documentUrl,
                 generatedContent: data.generatedContent || "",
                 contactName: data.contactName,
-                contactEmail: data.contactEmail,
+                contactEmail: data.contactEmail || data.recipientEmail || "",
                 status: data.status,
                 requestedAt: data.requestedAt?.toDate ? data.requestedAt.toDate().toISOString() : data.requestedAt,
                 signedAt: data.signedAt?.toDate ? data.signedAt.toDate().toISOString() : data.signedAt,
+                pdfUrl: data.pdfUrl || "",
+                signatureBlocks: data.signatureBlocks || [],
+                allBlocks: data.allBlocks || [],
             },
         }
     } catch (error) {
@@ -123,19 +126,36 @@ export async function submitSignature(token: string, signatureDataUrl: string) {
             signatureUrl: signatureDataUrl,
         })
 
-        // Update the document status
-        if (sigData.contactId && sigData.documentId) {
-            await adminDb
-                .collection("contacts")
-                .doc(sigData.contactId)
-                .collection("documents")
-                .doc(sigData.documentId)
-                .update({
+        // Check if all signature requests for this document are now signed
+        if (sigData.documentId) {
+            const allRequestsQuery = sigData.contactId
+                ? adminDb.collection("signature_requests")
+                    .where("documentId", "==", sigData.documentId)
+                    .where("contactId", "==", sigData.contactId)
+                : adminDb.collection("signature_requests")
+                    .where("documentId", "==", sigData.documentId)
+                    .where("standalone", "==", true)
+
+            const allRequests = await allRequestsQuery.get()
+
+            const allSigned = allRequests.docs.every(d => {
+                const s = d.data().status
+                return s === "signed" || d.id === sigDoc.id
+            })
+
+            if (allSigned) {
+                // Update either standalone doc or contact-attached doc
+                const docRef = sigData.contactId
+                    ? adminDb.collection("contacts").doc(sigData.contactId).collection("documents").doc(sigData.documentId)
+                    : adminDb.collection("documents").doc(sigData.documentId)
+
+                await docRef.update({
                     status: "SIGNED",
                     signedAt: new Date(),
                     signatureUrl: signatureDataUrl,
                     updatedAt: new Date(),
                 })
+            }
         }
 
         // Create a notification for the CRM user who requested the signature
@@ -186,5 +206,125 @@ export async function getSignatureStatus(documentId: string, contactId: string) 
     } catch (error) {
         console.error("Failed to fetch signature status:", error)
         return { success: false, error: "Failed to fetch status" }
+    }
+}
+
+// ── Block-Based Signature Submission ──
+
+export async function submitBlockSignatures(
+    token: string,
+    blockSignatures: { blockId: string; signatureDataUrl: string }[]
+) {
+    try {
+        if (!token || !blockSignatures.length) {
+            return { success: false, error: "Missing required fields" }
+        }
+
+        const snapshot = await adminDb.collection("signature_requests")
+            .where("token", "==", token)
+            .limit(1)
+            .get()
+
+        if (snapshot.empty) return { success: false, error: "Signature request not found" }
+
+        const sigDoc = snapshot.docs[0]
+        const sigData = sigDoc.data()
+
+        if (sigData.status === "signed") {
+            return { success: false, error: "This document has already been signed" }
+        }
+
+        // Update the signature blocks with signed data
+        const updatedBlocks = ((sigData.signatureBlocks || []) as { id: string }[]).map(block => {
+            const sig = blockSignatures.find(s => s.blockId === block.id)
+            if (sig) {
+                return { ...block, signed: true, signatureDataUrl: sig.signatureDataUrl }
+            }
+            return block
+        })
+
+        // Use the first signature as the primary signatureUrl for backward compat
+        const primarySigUrl = blockSignatures[0]?.signatureDataUrl || null
+
+        await sigDoc.ref.update({
+            status: "signed",
+            signedAt: new Date(),
+            signatureUrl: primarySigUrl,
+            signatureBlocks: updatedBlocks,
+        })
+
+        // Check if all signature requests for this document are now signed
+        if (sigData.documentId) {
+            const configId = sigData.configId
+            let allRequestsQuery
+
+            if (configId) {
+                allRequestsQuery = adminDb.collection("signature_requests")
+                    .where("configId", "==", configId)
+            } else if (sigData.contactId) {
+                allRequestsQuery = adminDb.collection("signature_requests")
+                    .where("documentId", "==", sigData.documentId)
+                    .where("contactId", "==", sigData.contactId)
+            } else {
+                allRequestsQuery = adminDb.collection("signature_requests")
+                    .where("documentId", "==", sigData.documentId)
+                    .where("standalone", "==", true)
+            }
+
+            const allRequests = await allRequestsQuery.get()
+            const allSigned = allRequests.docs.every(d => {
+                const s = d.data().status
+                return s === "signed" || d.id === sigDoc.id
+            })
+
+            if (allSigned) {
+                const docRef = sigData.contactId
+                    ? adminDb.collection("contacts").doc(sigData.contactId).collection("documents").doc(sigData.documentId)
+                    : adminDb.collection("documents").doc(sigData.documentId)
+
+                await docRef.update({
+                    status: "SIGNED",
+                    signedAt: new Date(),
+                    updatedAt: new Date(),
+                })
+
+                // Trigger signed PDF generation if there's a configId
+                if (configId) {
+                    const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "https://app.afcrashpad.com"
+                    try {
+                        await fetch(`${baseUrl}/api/documents/generate-signed-pdf`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                configId,
+                                documentId: sigData.documentId,
+                                contactId: sigData.contactId || "",
+                            }),
+                        })
+                    } catch (err) {
+                        console.error("Failed to trigger PDF generation:", err)
+                    }
+                }
+            }
+        }
+
+        // Create notification
+        try {
+            await adminDb.collection("notifications").add({
+                title: "Document Signed",
+                message: `${sigData.contactName || sigData.recipientEmail || "A signer"} signed "${sigData.documentName || "a document"}"`,
+                type: "document_signed",
+                linkUrl: `/documents`,
+                read: false,
+                createdAt: new Date(),
+            })
+        } catch {
+            // Non-critical
+        }
+
+        return { success: true }
+    } catch (error) {
+        console.error("Failed to submit block signatures:", error)
+        return { success: false, error: "Failed to submit signatures" }
     }
 }

@@ -303,6 +303,43 @@ export async function removeFcmToken(token: string) {
     return { success: true }
 }
 
+export async function getPushNotificationStatus(): Promise<{
+    pushEnabled: boolean
+    pushPromptDismissed: boolean
+}> {
+    const session = await auth()
+    if (!session?.user?.email) return { pushEnabled: false, pushPromptDismissed: false }
+
+    try {
+        const usersSnap = await adminDb.collection('users').where('email', '==', session.user.email).limit(1).get()
+        if (usersSnap.empty) return { pushEnabled: false, pushPromptDismissed: false }
+
+        const userData = usersSnap.docs[0].data()
+        return {
+            pushEnabled: userData.notificationPreferences?.pushEnabled === true || (userData.fcmTokens?.length || 0) > 0,
+            pushPromptDismissed: userData.pushPromptDismissed === true,
+        }
+    } catch {
+        return { pushEnabled: false, pushPromptDismissed: false }
+    }
+}
+
+export async function dismissPushPrompt() {
+    const session = await auth()
+    if (!session?.user?.email) return
+
+    try {
+        const usersSnap = await adminDb.collection('users').where('email', '==', session.user.email).limit(1).get()
+        if (!usersSnap.empty) {
+            await adminDb.collection('users').doc(usersSnap.docs[0].id).update({
+                pushPromptDismissed: true,
+            })
+        }
+    } catch {
+        // Non-critical
+    }
+}
+
 export async function createUser(data: { name: string, email: string, role: string }) {
     const parsed = createUserSchema.safeParse(data)
     if (!parsed.success) return { success: false, error: "Invalid input" }

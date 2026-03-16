@@ -32,6 +32,7 @@ export const PAGE_PERMISSIONS: PagePermission[] = [
     { path: "/pipeline", allowedRoles: ["OWNER", "ADMIN", "AGENT"] },
     { path: "/contacts", allowedRoles: ["OWNER", "ADMIN", "AGENT"] },
     { path: "/calendar", allowedRoles: ["OWNER", "ADMIN", "AGENT"] },
+    { path: "/documents", allowedRoles: ["OWNER", "ADMIN", "AGENT"] },
     { path: "/communications", allowedRoles: ["OWNER", "ADMIN", "AGENT"] },
     { path: "/tasks", allowedRoles: ["OWNER", "ADMIN", "AGENT"] },
     { path: "/tools", allowedRoles: ["OWNER", "ADMIN", "AGENT"] },

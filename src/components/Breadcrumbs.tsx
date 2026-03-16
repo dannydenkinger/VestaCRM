@@ -9,6 +9,7 @@ const labels: Record<string, string> = {
     pipeline: "Pipeline",
     contacts: "Contacts",
     calendar: "Calendar",
+    documents: "Documents",
     communications: "Communications",
     notifications: "Notifications",
     finance: "Finance",

@@ -16,6 +16,7 @@ import {
     CheckCircle2,
     Clock,
     Upload,
+    FilePen,
     FolderPlus,
     FolderOpen,
     MoveRight,
@@ -135,7 +136,7 @@ export function DocumentManager({ contactId }: { contactId: string }) {
     }
 
     const toggleStatus = async (doc: Document) => {
-        const nextStatus = doc.status === "LINK" ? "PENDING" : doc.status === "PENDING" ? "SIGNED" : "LINK"
+        const nextStatus = doc.status === "DRAFT" ? "LINK" : doc.status === "LINK" ? "PENDING" : doc.status === "PENDING" ? "SIGNED" : "DRAFT"
         const res = await updateDocumentStatus(contactId, doc.id, nextStatus)
         if (res.success) fetchDocs()
     }
@@ -162,6 +163,7 @@ export function DocumentManager({ contactId }: { contactId: string }) {
         switch (status) {
             case "SIGNED": return <CheckCircle2 className="h-4 w-4 text-emerald-500" />
             case "PENDING": return <Clock className="h-4 w-4 text-amber-500" />
+            case "DRAFT": return <FilePen className="h-4 w-4 text-gray-500" />
             default: return <LinkIcon className="h-4 w-4 text-blue-500" />
         }
     }
@@ -170,7 +172,8 @@ export function DocumentManager({ contactId }: { contactId: string }) {
         switch (status) {
             case "SIGNED": return "Signed"
             case "PENDING": return "Pending Signature"
-            default: return "Link"
+            case "DRAFT": return "Draft"
+            default: return "Uploaded"
         }
     }
 

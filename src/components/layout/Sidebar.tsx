@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import NextImage from "next/image"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Users, Calendar, Settings, Plane, ChevronLeft, ChevronRight, Megaphone, LayoutGrid, Wrench, MessageSquare, X, Wallet, LogOut, CheckSquare } from "lucide-react"
+import { LayoutDashboard, Users, Calendar, Settings, Plane, ChevronLeft, ChevronRight, Megaphone, LayoutGrid, Wrench, MessageSquare, X, Wallet, LogOut, CheckSquare, FileText } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useSession, signOut } from "next-auth/react"
@@ -24,6 +24,7 @@ const navItems: NavItem[] = [
     { name: "Contacts", href: "/contacts", icon: Users },
     { separator: "Activity" },
     { name: "Calendar", href: "/calendar", icon: Calendar },
+    { name: "Documents", href: "/documents", icon: FileText },
     { name: "Communications", href: "/communications", icon: MessageSquare },
     { name: "Tasks", href: "/tasks", icon: CheckSquare },
     { separator: "Finance & Growth" },
