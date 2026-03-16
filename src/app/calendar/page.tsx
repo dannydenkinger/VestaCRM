@@ -171,10 +171,10 @@ export default function CalendarPage() {
                                 Today
                             </button>
                             <button
-                                className="h-8 w-8 flex items-center justify-center rounded-full bg-primary text-primary-foreground"
+                                className="h-10 w-10 flex items-center justify-center rounded-full bg-primary text-primary-foreground touch-manipulation active:scale-95 transition-transform"
                                 onClick={() => { setClickedDate(null); setIsCreateDialogOpen(true); }}
                             >
-                                <Plus className="h-4 w-4" />
+                                <Plus className="h-5 w-5" />
                             </button>
                         </div>
                     </div>
@@ -566,7 +566,7 @@ export default function CalendarPage() {
                         <div className="space-y-3">
                             {events.filter(e => e.source === "TASK" && !isSameDay(new Date(e.start), new Date())).slice(0, 3).map(task => (
                                 <div key={task.id} className="group flex items-start gap-3 p-3 rounded-xl bg-muted/50 border border-border hover:border-border hover:bg-muted transition-all cursor-pointer">
-                                    <div className="mt-0.5 h-4 w-4 rounded border border-white/20 flex items-center justify-center group-hover:border-primary/50 transition-colors">
+                                    <div className="mt-0.5 h-4 w-4 rounded border border-border flex items-center justify-center group-hover:border-primary/50 transition-colors">
                                         <div className="h-2 w-2 rounded-sm bg-primary opacity-0 group-hover:opacity-20 transition-opacity" />
                                     </div>
                                     <div className="flex-1 min-w-0">

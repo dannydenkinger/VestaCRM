@@ -117,7 +117,7 @@ function MobileDashboard({
                         <div className="pull-spinner" />
                     ) : (
                         <div
-                            className="w-5 h-5 border-2 border-foreground/20 border-t-foreground/60 rounded-full"
+                            className="w-5 h-5 border-2 border-muted-foreground/30 border-t-muted-foreground/80 rounded-full"
                             style={{ transform: `rotate(${pullDistance * 3}deg)`, opacity: Math.min(pullDistance / 60, 1) }}
                         />
                     )}
@@ -509,7 +509,7 @@ export default function DashboardPage() {
                 <SetupChecklist />
 
                 <Tabs defaultValue="overview" className="space-y-6">
-                    <TabsList className="bg-muted/30 border border-white/5 flex-wrap h-auto gap-0.5 p-1">
+                    <TabsList className="bg-muted/30 border border-border flex-wrap h-auto gap-0.5 p-1">
                         <TabsTrigger value="overview" className="text-xs font-semibold">Overview</TabsTrigger>
                         <TabsTrigger value="leaderboard" className="text-xs font-semibold">Leaderboard</TabsTrigger>
                     </TabsList>

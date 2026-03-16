@@ -901,10 +901,10 @@ function ContactsContent() {
                 {/* Search */}
                 <div className="px-4 pt-3 pb-2">
                     <div className="relative">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
                         <input
                             placeholder="Search contacts..."
-                            className="w-full h-9 pl-9 pr-3 rounded-xl bg-input border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                            className="w-full h-11 pl-9 pr-3 rounded-xl bg-input border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -966,7 +966,7 @@ function ContactsContent() {
                                             contact.status === "Forms Pending" ? "bg-amber-500/10 text-amber-400 border-amber-500/30" :
                                             contact.status === "Booked" ? "bg-primary/10 text-primary border-primary/30" :
                                             contact.status === "Past Tenant" ? "bg-gray-500/10 text-gray-400 border-gray-500/30" :
-                                            "border-white/10"
+                                            "border-border"
                                         }`}>
                                             {contact.status}
                                         </Badge>

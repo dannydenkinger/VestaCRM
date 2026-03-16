@@ -769,7 +769,7 @@ export default function CommunicationsPage() {
                                                     : "bg-muted rounded-bl-md"
                                             }`}>
                                                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                    <Badge variant="outline" className={`text-[9px] px-1 py-0 gap-0.5 border-white/20 ${isOutbound && !isScheduled && !isCancelled ? "text-primary-foreground/70" : ""
+                                                    <Badge variant="outline" className={`text-[9px] px-1 py-0 gap-0.5 border-border ${isOutbound && !isScheduled && !isCancelled ? "text-primary-foreground/70" : ""
                                                         }`}>
                                                         {typeIcon(msg.type)}
                                                         {msg.type}
@@ -844,7 +844,7 @@ export default function CommunicationsPage() {
                                                                 rel="noopener noreferrer"
                                                                 className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] border transition-colors ${
                                                                     isOutbound && !isScheduled && !isCancelled
-                                                                        ? "border-white/20 text-primary-foreground/70 hover:text-primary-foreground"
+                                                                        ? "border-border text-primary-foreground/70 hover:text-primary-foreground"
                                                                         : "border-border text-muted-foreground hover:text-foreground"
                                                                 }`}
                                                             >

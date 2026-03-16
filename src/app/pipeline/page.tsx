@@ -787,10 +787,10 @@ function PipelineContent() {
                 {/* Search */}
                 <div className="px-4 pt-3 pb-2">
                     <div className="relative">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
                         <input
                             placeholder="Search deals..."
-                            className="w-full h-9 pl-9 pr-3 rounded-xl bg-input border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                            className="w-full h-11 pl-9 pr-3 rounded-xl bg-input border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
                             value={pipelineSearch}
                             onChange={(e) => setPipelineSearch(e.target.value)}
                         />
@@ -807,7 +807,7 @@ function PipelineContent() {
                             <button
                                 key={name}
                                 onClick={() => setMobileSelectedStage(name)}
-                                className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold touch-manipulation transition-colors ${
+                                className={`shrink-0 px-4 py-2 rounded-full text-xs font-semibold touch-manipulation transition-colors min-h-[44px] flex items-center ${
                                     isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground border border-border"
                                 }`}
                             >
@@ -885,7 +885,7 @@ function PipelineContent() {
                                                 ) : null
                                             })()}
                                         </div>
-                                        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-zinc-500">
+                                        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground">
                                             {deal.base && (
                                                 <span className="flex items-center gap-0.5 truncate">
                                                     <MapPin className="h-2.5 w-2.5" />

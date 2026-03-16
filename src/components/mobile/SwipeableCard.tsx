@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, useCallback } from "react"
+import React, { useRef, useState, useCallback } from "react"
 import { cn } from "@/lib/utils"
 import { useHapticFeedback } from "@/hooks/useHapticFeedback"
 
@@ -21,7 +21,7 @@ interface SwipeableCardProps {
 
 const DEFAULT_THRESHOLD = 80
 
-export function SwipeableCard({
+export const SwipeableCard = React.memo(function SwipeableCard({
     children,
     leftActions = [],
     rightActions = [],
@@ -162,4 +162,4 @@ export function SwipeableCard({
             </div>
         </div>
     )
-}
+})

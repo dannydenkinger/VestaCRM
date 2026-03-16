@@ -189,7 +189,7 @@ function MobileTasksView({
                         <div className="pull-spinner" />
                     ) : (
                         <div
-                            className="w-5 h-5 border-2 border-foreground/20 border-t-foreground/60 rounded-full"
+                            className="w-5 h-5 border-2 border-muted-foreground/30 border-t-muted-foreground/80 rounded-full"
                             style={{ transform: `rotate(${pullDistance * 3}deg)`, opacity: Math.min(pullDistance / 60, 1) }}
                         />
                     )}
@@ -200,10 +200,10 @@ function MobileTasksView({
                 {/* Search + filter */}
                 <div className="px-4 pt-3 pb-2 space-y-2">
                     <div className="relative">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
                         <input
                             placeholder="Search tasks..."
-                            className="w-full h-9 pl-9 pr-3 rounded-xl bg-input border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                            className="w-full h-11 pl-9 pr-3 rounded-xl bg-input border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
@@ -213,7 +213,7 @@ function MobileTasksView({
                             <button
                                 key={f}
                                 className={cn(
-                                    "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest touch-manipulation transition-colors",
+                                    "px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest touch-manipulation transition-colors min-h-[44px]",
                                     filter === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground border border-border"
                                 )}
                                 onClick={() => setFilter(f)}

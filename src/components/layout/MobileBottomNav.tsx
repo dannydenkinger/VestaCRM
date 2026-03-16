@@ -161,7 +161,7 @@ export function MobileBottomNav() {
             )}
 
             {/* Tab bar */}
-            <nav className="mobile-tab-bar bg-background/95 backdrop-blur-md border-t border-border/30">
+            <nav className="mobile-tab-bar bg-background/95 backdrop-blur-md border-t border-border/30" aria-label="Main navigation">
                 <div className="flex items-center justify-around h-16 px-2">
                     {/* First two tabs */}
                     {MAIN_TABS.slice(0, 2).map(tab => {
@@ -186,6 +186,7 @@ export function MobileBottomNav() {
                     <button
                         className="flex items-center justify-center w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 -mt-4 touch-manipulation transition-transform active:scale-95"
                         onClick={() => { setShowAdd(!showAdd); setShowMore(false) }}
+                        aria-label="Quick add"
                     >
                         <Plus className={cn("h-6 w-6 transition-transform", showAdd && "rotate-45")} />
                     </button>

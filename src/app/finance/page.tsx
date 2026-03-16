@@ -63,7 +63,7 @@ export default function FinancePage() {
     if (isMobile) {
         return (
             <div className="flex flex-col h-full bg-background">
-                <div className="px-4 pt-3 pb-2 border-b border-white/5">
+                <div className="px-4 pt-3 pb-2 border-b border-border">
                     {/* Date range pills */}
                     <div className="flex items-center gap-1 mb-3 overflow-x-auto">
                         {([
@@ -75,7 +75,7 @@ export default function FinancePage() {
                             <button
                                 key={f.value}
                                 onClick={() => setDateRange(f.value)}
-                                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all shrink-0 touch-manipulation ${
+                                className={`px-3.5 py-2 rounded-full text-xs font-semibold transition-all shrink-0 touch-manipulation min-h-[44px] flex items-center ${
                                     dateRange === f.value
                                         ? "bg-primary text-primary-foreground"
                                         : "bg-muted text-muted-foreground hover:text-foreground"
@@ -103,7 +103,7 @@ export default function FinancePage() {
                             <button
                                 key={tab.value}
                                 onClick={() => setActiveTab(tab.value)}
-                                className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all touch-manipulation ${
+                                className={`flex-1 py-2.5 text-[11px] font-semibold rounded-lg transition-all touch-manipulation min-h-[40px] ${
                                     activeTab === tab.value
                                         ? "bg-primary/15 text-foreground"
                                         : "text-muted-foreground hover:text-foreground"
@@ -140,7 +140,7 @@ export default function FinancePage() {
                         <Download className="h-3.5 w-3.5" />
                         <span className="hidden sm:inline">Export CSV</span>
                     </Button>
-                    <div className="flex items-center gap-1 bg-muted/30 p-0.5 rounded-md border border-white/5">
+                    <div className="flex items-center gap-1 bg-muted/30 p-0.5 rounded-md border border-border">
                         {([
                             { value: "all", label: "All Time" },
                             { value: "month", label: "This Month" },
@@ -164,7 +164,7 @@ export default function FinancePage() {
                 </div>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                    <TabsList className="bg-muted/30 border border-white/5 flex-wrap h-auto gap-0.5 p-1">
+                    <TabsList className="bg-muted/30 border border-border flex-wrap h-auto gap-0.5 p-1">
                         <TabsTrigger value="commissions" className="text-xs font-semibold">Commissions</TabsTrigger>
                         <TabsTrigger value="referrals" className="text-xs font-semibold">Referrals</TabsTrigger>
                         <TabsTrigger value="revenue" className="text-xs font-semibold">Revenue</TabsTrigger>

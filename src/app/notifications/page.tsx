@@ -169,7 +169,7 @@ export default function NotificationsPage() {
                                 <button
                                     key={f}
                                     onClick={() => setFilter(f)}
-                                    className={`px-3 py-1.5 text-xs font-semibold rounded-sm transition-all capitalize min-h-[36px] sm:min-h-0 touch-manipulation ${filter === f ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                                    className={`px-3 py-1.5 text-xs font-semibold rounded-sm transition-all capitalize min-h-[44px] sm:min-h-0 touch-manipulation ${filter === f ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                                 >
                                     {f}
                                 </button>

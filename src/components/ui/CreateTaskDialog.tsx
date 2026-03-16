@@ -193,7 +193,7 @@ export function CreateTaskDialog({ isOpen, onClose, onSaved, initialData, initia
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-[425px] border-white/10 bg-background/95 backdrop-blur-xl">
+            <DialogContent className="sm:max-w-[425px] border-border bg-background/95 backdrop-blur-xl">
                 <DialogHeader>
                     <DialogTitle>{initialData?.id ? `Edit ${typeLabel}` : `Create New ${typeLabel}`}</DialogTitle>
                 </DialogHeader>
@@ -245,7 +245,7 @@ export function CreateTaskDialog({ isOpen, onClose, onSaved, initialData, initia
 
                     {isEvent ? (
                         /* Event: Start + End date/time */
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="flex flex-col gap-2">
                                 <label className="text-sm font-medium">Start</label>
                                 <Input
@@ -265,7 +265,7 @@ export function CreateTaskDialog({ isOpen, onClose, onSaved, initialData, initia
                         </div>
                     ) : (
                         /* Task: Due date + Priority */
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="flex flex-col gap-2">
                                 <label className="text-sm font-medium">Due Date & Time</label>
                                 <Input
@@ -373,7 +373,7 @@ export function CreateTaskDialog({ isOpen, onClose, onSaved, initialData, initia
                     {!isEvent && (
                         <div className="flex flex-col gap-2">
                             <label className="text-sm font-medium">Recurrence</label>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <Select value={recurrenceType} onValueChange={(v) => setRecurrenceType(v as any)}>
                                     <SelectTrigger>
                                         <SelectValue />
