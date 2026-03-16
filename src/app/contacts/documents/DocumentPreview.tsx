@@ -362,14 +362,11 @@ export function DocumentPreview({ document, open, onOpenChange, contactId, onRef
                                     </Button>
                                 </div>
                             ) : (
-                                <div className="relative w-full max-h-[65vh] sm:max-h-[70vh] min-h-[200px]" style={{ aspectRatio: "16/9" }}>
-                                    <Image
+                                <div className="w-full flex items-center justify-center">
+                                    <img
                                         src={document.url}
                                         alt={document.name}
-                                        fill
-                                        className="object-contain rounded-md"
-                                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 80vw, 900px"
-                                        unoptimized
+                                        className="max-w-full max-h-[65vh] sm:max-h-[70vh] object-contain rounded-md"
                                         onLoad={() => setIsImageLoading(false)}
                                         onError={() => {
                                             setIsImageLoading(false)
@@ -384,9 +381,9 @@ export function DocumentPreview({ document, open, onOpenChange, contactId, onRef
                     {/* PDF preview */}
                     {fileType === "pdf" && (
                         <iframe
-                            src={document.url}
+                            src={`${document.url}#zoom=page-fit`}
                             title={document.name}
-                            className="w-full h-[70vh] border-none"
+                            className="w-full flex-1 min-h-[60vh] sm:h-[70vh] border-none"
                         />
                     )}
 

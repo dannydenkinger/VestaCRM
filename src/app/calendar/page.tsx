@@ -1144,7 +1144,7 @@ function EventDetailModal({ event, onClose, onNavigate, onEditTask }: { event: C
         <>
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-in fade-in duration-200" onClick={onClose} />
             <div className="fixed right-0 top-0 h-full w-full sm:w-[420px] z-50 flex flex-col bg-card border-l border-border shadow-2xl animate-in slide-in-from-right duration-300">
-                <div className="p-4 sm:p-6 border-b border-border flex items-start justify-between gap-4">
+                <div className="p-4 sm:p-6 border-b border-border flex items-start justify-between gap-4 safe-top">
                     <div className="flex items-start gap-3 min-w-0">
                         <div className="mt-1 h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: event.color || "#6366f1" }} />
                         <div className="min-w-0">
