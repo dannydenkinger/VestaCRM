@@ -102,7 +102,7 @@ function InlineField({ label, value, onChange, onBlurSave, type = "text", error,
     }, [editing])
 
     return (
-        <div className={`space-y-1 ${colSpan ? "col-span-2" : ""}`}>
+        <div className={`space-y-1 ${colSpan ? "lg:col-span-2" : ""}`}>
             <span className="text-muted-foreground text-xs">{label}</span>
             {editing ? (
                 <div className="flex items-center gap-1">
@@ -496,7 +496,7 @@ export function ContactDetailSheet({
                                     )}
                                 </div>
 
-                                <div className="flex items-center gap-6 mt-6">
+                                <div className="flex items-center gap-3 lg:gap-6 mt-4 lg:mt-6">
                                     <Button
                                         size="sm"
                                         className="w-full"
@@ -536,7 +536,7 @@ export function ContactDetailSheet({
                                             <div className="flex items-center justify-between">
                                                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Contact Information</h3>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-y-4 gap-x-8 text-sm">
                                                 <InlineField
                                                     label="Full Name"
                                                     value={editingContact?.name || ""}
@@ -590,7 +590,7 @@ export function ContactDetailSheet({
 
                                         <div className="space-y-4">
                                             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Contact Status</h3>
-                                            <div className="grid grid-cols-2 gap-4">
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                                 <div className="space-y-1">
                                                     <span className="text-muted-foreground text-xs">Status</span>
                                                     <select
@@ -707,7 +707,7 @@ export function ContactDetailSheet({
                                                 <p className="text-sm text-destructive">{saveError}</p>
                                             )}
                                             <div className="flex items-center justify-between">
-                                                <p className="text-[10px] text-muted-foreground">Click any field to edit. Changes save automatically.</p>
+                                                <p className="text-xs text-muted-foreground">Click any field to edit. Changes save automatically.</p>
                                                 <Button variant="outline" size="sm" onClick={handleValidatedSave} disabled={isSaving}>
                                                     {isSaving ? "Saving..." : "Save All"}
                                                 </Button>
@@ -716,7 +716,7 @@ export function ContactDetailSheet({
                                     </TabsContent>
 
                                     {/* Notes Tab */}
-                                    <TabsContent value="notes" className="flex-1 p-6 m-0 outline-none flex flex-col h-full bg-background">
+                                    <TabsContent value="notes" className="flex-1 p-4 lg:p-6 m-0 outline-none flex flex-col h-full bg-background">
                                         <NotesEditor
                                             notes={(selectedContact.notes ?? []).map((n: any) => ({
                                                 id: n.id,
@@ -737,7 +737,7 @@ export function ContactDetailSheet({
                                     </TabsContent>
 
                                     {/* Documents Tab */}
-                                    <TabsContent value="documents" className="flex-1 p-6 m-0 outline-none space-y-6 overflow-y-auto">
+                                    <TabsContent value="documents" className="flex-1 p-4 lg:p-6 m-0 outline-none space-y-6 overflow-y-auto">
                                         <div className="space-y-4">
                                             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Required Agreements</h3>
                                             <p className="text-xs text-muted-foreground">Track the status of the three mandatory forms required for booking.</p>
@@ -770,7 +770,7 @@ export function ContactDetailSheet({
                                     </TabsContent>
 
                                     {/* Timeline Tab */}
-                                    <TabsContent value="timeline" className="flex-1 p-6 m-0 outline-none overflow-y-auto">
+                                    <TabsContent value="timeline" className="flex-1 p-4 lg:p-6 m-0 outline-none overflow-y-auto">
                                         <div className="relative space-y-6 before:absolute before:inset-0 before:ml-5 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-border before:via-border before:to-transparent">
                                             {(() => {
                                                 const messages = selectedContact.messages ?? []
@@ -784,7 +784,7 @@ export function ContactDetailSheet({
                                                 merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
                                                 if (merged.length === 0) {
-                                                    return <div className="ml-14 py-8 text-sm text-muted-foreground">No timeline activity yet.</div>
+                                                    return <div className="ml-12 lg:ml-14 py-8 text-sm text-muted-foreground">No timeline activity yet.</div>
                                                 }
 
                                                 return merged.map((item) => {
@@ -797,13 +797,13 @@ export function ContactDetailSheet({
                                                                     {msg.type === "SMS" && <MessageSquare className="h-4 w-4 text-emerald-500" />}
                                                                     {msg.type === "CALL" && <Phone className="h-4 w-4 text-amber-500" />}
                                                                 </div>
-                                                                <div className="ml-14 flex-1 space-y-1">
+                                                                <div className="ml-12 lg:ml-14 flex-1 space-y-1">
                                                                     <div className="flex items-center justify-between">
                                                                         <span className="text-sm font-bold">
                                                                             {msg.direction === "INBOUND" ? "Received " : "Sent "}
                                                                             {(msg.type || "").toLowerCase()}
                                                                         </span>
-                                                                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                                                                        <span className="text-xs text-muted-foreground tabular-nums">
                                                                             {new Date(item.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
                                                                         </span>
                                                                     </div>
@@ -821,10 +821,10 @@ export function ContactDetailSheet({
                                                                 <div className="absolute left-0 mt-1 flex h-10 w-10 items-center justify-center rounded-full border bg-background shadow-sm z-10">
                                                                     <FileText className="h-4 w-4 text-primary" />
                                                                 </div>
-                                                                <div className="ml-14 flex-1 space-y-1">
+                                                                <div className="ml-12 lg:ml-14 flex-1 space-y-1">
                                                                     <div className="flex items-center justify-between">
                                                                         <span className="text-sm font-bold">Internal note</span>
-                                                                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                                                                        <span className="text-xs text-muted-foreground tabular-nums">
                                                                             {new Date(item.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
                                                                         </span>
                                                                     </div>
@@ -841,12 +841,12 @@ export function ContactDetailSheet({
                                                             <div className="absolute left-0 mt-1 flex h-10 w-10 items-center justify-center rounded-full border bg-background shadow-sm z-10">
                                                                 <Trash2 className="h-4 w-4 text-muted-foreground" />
                                                             </div>
-                                                            <div className="ml-14 flex-1 space-y-1">
+                                                            <div className="ml-12 lg:ml-14 flex-1 space-y-1">
                                                                 <div className="flex items-center justify-between">
                                                                     <span className="text-sm font-bold text-muted-foreground">
                                                                         Note deleted{ev.deletedBy ? ` by ${ev.deletedBy}` : ""}
                                                                     </span>
-                                                                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                                                                    <span className="text-xs text-muted-foreground tabular-nums">
                                                                         {new Date(item.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
                                                                     </span>
                                                                 </div>
@@ -861,7 +861,7 @@ export function ContactDetailSheet({
 
                                             <Separator className="my-6" />
 
-                                            <div className="ml-14 space-y-4">
+                                            <div className="ml-12 lg:ml-14 space-y-4">
                                                 <h4 className="text-sm font-semibold">Log communication</h4>
                                                 <p className="text-xs text-muted-foreground">Record an email or SMS you sent to this contact.</p>
                                                 <div className="flex gap-2">

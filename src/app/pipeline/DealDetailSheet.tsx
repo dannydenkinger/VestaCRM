@@ -388,8 +388,8 @@ export function DealDetailSheet({
                                         <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-background shadow-sm">
                                             <AvatarFallback className="text-lg sm:text-xl bg-primary/10 text-primary">{(selectedDeal.name || "?").slice(0, 2).toUpperCase()}</AvatarFallback>
                                         </Avatar>
-                                        <div>
-                                            <SheetTitle className="text-xl sm:text-2xl">{selectedDeal.name || "New opportunity"}</SheetTitle>
+                                        <div className="min-w-0">
+                                            <SheetTitle className="text-lg lg:text-2xl truncate">{selectedDeal.name || "New opportunity"}</SheetTitle>
                                             <SheetDescription className="flex items-center gap-2 mt-1 flex-wrap">
                                                 <Badge variant="outline" className="font-normal">{selectedDeal.stage}</Badge>
                                                 {selectedDeal.id !== "new" && (
@@ -449,19 +449,19 @@ export function DealDetailSheet({
                                     </DropdownMenu>
                                 </div>
 
-                                <div className="flex items-center gap-3 sm:gap-6 mt-4 sm:mt-6">
+                                <div className="grid grid-cols-3 gap-2 lg:gap-4 mt-4 lg:mt-6">
                                     <Button size="sm" className="w-full">
-                                        <Phone className="mr-2 h-4 w-4" />
+                                        <Phone className="mr-1.5 h-4 w-4" />
                                         Call
                                     </Button>
                                     <Button size="sm" variant="outline" className="w-full">
-                                        <Mail className="mr-2 h-4 w-4" />
+                                        <Mail className="mr-1.5 h-4 w-4" />
                                         Email
                                     </Button>
                                     <Button
                                         size="sm"
                                         variant={selectedDeal.claimedBy === session?.user?.id ? "default" : "outline"}
-                                        className="w-full"
+                                        className="w-full truncate"
                                         onClick={async () => {
                                             const res = await claimOpportunity(selectedDeal.id);
                                             if (res.success) {
@@ -516,7 +516,7 @@ export function DealDetailSheet({
                                                 <Button variant="outline" size="sm">Edit</Button>
                                             </div>
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-4 sm:gap-x-8 text-sm">
-                                                <div className="space-y-1 col-span-2">
+                                                <div className="space-y-1 sm:col-span-2">
                                                     <span className="text-muted-foreground text-xs">Full Name</span>
                                                     <Input
                                                         value={selectedDeal.name || ""}
@@ -548,7 +548,7 @@ export function DealDetailSheet({
                                                         className="h-8 text-sm"
                                                     />
                                                 </div>
-                                                <div className="space-y-1 col-span-2">
+                                                <div className="space-y-1 sm:col-span-2">
                                                     <span className="text-muted-foreground text-xs">Military Base</span>
                                                     <BaseCombobox
                                                         value={selectedDeal.base || ""}
@@ -596,7 +596,7 @@ export function DealDetailSheet({
                                                     </div>
                                                     {formErrors.endDate && <p className="text-xs text-destructive mt-1">{formErrors.endDate}</p>}
                                                 </div>
-                                                <div className="space-y-1 col-span-2">
+                                                <div className="space-y-1 sm:col-span-2">
                                                     <span className="text-muted-foreground text-xs">Pipeline Stage</span>
                                                     <select
                                                         className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
@@ -813,7 +813,7 @@ export function DealDetailSheet({
                                                             Calculate Opportunity Cost
                                                         </Button>
                                                     </DialogTrigger>
-                                                    <DialogContent className="max-w-2xl bg-card border-white/5 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+                                                    <DialogContent className="w-[95vw] max-w-2xl bg-card border-white/5 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
                                                         <DialogHeader>
                                                             <DialogTitle>Housing Allowance Calculator</DialogTitle>
                                                         </DialogHeader>
@@ -929,11 +929,11 @@ export function DealDetailSheet({
                                     <TabsContent value="timeline" className="flex-1 p-4 sm:p-6 m-0 outline-none overflow-y-auto">
                                         <div className="relative space-y-6 before:absolute before:inset-0 before:ml-5 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-border before:via-border before:to-transparent">
                                             {!selectedDeal.contactId ? (
-                                                <div className="ml-14 py-8 text-sm text-muted-foreground">Link a contact to this opportunity to see the timeline.</div>
+                                                <div className="ml-12 lg:ml-14 py-8 text-sm text-muted-foreground">Link a contact to this opportunity to see the timeline.</div>
                                             ) : timelineLoading ? (
-                                                <div className="ml-14 py-8 text-sm text-muted-foreground">Loading timeline...</div>
+                                                <div className="ml-12 lg:ml-14 py-8 text-sm text-muted-foreground">Loading timeline...</div>
                                             ) : !contactTimeline?.length ? (
-                                                <div className="ml-14 py-8 text-sm text-muted-foreground">No timeline activity yet.</div>
+                                                <div className="ml-12 lg:ml-14 py-8 text-sm text-muted-foreground">No timeline activity yet.</div>
                                             ) : (
                                                 contactTimeline.map((item) => {
                                                     if (item.kind === "message") {
@@ -944,13 +944,13 @@ export function DealDetailSheet({
                                                                     {item.type === "SMS" && <MessageSquare className="h-4 w-4 text-emerald-500" />}
                                                                     {item.type === "CALL" && <Phone className="h-4 w-4 text-amber-500" />}
                                                                 </div>
-                                                                <div className="ml-14 flex-1 space-y-1">
+                                                                <div className="ml-12 lg:ml-14 flex-1 space-y-1">
                                                                     <div className="flex items-center justify-between">
                                                                         <span className="text-sm font-bold">
                                                                             {item.direction === "INBOUND" ? "Received " : "Sent "}
                                                                             {(item.type || "").toLowerCase()}
                                                                         </span>
-                                                                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                                                                        <span className="text-xs text-muted-foreground tabular-nums">
                                                                             {new Date(item.createdAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}
                                                                         </span>
                                                                     </div>
@@ -967,10 +967,10 @@ export function DealDetailSheet({
                                                                 <div className="absolute left-0 mt-1 flex h-10 w-10 items-center justify-center rounded-full border bg-background shadow-sm z-10">
                                                                     <FileText className="h-4 w-4 text-primary" />
                                                                 </div>
-                                                                <div className="ml-14 flex-1 space-y-1">
+                                                                <div className="ml-12 lg:ml-14 flex-1 space-y-1">
                                                                     <div className="flex items-center justify-between">
                                                                         <span className="text-sm font-bold">Internal note</span>
-                                                                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                                                                        <span className="text-xs text-muted-foreground tabular-nums">
                                                                             {new Date(item.createdAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}
                                                                         </span>
                                                                     </div>
@@ -986,12 +986,12 @@ export function DealDetailSheet({
                                                             <div className="absolute left-0 mt-1 flex h-10 w-10 items-center justify-center rounded-full border bg-background shadow-sm z-10">
                                                                 <Trash2 className="h-4 w-4 text-muted-foreground" />
                                                             </div>
-                                                            <div className="ml-14 flex-1 space-y-1">
+                                                            <div className="ml-12 lg:ml-14 flex-1 space-y-1">
                                                                 <div className="flex items-center justify-between">
                                                                     <span className="text-sm font-bold text-muted-foreground">
                                                                         Note deleted{item.deletedBy ? ` by ${item.deletedBy}` : ""}
                                                                     </span>
-                                                                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                                                                    <span className="text-xs text-muted-foreground tabular-nums">
                                                                         {new Date(item.createdAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}
                                                                     </span>
                                                                 </div>
