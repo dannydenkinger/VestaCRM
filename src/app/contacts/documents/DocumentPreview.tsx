@@ -395,11 +395,23 @@ export function DocumentPreview({ document, open, onOpenChange, contactId, onRef
                     {/* PDF preview */}
                     {fileType === "pdf" && (
                         <div className="flex-1 flex flex-col min-h-0">
+                            {/* Desktop: inline iframe */}
                             <iframe
-                                src={`${document.url}#view=FitH`}
+                                src={`${document.url}#page=1&view=Fit`}
                                 title={document.name}
-                                className="w-full flex-1 min-h-[60vh] border-none"
+                                className="w-full flex-1 min-h-[60vh] border-none hidden sm:block"
                             />
+                            {/* Mobile: iOS Safari can't render PDFs properly in iframes, show open button */}
+                            <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8 sm:hidden">
+                                <FileText className="h-16 w-16 text-muted-foreground/30" />
+                                <p className="text-sm text-muted-foreground text-center">PDF previews open in a new tab on mobile for the best viewing experience.</p>
+                                <Button asChild className="gap-2">
+                                    <a href={document.url} target="_blank" rel="noopener noreferrer">
+                                        <ExternalLink className="h-4 w-4" />
+                                        Open PDF
+                                    </a>
+                                </Button>
+                            </div>
                         </div>
                     )}
 

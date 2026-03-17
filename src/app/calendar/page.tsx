@@ -1141,23 +1141,19 @@ function EventDetailModal({ event, onClose, onNavigate, onEditTask }: { event: C
     const isAllDay = event.start instanceof Date && event.start.getHours() === 0 && event.start.getMinutes() === 0
 
     return (
-        <>
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-in fade-in duration-200" onClick={onClose} />
-            <div className="fixed right-0 top-0 h-full w-full sm:w-[420px] z-50 flex flex-col bg-card border-l border-border shadow-2xl animate-in slide-in-from-right duration-300">
-                <div className="p-4 sm:p-6 border-b border-border flex items-start justify-between gap-4 safe-top">
+        <Sheet open={true} onOpenChange={(open) => { if (!open) onClose() }}>
+            <SheetContent className="lg:max-w-[420px] p-0 flex flex-col gap-0">
+                <div className="p-4 sm:p-6 border-b border-border flex items-start justify-between gap-4" style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top, 0px))' }}>
                     <div className="flex items-start gap-3 min-w-0">
                         <div className="mt-1 h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: event.color || "#6366f1" }} />
                         <div className="min-w-0">
-                            <h2 className="text-base font-black tracking-tight leading-tight truncate pr-4">{event.title}</h2>
+                            <SheetTitle className="text-base font-black tracking-tight leading-tight truncate pr-4">{event.title}</SheetTitle>
                             <p className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: event.color || undefined }}>
                                 {sourceLabels[event.source] || event.source}
                                 {event.calendarName && event.source === "GOOGLE" && ` · ${event.calendarName}`}
                             </p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="h-10 w-10 sm:h-7 sm:w-7 rounded-lg flex items-center justify-center hover:bg-muted transition-colors shrink-0">
-                        <X className="h-4 w-4 text-muted-foreground" />
-                    </button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
                     <div className="rounded-2xl bg-muted/20 border border-border p-4 space-y-3">
@@ -1196,7 +1192,7 @@ function EventDetailModal({ event, onClose, onNavigate, onEditTask }: { event: C
                     )}
                 </div>
                 {event.navigationUrl && (
-                    <div className="p-4 sm:p-6 border-t border-border">
+                    <div className="p-4 sm:p-6 border-t border-border safe-bottom">
                         <Button className="w-full h-11 gap-3 font-black tracking-wide shadow-lg" style={{ backgroundColor: event.color, color: "white" }} onClick={() => onNavigate(event.navigationUrl!)}>
                             View Opportunity
                             <ArrowRight className="h-4 w-4" />
@@ -1204,7 +1200,7 @@ function EventDetailModal({ event, onClose, onNavigate, onEditTask }: { event: C
                         <p className="text-[10px] text-muted-foreground text-center mt-3 font-medium">Opens the associated opportunity</p>
                     </div>
                 )}
-            </div>
-        </>
+            </SheetContent>
+        </Sheet>
     )
 }
