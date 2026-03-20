@@ -13,6 +13,7 @@ import { getSidebarData } from "@/app/sidebar/actions"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { FEATURES } from "@/lib/feature-flags"
+import { WorkspaceSwitcher } from "@/components/layout/WorkspaceSwitcher"
 
 type NavItem = { name: string; href: string; icon: any } | { separator: string }
 
@@ -151,6 +152,8 @@ function SidebarInner({ onNavigate, className, mobileCollapsed }: SidebarProps) 
                     </div>
                 )}
             </div>
+
+            <WorkspaceSwitcher collapsed={showCollapsed} />
 
             <nav className="flex-1 space-y-1" aria-label="Primary navigation">
                 {getVisibleNavItems(realRole, navItems).map((item, idx) => {

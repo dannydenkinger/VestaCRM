@@ -60,7 +60,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         signIn: "/",
     },
     callbacks: {
-        async jwt({ token, user, trigger, account }) {
+        async jwt({ token, user, trigger, account, session }) {
             // On Google OAuth sign-in, store OAuth tokens and persist to Firestore
             if (account && account.provider === "google") {
                 token.accessToken = account.access_token
@@ -192,6 +192,25 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 } catch (err) {
                     console.error("Failed to fetch user/workspace for JWT:", err)
                     token.role = token.role || "AGENT"
+                }
+            }
+            // Handle workspace switching
+            if (trigger === "update" && session?.workspaceId) {
+                try {
+                    const { adminDb } = await import(/* webpackIgnore: true */ "@/lib/firebase-admin")
+                    const memberSnap = await adminDb.collection("workspace_members")
+                        .where("userId", "==", token.dbUserId)
+                        .where("workspaceId", "==", session.workspaceId)
+                        .where("status", "==", "active")
+                        .limit(1)
+                        .get()
+                    if (!memberSnap.empty) {
+                        const membership = memberSnap.docs[0].data()
+                        token.workspaceId = session.workspaceId
+                        token.role = membership.role || "AGENT"
+                    }
+                } catch (err) {
+                    console.error("[AUTH] Workspace switch error:", err)
                 }
             }
             if (user) {

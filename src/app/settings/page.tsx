@@ -64,10 +64,14 @@ export default async function SettingsPage() {
 
     let users: any[] = [];
     let pipelinesList: { id: string; name: string }[] = [];
+    let pendingInvitations: any[] = [];
+    let workspaceName = "Workspace";
     if (isOwnerOrAdmin) {
-        const [allUsersSnap, pipelinesSnap] = await Promise.all([
+        const [allUsersSnap, pipelinesSnap, invitationsSnap, workspaceDoc] = await Promise.all([
             adminDb.collection('users').orderBy('createdAt', 'desc').get(),
             db.collection('pipelines').orderBy('createdAt', 'asc').get(),
+            db.collection('workspace_invitations').where('status', '==', 'pending').get(),
+            adminDb.collection('workspaces').doc(workspaceId).get(),
         ]);
         users = allUsersSnap.docs.map(doc => {
             const d = doc.data();
@@ -85,6 +89,25 @@ export default async function SettingsPage() {
             id: doc.id,
             name: doc.data().name || 'Unnamed Pipeline',
         }));
+        const now = new Date();
+        pendingInvitations = invitationsSnap.docs.map(doc => {
+            const d = doc.data();
+            const expiresAt = d.expiresAt?.toDate ? d.expiresAt.toDate() : new Date(d.expiresAt);
+            const createdAt = d.createdAt?.toDate ? d.createdAt.toDate() : new Date(d.createdAt);
+            return {
+                id: doc.id,
+                email: d.email || '',
+                role: d.role || 'AGENT',
+                token: d.token || '',
+                status: expiresAt < now ? 'expired' : 'pending',
+                invitedByName: d.invitedByName || '',
+                createdAt: createdAt.toISOString(),
+                expiresAt: expiresAt.toISOString(),
+            };
+        });
+        if (workspaceDoc.exists) {
+            workspaceName = workspaceDoc.data()?.name || "Workspace";
+        }
     }
 
     return (
@@ -305,7 +328,7 @@ export default async function SettingsPage() {
                                                         <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/20">
                                                             <div>
                                                                 <div className="font-semibold text-sm">Workspace Name</div>
-                                                                <div className="text-sm text-muted-foreground mt-1">Vesta CRM Workspace</div>
+                                                                <div className="text-sm text-muted-foreground mt-1">{workspaceName}</div>
                                                             </div>
                                                             <div className="px-2 py-1 bg-muted rounded text-xs font-mono text-muted-foreground">Read-only</div>
                                                         </div>
@@ -399,7 +422,7 @@ export default async function SettingsPage() {
                                                     </CardDescription>
                                                 </CardHeader>
                                                 <CardContent>
-                                                    <UserManagementTable initialUsers={users} currentUserId={session.user.id || ""} />
+                                                    <UserManagementTable initialUsers={users} currentUserId={session.user.id || ""} pendingInvitations={pendingInvitations} workspaceId={workspaceId} />
                                                 </CardContent>
                                             </Card>
                                         ) : (

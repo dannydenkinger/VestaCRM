@@ -2,6 +2,7 @@
 
 import { z } from "zod"
 import { tenantDb } from "@/lib/tenant-db"
+import { adminDb } from "@/lib/firebase-admin"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { FieldValue } from "firebase-admin/firestore"
@@ -68,6 +69,20 @@ export async function updateUserRole(userId: string, newRole: string) {
             updatedAt: new Date()
         })
 
+        // Also update workspace_members entry
+        try {
+            const memberSnap = await adminDb.collection('workspace_members')
+                .where('workspaceId', '==', workspaceId)
+                .where('userId', '==', userId)
+                .limit(1)
+                .get()
+            if (!memberSnap.empty) {
+                await memberSnap.docs[0].ref.update({ role: newRole })
+            }
+        } catch (err) {
+            console.error("Failed to update workspace_members role:", err)
+        }
+
         logAudit(workspaceId, {
             userId: session.user.id || "",
             userEmail: session.user.email || "",
@@ -101,6 +116,19 @@ export async function deleteUser(userId: string) {
         const deletedUserName = userDoc.data()?.name || userDoc.data()?.email || ""
 
         await db.doc('users', userId).delete()
+
+        // Also delete workspace_members entry
+        try {
+            const memberSnap = await adminDb.collection('workspace_members')
+                .where('workspaceId', '==', workspaceId)
+                .where('userId', '==', userId)
+                .get()
+            const batch = adminDb.batch()
+            memberSnap.docs.forEach(doc => batch.delete(doc.ref))
+            if (!memberSnap.empty) await batch.commit()
+        } catch (err) {
+            console.error("Failed to delete workspace_members entry:", err)
+        }
 
         logAudit(workspaceId, {
             userId: session.user.id || "",
@@ -342,13 +370,28 @@ export async function createUser(data: { name: string, email: string, role: stri
             return { success: false, error: "A user with this email already exists." }
         }
 
+        const now = new Date()
         const newUserRef = await db.add('users', {
             name: data.name,
             email: data.email,
             role: data.role,
-            createdAt: new Date(),
-            updatedAt: new Date()
+            createdAt: now,
+            updatedAt: now,
         })
+
+        // Also create a workspace_members entry
+        try {
+            await adminDb.collection('workspace_members').add({
+                workspaceId,
+                userId: newUserRef.id,
+                role: data.role,
+                status: 'active',
+                joinedAt: now,
+                invitedBy: session.user.id || null,
+            })
+        } catch (err) {
+            console.error("Failed to create workspace_members entry:", err)
+        }
 
         logAudit(workspaceId, {
             userId: session.user.id || "",
