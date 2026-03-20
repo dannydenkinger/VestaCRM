@@ -1,57 +1,81 @@
 import { BetaAnalyticsDataClient } from "@google-analytics/data";
+import { tenantDb } from "@/lib/tenant-db";
+import { google } from "googleapis";
 
-const propertyId = process.env.GA_PROPERTY_ID;
-// Fall back to Firebase service account if GA-specific credentials aren't set
-// (avoids needing two large private keys, which exceeds Netlify's 4KB env var limit)
-const clientEmail = process.env.GA_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL;
-const rawKey = process.env.GA_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY;
-const privateKey = rawKey?.replace(/\\n/g, "\n");
+// ── Env-var fallback credentials (service account) ──
+const envClientEmail = process.env.GA_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL;
+const envRawKey = process.env.GA_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY;
+const envPrivateKey = envRawKey?.replace(/\\n/g, "\n");
+const envPropertyId = process.env.GA_PROPERTY_ID;
 
-// Lazy init to avoid errors when GA vars are missing (e.g. Netlify 4KB limit)
-let _gaClient: BetaAnalyticsDataClient | null = null;
-function getGaClient(): BetaAnalyticsDataClient | null {
-    if (!clientEmail || !privateKey) return null;
-    if (!_gaClient) _gaClient = new BetaAnalyticsDataClient({ credentials: { client_email: clientEmail, private_key: privateKey } });
-    return _gaClient;
+// ── Per-workspace lazy cache ──
+const _gaClients = new Map<string, { client: BetaAnalyticsDataClient; propertyId: string | null }>();
+
+/**
+ * Try to build a GA4 client using OAuth tokens from workspace settings.
+ * Falls back to env-var service account credentials.
+ */
+async function getGaClient(workspaceId: string): Promise<{ client: BetaAnalyticsDataClient | null; propertyId: string | undefined }> {
+    // Check cache
+    const cached = _gaClients.get(workspaceId);
+    if (cached) {
+        return { client: cached.client, propertyId: cached.propertyId || envPropertyId || undefined };
+    }
+
+    // Try OAuth from workspace settings
+    let gaClient: BetaAnalyticsDataClient | null = null;
+    let oauthPropertyId: string | null = null;
+
+    try {
+        const db = tenantDb(workspaceId);
+        const doc = await db.settingsDoc("integrations").get();
+        const data = doc.data();
+        if (data?.google?.refreshToken) {
+            const oauth2Client = new google.auth.OAuth2(
+                process.env.GOOGLE_CLIENT_ID,
+                process.env.GOOGLE_CLIENT_SECRET,
+            );
+            oauth2Client.setCredentials({
+                refresh_token: data.google.refreshToken,
+                access_token: data.google.accessToken,
+                expiry_date: data.google.expiresAt ? data.google.expiresAt * 1000 : undefined,
+            });
+            gaClient = new BetaAnalyticsDataClient({ authClient: oauth2Client as any });
+            oauthPropertyId = data.google.ga4PropertyId || null;
+        }
+    } catch (err) {
+        console.error("Failed to init GA4 via OAuth, falling back to env vars:", err);
+    }
+
+    // Fallback to env-var service account
+    if (!gaClient && envClientEmail && envPrivateKey) {
+        gaClient = new BetaAnalyticsDataClient({
+            credentials: { client_email: envClientEmail, private_key: envPrivateKey },
+        });
+    }
+
+    if (gaClient) {
+        _gaClients.set(workspaceId, { client: gaClient, propertyId: oauthPropertyId });
+    }
+
+    return { client: gaClient, propertyId: oauthPropertyId || envPropertyId || undefined };
 }
 
-export async function getTrafficMetrics(days: number = 7) {
-    const gaClient = getGaClient();
-    if (!propertyId || !gaClient) {
-        return null;
-    }
+export async function getTrafficMetrics(workspaceId: string, days: number = 7) {
+    const { client: gaClient, propertyId } = await getGaClient(workspaceId);
+    if (!propertyId || !gaClient) return null;
+
     try {
         const [response] = await gaClient.runReport({
             property: `properties/${propertyId}`,
-            dateRanges: [
-                {
-                    startDate: `${days}daysAgo`,
-                    endDate: "today",
-                },
-            ],
-            dimensions: [
-                {
-                    name: "date",
-                },
-            ],
+            dateRanges: [{ startDate: `${days}daysAgo`, endDate: "today" }],
+            dimensions: [{ name: "date" }],
             metrics: [
-                {
-                    name: "sessions",
-                },
-                {
-                    name: "activeUsers",
-                },
-                {
-                    name: "conversions",
-                },
+                { name: "sessions" },
+                { name: "activeUsers" },
+                { name: "conversions" },
             ],
-            orderBys: [
-                {
-                    dimension: {
-                        dimensionName: "date",
-                    },
-                },
-            ],
+            orderBys: [{ dimension: { dimensionName: "date" } }],
         });
 
         return response.rows?.map(row => ({
@@ -66,28 +90,16 @@ export async function getTrafficMetrics(days: number = 7) {
     }
 }
 
-export async function getTrafficSources(days: number = 30) {
-    const gaClient = getGaClient();
+export async function getTrafficSources(workspaceId: string, days: number = 30) {
+    const { client: gaClient, propertyId } = await getGaClient(workspaceId);
     if (!propertyId || !gaClient) return null;
+
     try {
         const [response] = await gaClient.runReport({
             property: `properties/${propertyId}`,
-            dateRanges: [
-                {
-                    startDate: `${days}daysAgo`,
-                    endDate: "today",
-                },
-            ],
-            dimensions: [
-                {
-                    name: "sessionSource",
-                },
-            ],
-            metrics: [
-                {
-                    name: "sessions",
-                },
-            ],
+            dateRanges: [{ startDate: `${days}daysAgo`, endDate: "today" }],
+            dimensions: [{ name: "sessionSource" }],
+            metrics: [{ name: "sessions" }],
         });
 
         return response.rows?.map(row => ({
@@ -100,9 +112,10 @@ export async function getTrafficSources(days: number = 30) {
     }
 }
 
-export async function getCoreMetrics(days: number = 7) {
-    const gaClient = getGaClient();
+export async function getCoreMetrics(workspaceId: string, days: number = 7) {
+    const { client: gaClient, propertyId } = await getGaClient(workspaceId);
     if (!propertyId || !gaClient) return null;
+
     try {
         const [response] = await gaClient.runReport({
             property: `properties/${propertyId}`,
@@ -118,7 +131,6 @@ export async function getCoreMetrics(days: number = 7) {
         const row = response.rows?.[0];
         if (!row) return null;
 
-        // Fetch organic traffic for percentage calculation
         const [organicResponse] = await gaClient.runReport({
             property: `properties/${propertyId}`,
             dateRanges: [{ startDate: `${days}daysAgo`, endDate: "today" }],

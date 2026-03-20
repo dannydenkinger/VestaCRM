@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
-import { adminDb } from "@/lib/firebase-admin"
+import { tenantDb } from "@/lib/tenant-db"
 
 export const dynamic = "force-dynamic"
 
@@ -10,14 +10,20 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: "Not signed in" })
     }
 
+    const workspaceId = (session.user as any).workspaceId
+    if (!workspaceId) {
+        return NextResponse.json({ error: "No workspace found" })
+    }
+    const db = tenantDb(workspaceId)
+
     const url = new URL(request.url)
     const s = session as any
 
     // If ?clear-batches=true, delete all haro_batches so emails reprocess
     if (url.searchParams.get("clear-batches") === "true") {
-        const batchesSnap = await adminDb.collection("haro_batches").get()
-        const queriesSnap = await adminDb.collection("haro_queries").get()
-        const batch = adminDb.batch()
+        const batchesSnap = await db.collection("haro_batches").get()
+        const queriesSnap = await db.collection("haro_queries").get()
+        const batch = db.batch()
         batchesSnap.docs.forEach(doc => batch.delete(doc.ref))
         queriesSnap.docs.forEach(doc => batch.delete(doc.ref))
         await batch.commit()
@@ -30,11 +36,13 @@ export async function GET(request: Request) {
 
     // If ?fix=true, overwrite Firestore with session tokens
     if (url.searchParams.get("fix") === "true" && s.refreshToken) {
-        await adminDb.collection("oauth_tokens").doc("gmail").set({
+        const oauthTokenRef = db.settingsDoc("oauth_gmail")
+        await oauthTokenRef.set({
             accessToken: s.accessToken,
             refreshToken: s.refreshToken,
             accessTokenExpires: s.accessTokenExpires,
             email: session.user.email,
+            workspaceId,
             updatedAt: new Date().toISOString(),
         })
 
@@ -72,7 +80,7 @@ export async function GET(request: Request) {
         refreshTokenPrefix: s.refreshToken ? String(s.refreshToken).substring(0, 15) + "..." : "MISSING",
     }
 
-    const tokenDoc = await adminDb.collection("oauth_tokens").doc("gmail").get()
+    const tokenDoc = await db.settingsDoc("oauth_gmail").get()
     if (tokenDoc.exists) {
         const data = tokenDoc.data()!
         debug.firestore = {

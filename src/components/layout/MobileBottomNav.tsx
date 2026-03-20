@@ -13,7 +13,6 @@ import {
     CheckSquare,
     Wallet,
     Megaphone,
-    Wrench,
     Settings,
     Bell,
     X,
@@ -24,6 +23,7 @@ import {
 import { cn } from "@/lib/utils"
 import { useHapticFeedback } from "@/hooks/useHapticFeedback"
 import { useTheme } from "next-themes"
+import { FEATURES } from "@/lib/feature-flags"
 
 interface TabItem {
     label: string
@@ -40,13 +40,12 @@ const MAIN_TABS: TabItem[] = [
 ]
 
 const MORE_ITEMS: TabItem[] = [
-    { label: "Calendar", icon: Calendar, href: "/calendar" },
-    { label: "Documents", icon: FileText, href: "/documents" },
+    ...(FEATURES.GOOGLE_CALENDAR ? [{ label: "Calendar", icon: Calendar, href: "/calendar" }] : []),
+    ...(FEATURES.DOCUMENTS ? [{ label: "Documents", icon: FileText, href: "/documents" }] : []),
     { label: "Messages", icon: MessageSquare, href: "/communications" },
     { label: "Tasks", icon: CheckSquare, href: "/tasks" },
-    { label: "Finance", icon: Wallet, href: "/finance" },
-    { label: "Marketing", icon: Megaphone, href: "/marketing" },
-    { label: "Tools", icon: Wrench, href: "/tools" },
+    ...(FEATURES.FINANCE ? [{ label: "Finance", icon: Wallet, href: "/finance" }] : []),
+    ...(FEATURES.MARKETING ? [{ label: "Marketing", icon: Megaphone, href: "/marketing" }] : []),
     { label: "Settings", icon: Settings, href: "/settings" },
     { label: "Notifications", icon: Bell, href: "/notifications" },
 ]
@@ -115,7 +114,7 @@ export function MobileBottomNav() {
                                     onClick={() => handleNav(item.href)}
                                 >
                                     <Icon className="h-5 w-5" />
-                                    <span className="text-[10px] font-medium">{item.label}</span>
+                                    <span className="text-xs font-medium">{item.label}</span>
                                 </button>
                             )
                         })}
@@ -130,7 +129,7 @@ export function MobileBottomNav() {
                                 {theme === "dark" ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-blue-400" />}
                                 {theme === "dark" ? "Light Mode" : "Dark Mode"}
                             </span>
-                            <span className="text-[10px] text-muted-foreground">Switch</span>
+                            <span className="text-xs text-muted-foreground">Switch</span>
                         </button>
                     </div>
                 </div>
@@ -177,7 +176,7 @@ export function MobileBottomNav() {
                                 onClick={() => handleNav(tab.href)}
                             >
                                 <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 1.5} />
-                                <span className="text-[10px] font-medium">{tab.label}</span>
+                                <span className="text-xs font-medium">{tab.label}</span>
                             </button>
                         )
                     })}
@@ -205,7 +204,7 @@ export function MobileBottomNav() {
                                 onClick={() => handleNav(tab.href)}
                             >
                                 <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 1.5} />
-                                <span className="text-[10px] font-medium">{tab.label}</span>
+                                <span className="text-xs font-medium">{tab.label}</span>
                             </button>
                         )
                     })}

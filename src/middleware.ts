@@ -5,6 +5,7 @@ import type { NextRequest } from "next/server"
 // Routes that don't require authentication
 const publicRoutes = [
     "/",
+    "/register",
 ]
 
 // Route prefixes that don't require authentication
@@ -116,6 +117,17 @@ export default auth((req) => {
 
     if (!isLoggedIn && !isPublicRoute) {
         return NextResponse.redirect(new URL("/", nextUrl))
+    }
+
+    // ── Setup Redirect ──
+    // Redirect to /setup on first login if setup hasn't been completed.
+    // Uses a cookie to avoid Firestore reads on every request in edge middleware.
+    // Skip redirect for: login page (/), /setup itself, and public routes.
+    if (isLoggedIn && !isPublicRoute && !nextUrl.pathname.startsWith("/setup")) {
+        const setupCompleted = req.cookies.get("setup_completed")?.value
+        if (!setupCompleted) {
+            return NextResponse.redirect(new URL("/setup", nextUrl))
+        }
     }
 
     return NextResponse.next()

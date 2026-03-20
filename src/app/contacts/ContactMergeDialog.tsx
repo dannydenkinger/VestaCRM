@@ -10,6 +10,16 @@ import {
     DialogFooter,
     DialogDescription,
 } from "@/components/ui/dialog"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Merge, Check, Loader2 } from "lucide-react"
@@ -28,11 +38,8 @@ const MERGE_FIELDS = [
     { key: "name", label: "Name" },
     { key: "email", label: "Email" },
     { key: "phone", label: "Phone" },
-    { key: "militaryBase", label: "Military Base" },
     { key: "businessName", label: "Business Name" },
     { key: "status", label: "Status" },
-    { key: "stayStartDate", label: "Stay Start Date" },
-    { key: "stayEndDate", label: "Stay End Date" },
 ]
 
 export function ContactMergeDialog({
@@ -44,6 +51,7 @@ export function ContactMergeDialog({
 }: ContactMergeDialogProps) {
     const [fieldChoices, setFieldChoices] = useState<Record<string, "primary" | "secondary">>({})
     const [isMerging, setIsMerging] = useState(false)
+    const [showMergeConfirm, setShowMergeConfirm] = useState(false)
 
     const effectiveChoices = useMemo(() => {
         const choices: Record<string, string> = {}
@@ -55,15 +63,8 @@ export function ContactMergeDialog({
 
     if (!contactA || !contactB) return null
 
-    const formatValue = (val: any, key: string): string => {
+    const formatValue = (val: any, _key: string): string => {
         if (!val) return "--"
-        if (key === "stayStartDate" || key === "stayEndDate") {
-            try {
-                return new Date(val).toLocaleDateString()
-            } catch {
-                return String(val)
-            }
-        }
         return String(val)
     }
 
@@ -226,7 +227,7 @@ export function ContactMergeDialog({
                     <Button variant="outline" onClick={onClose} disabled={isMerging}>
                         Cancel
                     </Button>
-                    <Button onClick={handleMerge} disabled={isMerging}>
+                    <Button onClick={() => setShowMergeConfirm(true)} disabled={isMerging}>
                         {isMerging ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -241,6 +242,26 @@ export function ContactMergeDialog({
                     </Button>
                 </DialogFooter>
             </DialogContent>
+
+            <AlertDialog open={showMergeConfirm} onOpenChange={setShowMergeConfirm}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Merge these contacts?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. The secondary contact ({contactB?.name || "Contact B"}) will be permanently deleted, and all their notes, documents, and deals will be merged into the primary contact ({contactA?.name || "Contact A"}).
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-destructive text-white hover:bg-destructive/90"
+                            onClick={handleMerge}
+                        >
+                            Merge Contacts
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </Dialog>
     )
 }

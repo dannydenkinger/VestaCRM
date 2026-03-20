@@ -1,7 +1,7 @@
 "use server"
 
-import { adminDb } from "@/lib/firebase-admin"
-import { auth } from "@/auth"
+import { tenantDb } from "@/lib/tenant-db"
+import { requireAuth } from "@/lib/auth-guard"
 
 interface StageMetric {
     stageId: string
@@ -26,12 +26,13 @@ const CLOSED_WON_NAMES = new Set(["Booked", "Closed", "Signed", "Closed Won", "C
 const CLOSED_LOST_NAMES = new Set(["Lost", "Abandoned"])
 
 export async function getPipelineConversionMetrics(pipelineId: string): Promise<{ success: boolean; data?: ConversionData; error?: string }> {
-    const session = await auth()
-    if (!session?.user) return { success: false, error: "Unauthorized" }
+    const session = await requireAuth()
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
 
     try {
         // Get stages in order
-        const stagesSnap = await adminDb.collection("pipelines").doc(pipelineId).collection("stages").orderBy("order", "asc").get()
+        const stagesSnap = await db.subcollection("pipelines", pipelineId, "stages").orderBy("order", "asc").get()
         const stages = stagesSnap.docs.map(s => ({
             id: s.id,
             name: s.data().name || "",
@@ -41,7 +42,7 @@ export async function getPipelineConversionMetrics(pipelineId: string): Promise<
         const stageIds = new Set(stages.map(s => s.id))
 
         // Get all opps for this pipeline
-        const oppsSnap = await adminDb.collection("opportunities").get()
+        const oppsSnap = await db.collection("opportunities").get()
         const pipelineOpps = oppsSnap.docs
             .filter(d => stageIds.has(d.data().pipelineStageId))
             .map(d => {

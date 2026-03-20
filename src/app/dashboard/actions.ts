@@ -1,13 +1,12 @@
 "use server"
 
-import { adminDb } from "@/lib/firebase-admin"
+import { tenantDb } from "@/lib/tenant-db"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import type { LeaderboardAgent, LeaderboardData, DashboardData, ActivityItem } from "./types"
+import { getCachedPipelines, getCachedStageMap, getCachedUsers } from "@/lib/cached-queries"
 
 const STAGE_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#10b981', '#f59e0b', '#f43f5e', '#06b6d4']
-const BASE_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4']
-
 function formatShortDate(d: Date): string {
     return `${d.getMonth() + 1}/${d.getDate()}`
 }
@@ -16,39 +15,35 @@ export async function getDashboardData(startDate?: string, endDate?: string): Pr
     const session = await auth()
     if (!session?.user) return { success: false, error: "Not authenticated" }
 
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
+
     // Parse date range filter
     const rangeStart = startDate ? new Date(startDate + 'T00:00:00') : null
     const rangeEnd = endDate ? new Date(endDate + 'T23:59:59.999') : null
 
     try {
-        const [pipelinesSnap, oppsSnap, contactsSnap, tasksSnap, usersSnap] = await Promise.all([
-            adminDb.collection('pipelines').orderBy('createdAt', 'asc').get(),
-            adminDb.collection('opportunities').get(),
-            adminDb.collection('contacts').get(),
-            adminDb.collection('tasks').orderBy('dueDate', 'asc').get(),
-            adminDb.collection('users').get(),
+        // Use cached pipelines/stages/users to avoid redundant Firestore reads
+        const [cachedPipelines, cachedStageMapData, oppsSnap, contactsSnap, tasksSnap, cachedUsersData] = await Promise.all([
+            getCachedPipelines(workspaceId),
+            getCachedStageMap(workspaceId),
+            db.collection('opportunities').get(),
+            db.collection('contacts').get(),
+            db.collection('tasks').orderBy('dueDate', 'asc').get(),
+            getCachedUsers(workspaceId),
         ])
 
-        // Build stages map (parallel reads to avoid Netlify function timeout)
-        const pipelinesList: { id: string; name: string }[] = []
+        // Build maps from cached data
+        const pipelinesList = cachedPipelines.map(p => ({ id: p.id, name: p.name }))
         const stageMap: Record<string, { pipelineId: string; name: string; order: number }> = {}
         const stageProbMap: Record<string, number> = {}
+        for (const [id, info] of Object.entries(cachedStageMapData)) {
+            stageMap[id] = { pipelineId: info.pipelineId, name: info.name, order: info.order }
+            stageProbMap[id] = info.probability
+        }
 
-        const stageReadPromises = pipelinesSnap.docs.map(doc => {
-            pipelinesList.push({ id: doc.id, name: doc.data().name })
-            return doc.ref.collection('stages').orderBy('order', 'asc').get().then(stagesSnap => {
-                for (const sDoc of stagesSnap.docs) {
-                    const sData = sDoc.data()
-                    stageMap[sDoc.id] = {
-                        pipelineId: doc.id,
-                        name: sData.name,
-                        order: sData.order,
-                    }
-                    stageProbMap[sDoc.id] = sData.probability ?? 0
-                }
-            })
-        })
-        await Promise.all(stageReadPromises)
+        // Build users snapshot equivalent from cache
+        const usersSnap = { docs: cachedUsersData.map(u => ({ id: u.id, data: () => u })) }
 
         // Determine closed/booked stage IDs
         const closedNames = new Set(['Booked', 'Closed', 'Signed', 'Closed Won', 'Lost', 'Abandoned'])
@@ -63,13 +58,6 @@ export async function getDashboardData(startDate?: string, endDate?: string): Pr
                 .filter(([, info]) => bookedNames.has(info.name))
                 .map(([id]) => id)
         )
-
-        // Contact base map for fallback
-        const contactBaseMap: Record<string, string> = {}
-        contactsSnap.docs.forEach(doc => {
-            const base = doc.data().militaryBase
-            if (base) contactBaseMap[doc.id] = base
-        })
 
         // Helper to convert Firestore timestamps to Date
         const toDate = (v: unknown): Date => {
@@ -90,7 +78,6 @@ export async function getDashboardData(startDate?: string, endDate?: string): Pr
                 stageName: stageInfo?.name || 'Unknown',
                 status: (d.status as string) || 'open',
                 value: Number(d.opportunityValue) || 0,
-                militaryBase: d.militaryBase || (d.contactId ? contactBaseMap[d.contactId] : null) || null,
                 utmSource: (d.utmSource as string) || null,
                 createdAt: toDate(d.createdAt),
                 estimatedProfit: Number(doc.data().estimatedProfit) || 0,
@@ -98,8 +85,6 @@ export async function getDashboardData(startDate?: string, endDate?: string): Pr
         })
 
         // Fallback: non-open deals with no valid pipeline assignment go to the first pipeline
-        // (mirrors pipeline page logic where closed/lost/archived deals with deleted stages
-        //  are still counted under the first pipeline)
         const firstPipelineId = pipelinesList[0]?.id || null
         for (const opp of allOpps) {
             if (!opp.pipelineId && opp.status !== 'open' && firstPipelineId) {
@@ -143,12 +128,11 @@ export async function getDashboardData(startDate?: string, endDate?: string): Pr
         const activeStayCount = filteredContactDocs.filter(doc => doc.data().status === 'Active Stay').length
         const totalContacts = filteredContactDocs.length
         const totalPipelineValue = opps.reduce((sum, o) => sum + o.value, 0)
-        // Open inquiries = opportunities with open status OR not in a closed stage
         const openInquiries = opps.filter(o => o.status === "open" && !closedStageIds.has(o.stageId)).length
         const bookedCount = opps.filter(o => o.status === "closed_won" || bookedStageIds.has(o.stageId)).length
         const conversionRate = opps.length > 0 ? Math.round((bookedCount / opps.length) * 1000) / 10 : 0
 
-        // Monthly revenue (booked opps created this month vs last month)
+        // Monthly revenue
         const now2 = new Date()
         const thisMonthStart = new Date(now2.getFullYear(), now2.getMonth(), 1)
         const lastMonthStart = new Date(now2.getFullYear(), now2.getMonth() - 1, 1)
@@ -164,7 +148,7 @@ export async function getDashboardData(startDate?: string, endDate?: string): Pr
             ? Math.round(((monthlyRevenue - previousMonthRevenue) / previousMonthRevenue) * 1000) / 10
             : null
 
-        // Lead velocity (new contacts last 30 days vs prior 30 days, within date range)
+        // Lead velocity
         const thirtyDaysAgo = new Date(now2.getTime() - 30 * 86400000)
         const sixtyDaysAgo = new Date(now2.getTime() - 60 * 86400000)
         const contactsForVelocity = (rangeStart || rangeEnd) ? filteredContactDocs : contactsSnap.docs
@@ -184,13 +168,13 @@ export async function getDashboardData(startDate?: string, endDate?: string): Pr
         const bookedOpps = opps.filter(o => bookedStageIds.has(o.stageId))
         const avgDealValue = bookedOpps.length > 0 ? Math.round(bookedOpps.reduce((s, o) => s + o.value, 0) / bookedOpps.length) : 0
 
-        // Closed profit metrics (from filtered opps)
+        // Closed profit metrics
         const totalClosedProfit = opps
             .filter(o => bookedStageIds.has(o.stageId))
             .reduce((sum, o) => sum + o.estimatedProfit, 0)
         const avgProfitPerDeal = bookedCount > 0 ? Math.round(totalClosedProfit / bookedCount) : 0
 
-        // Weighted forecast (open opps * stage probability)
+        // Weighted forecast
         const weightedForecast = opps
             .filter(o => !closedStageIds.has(o.stageId))
             .reduce((sum, o) => sum + o.value * ((stageProbMap[o.stageId] ?? 0) / 100), 0)
@@ -224,8 +208,6 @@ export async function getDashboardData(startDate?: string, endDate?: string): Pr
             })).filter(s => s.count > 0)
 
             // --- Value over time ---
-
-            // 1m: daily for last 30 days
             const daily: { name: string; value: number }[] = []
             for (let i = 29; i >= 0; i--) {
                 const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i)
@@ -236,7 +218,6 @@ export async function getDashboardData(startDate?: string, endDate?: string): Pr
                 })
             }
 
-            // 6m: weekly for last 26 weeks
             const weekly: { name: string; value: number }[] = []
             for (let i = 25; i >= 0; i--) {
                 const weekEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i * 7)
@@ -247,7 +228,6 @@ export async function getDashboardData(startDate?: string, endDate?: string): Pr
                 })
             }
 
-            // 1y: monthly for last 12 months
             const monthly: { name: string; value: number }[] = []
             for (let i = 11; i >= 0; i--) {
                 const mStart = new Date(now.getFullYear(), now.getMonth() - i, 1)
@@ -259,19 +239,7 @@ export async function getDashboardData(startDate?: string, endDate?: string): Pr
                 })
             }
 
-            // Deals by base
-            const baseCounts: Record<string, number> = {}
-            for (const opp of pipelineOpps) {
-                if (opp.militaryBase) baseCounts[opp.militaryBase] = (baseCounts[opp.militaryBase] || 0) + 1
-            }
-            const dealsByBase = Object.entries(baseCounts)
-                .sort(([, a], [, b]) => b - a)
-                .slice(0, 8)
-                .map(([name, deals], i) => ({ name, deals, color: BASE_COLORS[i % BASE_COLORS.length] }))
-
-            // Status distribution (open/won/lost/archived)
-            // Use explicit status field first, then fall back to stage membership.
-            // Any closed stage that isn't a booked/won stage is considered lost.
+            // Status distribution
             const pipelineClosedNotWon = new Set(
                 [...closedStageIds].filter(id => !bookedStageIds.has(id))
             )
@@ -295,7 +263,7 @@ export async function getDashboardData(startDate?: string, endDate?: string): Pr
                 stageDistribution,
                 statusDistribution,
                 valueOverTime: { "1m": daily, "6m": weekly, "1y": monthly },
-                dealsByBase,
+                dealsByBase: [],
                 totalValue: pipelineOpps.reduce((s, o) => s + o.value, 0),
                 totalDeals: pipelineOpps.length,
             }
@@ -362,6 +330,9 @@ export async function getRecentActivity(): Promise<{ success: boolean; data?: Ac
     const session = await auth()
     if (!session?.user) return { success: false, error: "Not authenticated" }
 
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
+
     try {
         const activities: ActivityItem[] = []
 
@@ -374,23 +345,25 @@ export async function getRecentActivity(): Promise<{ success: boolean; data?: Ac
             return new Date()
         }
 
-        // Build stage name lookup (parallel reads)
-        const pipelinesSnap = await adminDb.collection('pipelines').get()
+        // Parallelize all independent Firestore reads
+        const [pipelinesSnap, oppsSnap, contactsSnap, tasksSnap] = await Promise.all([
+            db.collection('pipelines').get(),
+            db.collection('opportunities').orderBy('updatedAt', 'desc').limit(30).get(),
+            db.collection('contacts').orderBy('createdAt', 'desc').limit(20).get(),
+            db.collection('tasks').where('completed', '==', true).orderBy('updatedAt', 'desc').limit(20).get(),
+        ])
+
+        // Build stage name lookup — use subcollection helper for tenant-safe access
         const stageNameMap: Record<string, string> = {}
         await Promise.all(pipelinesSnap.docs.map(pDoc =>
-            pDoc.ref.collection('stages').get().then(stagesSnap => {
+            db.subcollection('pipelines', pDoc.id, 'stages').get().then(stagesSnap => {
                 for (const sDoc of stagesSnap.docs) {
                     stageNameMap[sDoc.id] = sDoc.data().name || 'Unknown Stage'
                 }
             })
         ))
 
-        // 1. Recent deal stage changes (opportunities with stageHistory, sorted by latest entry)
-        const oppsSnap = await adminDb.collection('opportunities')
-            .orderBy('updatedAt', 'desc')
-            .limit(30)
-            .get()
-
+        // 1. Recent deal stage changes
         for (const doc of oppsSnap.docs) {
             const d = doc.data()
             const history = Array.isArray(d.stageHistory) ? d.stageHistory : []
@@ -411,11 +384,6 @@ export async function getRecentActivity(): Promise<{ success: boolean; data?: Ac
         }
 
         // 2. Recent contacts added
-        const contactsSnap = await adminDb.collection('contacts')
-            .orderBy('createdAt', 'desc')
-            .limit(20)
-            .get()
-
         for (const doc of contactsSnap.docs) {
             const d = doc.data()
             const name = d.name || d.email || 'Unknown Contact'
@@ -431,12 +399,6 @@ export async function getRecentActivity(): Promise<{ success: boolean; data?: Ac
         }
 
         // 3. Recent tasks completed
-        const tasksSnap = await adminDb.collection('tasks')
-            .where('completed', '==', true)
-            .orderBy('updatedAt', 'desc')
-            .limit(20)
-            .get()
-
         for (const doc of tasksSnap.docs) {
             const d = doc.data()
             const title = d.title || 'Untitled Task'
@@ -451,32 +413,36 @@ export async function getRecentActivity(): Promise<{ success: boolean; data?: Ac
             })
         }
 
-        // 4. Recent communications sent — messages are subcollections on contacts
-        //    We pull the most recent messages from the contacts we already fetched
-        for (const contactDoc of contactsSnap.docs) {
-            const contactName = contactDoc.data().name || contactDoc.data().email || 'Unknown'
-            try {
-                const messagesSnap = await contactDoc.ref.collection('messages')
-                    .orderBy('createdAt', 'desc')
-                    .limit(3)
-                    .get()
-                for (const msgDoc of messagesSnap.docs) {
-                    const m = msgDoc.data()
-                    const sentAt = toDate(m.createdAt)
-                    const direction = m.direction === 'inbound' ? 'received from' : 'sent to'
-                    const channel = m.channel === 'sms' ? 'SMS' : 'Email'
-                    activities.push({
-                        id: `msg-${msgDoc.id}`,
-                        type: 'communication_sent',
-                        description: `${channel} ${direction} ${contactName}`,
-                        timestamp: sentAt.toISOString(),
-                        linkHref: '/communications',
-                        meta: contactName,
+        // 4. Recent communications sent
+        const messageResults = await Promise.all(
+            contactsSnap.docs.map(async (contactDoc) => {
+                const contactName = contactDoc.data().name || contactDoc.data().email || 'Unknown'
+                try {
+                    const messagesSnap = await db.subcollection('contacts', contactDoc.id, 'messages')
+                        .orderBy('createdAt', 'desc')
+                        .limit(3)
+                        .get()
+                    return messagesSnap.docs.map(msgDoc => {
+                        const m = msgDoc.data()
+                        const sentAt = toDate(m.createdAt)
+                        const direction = m.direction === 'inbound' ? 'received from' : 'sent to'
+                        const channel = m.channel === 'sms' ? 'SMS' : 'Email'
+                        return {
+                            id: `msg-${msgDoc.id}`,
+                            type: 'communication_sent' as const,
+                            description: `${channel} ${direction} ${contactName}`,
+                            timestamp: sentAt.toISOString(),
+                            linkHref: '/communications',
+                            meta: contactName,
+                        }
                     })
+                } catch {
+                    return []
                 }
-            } catch {
-                // Some contacts may not have messages subcollection
-            }
+            })
+        )
+        for (const msgs of messageResults) {
+            activities.push(...msgs)
         }
 
         // Sort all activities by timestamp descending and take top 20
@@ -494,28 +460,30 @@ export async function getLeaderboardData(): Promise<{ success: boolean; data?: L
     const session = await auth()
     if (!session?.user) return { success: false, error: "Not authenticated" }
 
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
+
     try {
-        const [usersSnap, oppsSnap, pipelinesSnap] = await Promise.all([
-            adminDb.collection('users').get(),
-            adminDb.collection('opportunities').get(),
-            adminDb.collection('pipelines').get(),
+        // Use cached pipelines/users to avoid redundant Firestore reads
+        const [cachedUsersLb, oppsSnap, cachedPipelinesLb] = await Promise.all([
+            getCachedUsers(workspaceId),
+            db.collection('opportunities').get(),
+            getCachedPipelines(workspaceId),
         ])
 
-        // Build stage lookup — identify booked/won stages
+        // Build stage lookup from cache — identify booked/won stages
         const bookedNames = new Set(['Booked', 'Closed', 'Signed', 'Closed Won', 'Lease Signed'])
         const bookedStageIds = new Set<string>()
+        for (const p of cachedPipelinesLb) {
+            for (const s of p.stages) {
+                if (bookedNames.has(s.name)) bookedStageIds.add(s.id)
+            }
+        }
 
-        await Promise.all(pipelinesSnap.docs.map(pDoc =>
-            pDoc.ref.collection('stages').orderBy('order', 'asc').get().then(stagesSnap => {
-                for (const sDoc of stagesSnap.docs) {
-                    if (bookedNames.has(sDoc.data().name)) {
-                        bookedStageIds.add(sDoc.id)
-                    }
-                }
-            })
-        ))
+        // Create usersSnap-compatible structure from cache
+        const usersSnap = { docs: cachedUsersLb.map(u => ({ id: u.id, data: () => u })) }
 
-        // Calculate metrics per user (by assigneeId AND claimedBy)
+        // Calculate metrics per user
         const agentMetrics: Record<string, {
             totalDeals: number
             bookedDeals: number
@@ -551,7 +519,6 @@ export async function getLeaderboardData(): Promise<{ success: boolean; data?: L
             if (claimedBy) {
                 initAgent(claimedBy)
                 agentMetrics[claimedBy].claimedDeals++
-                // If claimedBy is different from assignee, also count for claimed user
                 if (claimedBy !== assigneeId) {
                     agentMetrics[claimedBy].totalDeals++
                     if (isBooked) {

@@ -1,7 +1,7 @@
 "use server"
 
-import { adminDb } from "@/lib/firebase-admin"
-import { auth } from "@/auth"
+import { tenantDb } from "@/lib/tenant-db"
+import { requireAuth } from "@/lib/auth-guard"
 import { revalidatePath } from "next/cache"
 import { sendEmail } from "@/lib/email"
 import crypto from "crypto"
@@ -27,26 +27,18 @@ export interface DocRecord {
     standalone: boolean
 }
 
-// ── Helpers to resolve doc ref ──
-
-function getDocRef(contactId: string, docId: string) {
-    if (!contactId) {
-        return adminDb.collection("documents").doc(docId)
-    }
-    return adminDb.collection("contacts").doc(contactId).collection("documents").doc(docId)
-}
-
 // ── Get All Documents (standalone + contact-attached) ──
 
 export async function getAllDocuments(statusFilter?: string) {
-    const session = await auth()
-    if (!session?.user) return { success: false, documents: [] as DocRecord[] }
+    const session = await requireAuth()
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
 
     try {
         // 1. Fetch standalone documents (top-level "documents" collection)
         let standaloneDocs: DocRecord[] = []
         try {
-            const standaloneSnap = await adminDb.collection("documents").orderBy("createdAt", "desc").get()
+            const standaloneSnap = await db.collection("documents").orderBy("createdAt", "desc").get()
             standaloneDocs = standaloneSnap.docs.map(doc => {
                 const data = doc.data()
                 return {
@@ -75,7 +67,7 @@ export async function getAllDocuments(statusFilter?: string) {
         // 2. Fetch contact-attached documents via collectionGroup (requires Firestore index)
         let contactDocRecords: DocRecord[] = []
         try {
-            const contactDocsSnap = await adminDb.collectionGroup("documents").orderBy("createdAt", "desc").get()
+            const contactDocsSnap = await db.collectionGroup("documents").orderBy("createdAt", "desc").get()
 
             // Filter out standalone docs from collectionGroup results (they share the collection name)
             const contactDocs = contactDocsSnap.docs.filter(doc => {
@@ -93,14 +85,14 @@ export async function getAllDocuments(statusFilter?: string) {
             const contactMap: Record<string, { name: string; email: string }> = {}
             if (contactIds.size > 0) {
                 const contactRefs = Array.from(contactIds).map(id =>
-                    adminDb.collection("contacts").doc(id)
+                    db.doc("contacts", id)
                 )
                 const batches: FirebaseFirestore.DocumentReference[][] = []
                 for (let i = 0; i < contactRefs.length; i += 100) {
                     batches.push(contactRefs.slice(i, i + 100))
                 }
                 for (const batch of batches) {
-                    const docs = await adminDb.getAll(...batch)
+                    const docs = await db.getAll(...batch)
                     for (const cDoc of docs) {
                         if (cDoc.exists) {
                             const data = cDoc.data()!
@@ -156,8 +148,9 @@ export async function getAllDocuments(statusFilter?: string) {
 // ── Update Document Content (for editing generated/draft docs) ──
 
 export async function updateDocumentContent(contactId: string, docId: string, content: string, name?: string) {
-    const session = await auth()
-    if (!session?.user) return { success: false, error: "Unauthorized" }
+    const session = await requireAuth()
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
 
     try {
         const updateData: Record<string, unknown> = {
@@ -166,7 +159,11 @@ export async function updateDocumentContent(contactId: string, docId: string, co
         }
         if (name) updateData.name = name
 
-        await getDocRef(contactId, docId).update(updateData)
+        const docRef = contactId
+            ? db.subcollection("contacts", contactId, "documents").doc(docId)
+            : db.doc("documents", docId)
+
+        await docRef.update(updateData)
 
         revalidatePath("/documents")
         revalidatePath("/contacts")
@@ -178,11 +175,11 @@ export async function updateDocumentContent(contactId: string, docId: string, co
 }
 
 // ── Create Draft Document ──
-// contactId is optional — empty string creates a standalone doc
 
 export async function createDraftDocument(contactId: string, name: string, content: string, folder?: string) {
-    const session = await auth()
-    if (!session?.user) return { success: false, error: "Unauthorized" }
+    const session = await requireAuth()
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
 
     try {
         const docData = {
@@ -196,11 +193,12 @@ export async function createDraftDocument(contactId: string, name: string, conte
             updatedAt: new Date(),
         }
 
-        const collection = contactId
-            ? adminDb.collection("contacts").doc(contactId).collection("documents")
-            : adminDb.collection("documents")
-
-        const docRef = await collection.add(docData)
+        let docRef
+        if (contactId) {
+            docRef = await db.addToSubcollection("contacts", contactId, "documents", docData)
+        } else {
+            docRef = await db.add("documents", docData)
+        }
 
         revalidatePath("/documents")
         if (contactId) revalidatePath("/contacts")
@@ -214,11 +212,12 @@ export async function createDraftDocument(contactId: string, name: string, conte
 // ── Upload Standalone Document ──
 
 export async function uploadStandaloneDocument(name: string, url: string, storagePath: string, folder?: string) {
-    const session = await auth()
-    if (!session?.user) return { success: false, error: "Unauthorized" }
+    const session = await requireAuth()
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
 
     try {
-        await adminDb.collection("documents").add({
+        await db.add("documents", {
             name,
             url,
             storagePath,
@@ -240,24 +239,28 @@ export async function uploadStandaloneDocument(name: string, url: string, storag
 // ── Send for Multi-Recipient Signature ──
 
 export async function sendForSignatures(contactId: string, docId: string, emails: string[]) {
-    const session = await auth()
-    if (!session?.user) return { success: false, error: "Unauthorized" }
+    const session = await requireAuth()
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
 
     if (!emails.length) return { success: false, error: "No recipients provided" }
 
     try {
-        const docRef = getDocRef(contactId, docId)
+        const docRef = contactId
+            ? db.subcollection("contacts", contactId, "documents").doc(docId)
+            : db.doc("documents", docId)
+
         const docSnap = await docRef.get()
         if (!docSnap.exists) return { success: false, error: "Document not found" }
         const document = docSnap.data()!
 
-        const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "https://app.afcrashpad.com"
+        const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
         const requestIds: string[] = []
 
         for (const email of emails) {
             const token = crypto.randomBytes(32).toString("hex")
 
-            const sigRef = await adminDb.collection("signature_requests").add({
+            const sigRef = await db.add("signature_requests", {
                 documentId: docId,
                 contactId: contactId || "",
                 standalone: !contactId,
@@ -318,13 +321,17 @@ export async function sendForSignatures(contactId: string, docId: string, emails
 // ── Bulk Delete ──
 
 export async function bulkDeleteDocuments(items: { contactId: string; docId: string }[]) {
-    const session = await auth()
-    if (!session?.user) return { success: false, error: "Unauthorized" }
+    const session = await requireAuth()
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
 
     try {
-        const batch = adminDb.batch()
+        const batch = db.batch()
         for (const item of items) {
-            batch.delete(getDocRef(item.contactId, item.docId))
+            const ref = item.contactId
+                ? db.subcollection("contacts", item.contactId, "documents").doc(item.docId)
+                : db.doc("documents", item.docId)
+            batch.delete(ref)
         }
         await batch.commit()
 
@@ -340,13 +347,17 @@ export async function bulkDeleteDocuments(items: { contactId: string; docId: str
 // ── Bulk Status Update ──
 
 export async function bulkUpdateStatus(items: { contactId: string; docId: string }[], status: string) {
-    const session = await auth()
-    if (!session?.user) return { success: false, error: "Unauthorized" }
+    const session = await requireAuth()
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
 
     try {
-        const batch = adminDb.batch()
+        const batch = db.batch()
         for (const item of items) {
-            batch.update(getDocRef(item.contactId, item.docId), { status, updatedAt: new Date() })
+            const ref = item.contactId
+                ? db.subcollection("contacts", item.contactId, "documents").doc(item.docId)
+                : db.doc("documents", item.docId)
+            batch.update(ref, { status, updatedAt: new Date() })
         }
         await batch.commit()
 
@@ -362,11 +373,12 @@ export async function bulkUpdateStatus(items: { contactId: string; docId: string
 // ── Get Contact List (lightweight, for contact selector) ──
 
 export async function getContactList() {
-    const session = await auth()
-    if (!session?.user) return []
+    const session = await requireAuth()
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
 
     try {
-        const snapshot = await adminDb.collection("contacts").orderBy("name").get()
+        const snapshot = await db.collection("contacts").orderBy("name").get()
         return snapshot.docs.map(doc => ({
             id: doc.id,
             name: (doc.data().name as string) || "Unknown",

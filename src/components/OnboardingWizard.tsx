@@ -18,9 +18,9 @@ interface OnboardingStep {
 const steps: OnboardingStep[] = [
     {
         target: "[data-onboarding='welcome']",
-        title: "Welcome to AFCrashpad CRM",
+        title: "Welcome to Vesta CRM",
         description:
-            "Let us give you a quick tour. We'll show you how to manage military crashpad operations efficiently — from tracking leads to managing stays and automating follow-ups.",
+            "Let us give you a quick tour. We'll show you how to manage your sales operations efficiently — from tracking leads to managing deals and automating follow-ups.",
         placement: "bottom",
     },
     {
@@ -35,21 +35,21 @@ const steps: OnboardingStep[] = [
         target: "[data-onboarding='dashboard']",
         title: "Dashboard Overview",
         description:
-            "See how your business is performing at a glance. Track occupancy rates, revenue trends, conversion rates, and pipeline value — all updated in real time so you can make informed decisions.",
+            "See how your business is performing at a glance. Track revenue trends, conversion rates, and pipeline value — all updated in real time so you can make informed decisions.",
         placement: "bottom",
     },
     {
         target: "[data-onboarding='pipeline']",
         title: "Pipeline Management",
         description:
-            "This is where deals move through your sales process. Drag and drop between stages like Inquiry, Tour Scheduled, and Booked. Automations can trigger emails and tasks as deals progress.",
+            "This is where deals move through your sales process. Drag and drop between stages to track progress. Automations can trigger emails and tasks as deals advance.",
         placement: "bottom",
     },
     {
         target: "[data-onboarding='contacts']",
         title: "Contacts",
         description:
-            "Your contact hub holds everyone — leads, active tenants, and past guests. Each contact has a full timeline of communications, documents, and stay history for complete context.",
+            "Your contact hub holds everyone — leads, customers, and past clients. Each contact has a full timeline of communications, documents, and activity history for complete context.",
         placement: "bottom",
     },
     {
@@ -126,32 +126,42 @@ export function OnboardingWizard() {
             borderRadius: "12px",
         })
 
-        const style: React.CSSProperties = { position: "fixed" }
+        const tooltipWidth = tooltipRef.current?.offsetWidth || 340
+        const tooltipHeight = tooltipRef.current?.offsetHeight || 200
+        const margin = 12 // minimum distance from viewport edge
+
+        let top: number | undefined
+        let left: number | undefined
 
         switch (step.placement) {
             case "bottom":
-                style.top = rect.bottom + padding + 12
-                style.left = rect.left + rect.width / 2
-                style.transform = "translateX(-50%)"
+                top = rect.bottom + padding + 12
+                left = rect.left + rect.width / 2 - tooltipWidth / 2
                 break
             case "top":
-                style.bottom = window.innerHeight - rect.top + padding + 12
-                style.left = rect.left + rect.width / 2
-                style.transform = "translateX(-50%)"
+                top = rect.top - padding - 12 - tooltipHeight
+                left = rect.left + rect.width / 2 - tooltipWidth / 2
                 break
             case "right":
-                style.top = rect.top + rect.height / 2
-                style.left = rect.right + padding + 12
-                style.transform = "translateY(-50%)"
+                top = rect.top + rect.height / 2 - tooltipHeight / 2
+                left = rect.right + padding + 12
                 break
             case "left":
-                style.top = rect.top + rect.height / 2
-                style.right = window.innerWidth - rect.left + padding + 12
-                style.transform = "translateY(-50%)"
+                top = rect.top + rect.height / 2 - tooltipHeight / 2
+                left = rect.left - padding - 12 - tooltipWidth
                 break
         }
 
-        setTooltipStyle(style)
+        // Clamp within viewport bounds
+        const vw = window.innerWidth
+        const vh = window.innerHeight
+
+        if (left < margin) left = margin
+        if (left + tooltipWidth > vw - margin) left = vw - margin - tooltipWidth
+        if (top < margin) top = margin
+        if (top + tooltipHeight > vh - margin) top = vh - margin - tooltipHeight
+
+        setTooltipStyle({ position: "fixed", top, left })
     }, [currentStep, activeSteps])
 
     useEffect(() => {

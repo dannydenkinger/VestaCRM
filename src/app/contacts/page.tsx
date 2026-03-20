@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback, Suspense, useMemo } from "react"
+import { useDebounce } from "@/hooks/useDebounce"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -49,7 +50,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { getContacts, getContactsPaginated, getContactDetail, createNote, deleteNote, updateNote, updateContact, updateFormTracking, bulkCreateContacts, createContact, deleteContact, bulkDeleteContacts, bulkUpdateContactStatus, bulkAddTag, mergeContacts, findDuplicateContacts, softDeleteContact, restoreContact, permanentlyDeleteContact, bulkSoftDeleteContacts, bulkRestoreContacts, bulkPermanentlyDeleteContacts } from "./actions"
+import { getContacts, getContactsPaginated, getContactDetail, createNote, deleteNote, updateNote, updateContact, updateFormTracking, bulkCreateContacts, createContact, deleteContact, bulkDeleteContacts, bulkUpdateContactStatus, bulkAddTag, mergeContacts, findDuplicateContacts, softDeleteContact, restoreContact, permanentlyDeleteContact, bulkSoftDeleteContacts, bulkRestoreContacts, bulkPermanentlyDeleteContacts, getContactsPageData } from "./actions"
 import { sendMessage } from "@/app/communications/actions"
 import { getContactStatuses } from "@/app/settings/system-properties/actions"
 import { getTags } from "@/app/settings/tags/actions"
@@ -62,9 +63,12 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog"
 import { CreateTaskDialog } from "@/components/ui/CreateTaskDialog"
-import { DocumentManager } from "./documents/DocumentManager"
+const DocumentManager = dynamic(() => import("./documents/DocumentManager").then(mod => mod.DocumentManager), {
+    loading: () => <div className="flex items-center justify-center p-8"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>,
+    ssr: false,
+})
 const ContactDetailSheet = dynamic(() => import("./ContactDetailSheet").then(mod => mod.ContactDetailSheet), {
-    loading: () => null,
+    loading: () => <div className="flex items-center justify-center h-full"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>,
     ssr: false,
 })
 import { DuplicateDetector } from "./DuplicateDetector"
@@ -73,19 +77,19 @@ import dynamic from "next/dynamic"
 
 // Lazy-loaded heavy components (only shown on user action)
 const CSVImportDialog = dynamic(() => import("@/components/ui/CSVImportDialog").then(mod => mod.CSVImportDialog), {
-    loading: () => null,
+    loading: () => <div className="flex items-center justify-center p-8"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>,
     ssr: false,
 })
 const ContactMergeDialog = dynamic(() => import("./ContactMergeDialog").then(mod => mod.ContactMergeDialog), {
-    loading: () => null,
+    loading: () => <div className="flex items-center justify-center p-8"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>,
     ssr: false,
 })
 const BulkEmailDialog = dynamic(() => import("./BulkEmailDialog").then(mod => mod.BulkEmailDialog), {
-    loading: () => null,
+    loading: () => <div className="flex items-center justify-center p-8"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>,
     ssr: false,
 })
 const ImportMappingDialog = dynamic(() => import("./ImportMappingDialog").then(mod => mod.ImportMappingDialog), {
-    loading: () => null,
+    loading: () => <div className="flex items-center justify-center p-8"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>,
     ssr: false,
 })
 import { toast } from "sonner"
@@ -124,7 +128,23 @@ const defaultColumns: ColumnDef[] = [
 
 export default function ContactsPage() {
     return (
-        <Suspense fallback={<div className="p-8">Loading contacts...</div>}>
+        <Suspense fallback={
+            <div className="p-4 md:p-8 space-y-4">
+                <div className="flex items-center justify-between">
+                    <div className="h-8 w-48 bg-muted animate-pulse rounded-md" />
+                    <div className="flex gap-2">
+                        <div className="h-9 w-24 bg-muted animate-pulse rounded-md" />
+                        <div className="h-9 w-24 bg-muted animate-pulse rounded-md" />
+                    </div>
+                </div>
+                <div className="h-10 w-full bg-muted animate-pulse rounded-md" />
+                <div className="space-y-2">
+                    {[...Array(6)].map((_, i) => (
+                        <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />
+                    ))}
+                </div>
+            </div>
+        }>
             <ContactsContent />
         </Suspense>
     )
@@ -145,6 +165,7 @@ function ContactsContent() {
 
     // Filter and Sort State
     const [searchTerm, setSearchTerm] = useState("");
+    const debouncedSearch = useDebounce(searchTerm, 300);
     const [statusFilter, setStatusFilter] = useState<string[]>([]);
     const [tagFilter, setTagFilter] = useState<string[]>([]);
     const [sortConfig, setSortConfig] = useState<{ key: ColumnId | 'dealValue'; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
@@ -233,7 +254,10 @@ function ContactsContent() {
     }, [searchTerm, statusFilter, sortConfig]);
 
     const handleSaveFilter = useCallback(async () => {
-        if (!filterNameInput.trim()) return;
+        if (!filterNameInput.trim()) {
+            toast.error("Filter name is required")
+            return;
+        }
         const filterData = { searchTerm, statusFilter, sortKey: sortConfig.key, sortDir: sortConfig.direction };
         const preset: SavedFilter = { name: filterNameInput.trim(), ...filterData };
 
@@ -290,11 +314,15 @@ function ContactsContent() {
 
     const fetchAllContacts = async () => {
         setIsLoading(true);
-        const res = await getContactsPaginated({ limit: 50 });
+        const res = await getContactsPageData({ limit: 50 });
         if (res.success && res.contacts) {
             setAllContacts(res.contacts.map(mapContact));
             setLastDocId(res.lastDocId ?? null);
             setHasMore(res.hasMore ?? false);
+            // Populate supplementary data from consolidated response
+            if (res.contactStatuses?.length) setContactStatuses(res.contactStatuses as { id: string; name: string }[]);
+            if (res.tags?.length) setAvailableTags(res.tags as { id: string; name: string; color: string }[]);
+            if (res.users?.length) setAllUsers(res.users as { id: string; name: string; email: string }[]);
         }
         setIsLoading(false);
     };
@@ -336,14 +364,8 @@ function ContactsContent() {
         fetchAllContacts();
     });
 
-    useEffect(() => {
-        // Fetch all supplementary data in parallel
-        Promise.all([
-            fetchContactStatuses(),
-            fetchTags(),
-            getUsers().then(res => { if (res.success) setAllUsers((res.users || []) as { id: string; name: string; email: string }[]); }),
-        ]);
-    }, []);
+    // Supplementary data (statuses, tags, users) is now loaded by fetchAllContacts
+    // via the consolidated getContactsPageData() call
 
     // Auto-select contact from ?contact= URL param
     const searchParams = useSearchParams();
@@ -368,7 +390,11 @@ function ContactsContent() {
     }, []);
 
     const handleLogMessage = async () => {
-        if (!selectedContact || selectedContact.id === 'new' || !logMessageContent.trim()) return;
+        if (!selectedContact || selectedContact.id === 'new') return;
+        if (!logMessageContent.trim()) {
+            toast.error("Message content is required")
+            return;
+        }
         setIsLoggingMessage(true);
         const res = await sendMessage(selectedContact.id, logMessageType, logMessageContent.trim());
         if (res.success) {
@@ -385,7 +411,11 @@ function ContactsContent() {
     };
 
     const handleAddNote = async () => {
-        if (!noteContent.trim() || !selectedContact) return;
+        if (!selectedContact) return;
+        if (!noteContent.trim()) {
+            toast.error("Note content is required")
+            return;
+        }
         setIsSavingNote(true);
         const res = await createNote(selectedContact.id, noteContent);
         if (res.success) {
@@ -405,7 +435,11 @@ function ContactsContent() {
     };
 
     const handleAddNoteWithMentions = async (content: string, mentions: { userId: string; userName: string }[]) => {
-        if (!content.trim() || !selectedContact) return;
+        if (!selectedContact) return;
+        if (!content.trim()) {
+            toast.error("Note content is required")
+            return;
+        }
         const res = await createNote(selectedContact.id, content, { mentions });
         if (res.success) {
             toast.success("Note added")
@@ -433,7 +467,11 @@ function ContactsContent() {
     };
 
     const handleQuickNote = async () => {
-        if (!quickNoteContent.trim() || !quickNoteContactId) return;
+        if (!quickNoteContactId) return;
+        if (!quickNoteContent.trim()) {
+            toast.error("Note content is required")
+            return;
+        }
         setIsSavingQuickNote(true);
         const res = await createNote(quickNoteContactId, quickNoteContent);
         if (res.success) {
@@ -636,7 +674,6 @@ function ContactsContent() {
             email: '',
             phone: '',
             businessName: '',
-            militaryBase: '',
             status: 'Lead',
             opportunities: [],
             notes: [],
@@ -680,7 +717,6 @@ function ContactsContent() {
             name: selectedContact.name,
             email: selectedContact.email,
             phone: selectedContact.phone,
-            base: selectedContact.militaryBase,
             startDate: selectedContact.stayStartDate || '',
             endDate: selectedContact.stayEndDate || ''
         });
@@ -708,7 +744,6 @@ function ContactsContent() {
                         name: editingContact.name,
                         email: editingContact.email,
                         phone: editingContact.phone,
-                        militaryBase: editingContact.militaryBase,
                         businessName: editingContact.businessName,
                         status: editingContact.status || 'Lead',
                         stayStartDate: editingContact.stayStartDate || null,
@@ -731,7 +766,6 @@ function ContactsContent() {
                         name: editingContact.name,
                         email: editingContact.email,
                         phone: editingContact.phone,
-                        militaryBase: editingContact.militaryBase,
                         businessName: editingContact.businessName,
                         status: editingContact.status || 'Lead',
                         stayStartDate: editingContact.stayStartDate || null,
@@ -860,10 +894,10 @@ function ContactsContent() {
     const filteredAndSortedContacts = useMemo(() => [...allContacts]
         .filter(contact => {
             const matchesSearch =
-                (contact.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (contact.email || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (contact.phone || "").includes(searchTerm) ||
-                (contact.businessName || "").toLowerCase().includes(searchTerm.toLowerCase());
+                (contact.name || "").toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+                (contact.email || "").toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+                (contact.phone || "").includes(debouncedSearch) ||
+                (contact.businessName || "").toLowerCase().includes(debouncedSearch.toLowerCase());
 
             const matchesStatus = statusFilter.length === 0 || statusFilter.includes(contact.status);
 
@@ -892,7 +926,7 @@ function ContactsContent() {
             if ((valA as number | string) < (valB as number | string)) return direction === 'asc' ? -1 : 1;
             if ((valA as number | string) > (valB as number | string)) return direction === 'asc' ? 1 : -1;
             return 0;
-        }), [allContacts, searchTerm, statusFilter, tagFilter, sortConfig]);
+        }), [allContacts, debouncedSearch, statusFilter, tagFilter, sortConfig]);
 
     // ─── Mobile Contacts ──────────────────────────────────────────
     if (isMobile) {
@@ -926,8 +960,18 @@ function ContactsContent() {
                             ))}
                         </div>
                     ) : filteredAndSortedContacts.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-40 text-muted-foreground text-sm">
-                            {searchTerm ? "No matching contacts" : "No contacts yet"}
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                            <Search className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                            <h3 className="text-lg font-medium text-foreground mb-1">{searchTerm ? "No matching contacts" : "No contacts yet"}</h3>
+                            <p className="text-sm text-muted-foreground mb-4 max-w-sm">
+                                {searchTerm ? "Try adjusting your search or filters." : "Add your first contact to start managing relationships."}
+                            </p>
+                            {!searchTerm && (
+                                <Button onClick={handleAddContactClick} size="sm">
+                                    <Plus className="h-4 w-4 mr-1" />
+                                    Add your first contact
+                                </Button>
+                            )}
                         </div>
                     ) : (
                         filteredAndSortedContacts.map((contact: any) => (
@@ -1039,7 +1083,6 @@ function ContactsContent() {
                                 Email: c.email || "",
                                 Phone: c.phone || "",
                                 Status: c.status || "",
-                                "Military Base": c.militaryBase || "",
                                 "Business Name": c.businessName || "",
                                 "Stay Start": c.stayStartDate ? new Date(c.stayStartDate).toLocaleDateString() : "",
                                 "Stay End": c.stayEndDate ? new Date(c.stayEndDate).toLocaleDateString() : "",
@@ -1417,11 +1460,9 @@ function ContactsContent() {
                                                         )}
                                                     </div>
                                                     <p className="text-xs text-muted-foreground truncate">{contact.email || contact.phone || "—"}</p>
-                                                    {(contact.militaryBase || contact.dealStage !== "—") && (
+                                                    {contact.dealStage !== "—" && (
                                                         <div className="flex items-center gap-1.5 mt-0.5">
-                                                            {contact.militaryBase && <span className="text-[10px] text-muted-foreground">{contact.militaryBase}</span>}
-                                                            {contact.militaryBase && contact.dealStage !== "—" && <span className="text-[10px] text-muted-foreground/40">·</span>}
-                                                            {contact.dealStage !== "—" && <span className="text-[10px] text-muted-foreground">{contact.dealStage}</span>}
+                                                            <span className="text-[10px] text-muted-foreground">{contact.dealStage}</span>
                                                         </div>
                                                     )}
                                                 </div>
@@ -1442,10 +1483,18 @@ function ContactsContent() {
                                 }}
                             />
                         ) : (
-                            <div className="flex flex-col items-center justify-center py-16 text-center">
-                                <Search className="h-10 w-10 text-muted-foreground/20 mb-3" />
-                                <p className="text-sm font-medium text-foreground mb-1">No contacts found</p>
-                                <p className="text-xs text-muted-foreground">Try adjusting your search or filters</p>
+                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                                <Search className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                                <h3 className="text-lg font-medium text-foreground mb-1">{searchTerm ? "No matching contacts" : "No contacts yet"}</h3>
+                                <p className="text-sm text-muted-foreground mb-4 max-w-sm">
+                                    {searchTerm ? "Try adjusting your search or filters." : "Add your first contact to start managing relationships."}
+                                </p>
+                                {!searchTerm && (
+                                    <Button onClick={handleAddContactClick} size="sm">
+                                        <Plus className="h-4 w-4 mr-1" />
+                                        Add your first contact
+                                    </Button>
+                                )}
                             </div>
                         )}
                     </div>
@@ -1472,10 +1521,18 @@ function ContactsContent() {
                         onReorderColumns={handleReorderColumns}
                     />
                     ) : (
-                        <div className="flex flex-col items-center justify-center py-16 text-center">
-                            <Search className="h-10 w-10 text-muted-foreground/20 mb-3" />
-                            <p className="text-sm font-medium text-foreground mb-1">No contacts found</p>
-                            <p className="text-xs text-muted-foreground">Try adjusting your search or filters</p>
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                            <Search className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                            <h3 className="text-lg font-medium text-foreground mb-1">{searchTerm ? "No matching contacts" : "No contacts yet"}</h3>
+                            <p className="text-sm text-muted-foreground mb-4 max-w-sm">
+                                {searchTerm ? "Try adjusting your search or filters." : "Add your first contact to start managing relationships."}
+                            </p>
+                            {!searchTerm && (
+                                <Button onClick={handleAddContactClick} size="sm">
+                                    <Plus className="h-4 w-4 mr-1" />
+                                    Add your first contact
+                                </Button>
+                            )}
                         </div>
                     )}
                     </div>
@@ -1609,7 +1666,6 @@ function ContactsContent() {
                             { key: 'name', label: 'Name' },
                             { key: 'email', label: 'Email' },
                             { key: 'phone', label: 'Phone' },
-                            { key: 'militaryBase', label: 'Military Base' },
                             { key: 'businessName', label: 'Business' },
                             { key: 'status', label: 'Status' },
                         ];

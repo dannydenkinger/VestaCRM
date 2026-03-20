@@ -29,8 +29,15 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { DocumentManager } from "./documents/DocumentManager"
-import { NotesEditor } from "@/components/NotesEditor"
+const DocumentManager = dynamic(() => import("./documents/DocumentManager").then(mod => mod.DocumentManager), {
+    loading: () => <div className="h-32 bg-muted animate-pulse rounded-md" />,
+    ssr: false,
+})
+import dynamic from "next/dynamic"
+const NotesEditor = dynamic(() => import("@/components/NotesEditor").then(mod => mod.NotesEditor), {
+    loading: () => <div className="h-32 bg-muted animate-pulse rounded-md" />,
+    ssr: false,
+})
 import { addRelatedContact, removeRelatedContact } from "./actions"
 import { toast } from "sonner"
 import {
@@ -253,7 +260,11 @@ export function ContactDetailSheet({
     const handleValidatedSave = () => {
         const errors = validateContactForm()
         setFormErrors(errors)
-        if (Object.keys(errors).length > 0) return
+        if (Object.keys(errors).length > 0) {
+            const messages = Object.values(errors)
+            toast.error(messages.join(". "))
+            return
+        }
         onSave()
     }
 
@@ -575,14 +586,6 @@ export function ContactDetailSheet({
                                                     onBlurSave={handleValidatedSave}
                                                     colSpan
                                                 />
-                                                <InlineField
-                                                    label="Military Base"
-                                                    value={editingContact?.militaryBase || ""}
-                                                    onChange={(val) => setEditingContact((prev: any) => prev ? { ...prev, militaryBase: val } : null)}
-                                                    onBlurSave={handleValidatedSave}
-                                                    placeholder="e.g. Luke AFB"
-                                                    colSpan
-                                                />
                                             </div>
                                         </div>
 
@@ -745,7 +748,7 @@ export function ContactDetailSheet({
                                             <div className="space-y-3 mt-4">
                                                 {[
                                                     { label: "Homeowner Lease", field: "homeownerLeaseSigned" },
-                                                    { label: "AF Crashpad Terms & Conditions", field: "termsConditionsSigned" },
+                                                    { label: "Terms & Conditions", field: "termsConditionsSigned" },
                                                     { label: "Payment Authorization Form", field: "paymentAuthSigned" }
                                                 ].map((doc) => (
                                                     <div key={doc.field} className="flex items-center justify-between p-4 rounded-xl border border-border/50 bg-muted/10 hover:bg-muted/20 transition-colors">

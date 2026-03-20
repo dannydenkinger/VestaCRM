@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { useDebounce } from "@/hooks/useDebounce"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -29,6 +30,7 @@ export default function CommunicationsPage() {
     const [isLoading, setIsLoading] = useState(true)
     const [isLoadingThread, setIsLoadingThread] = useState(false)
     const [search, setSearch] = useState("")
+    const debouncedSearch = useDebounce(search, 300)
     const [newMessage, setNewMessage] = useState("")
     const [messageType, setMessageType] = useState("email")
     const [isSending, setIsSending] = useState(false)
@@ -190,8 +192,8 @@ export default function CommunicationsPage() {
     }
 
     const filteredConversations = conversations.filter(c => {
-        const matchesSearch = c.contactName?.toLowerCase().includes(search.toLowerCase()) ||
-            c.email?.toLowerCase().includes(search.toLowerCase())
+        const matchesSearch = c.contactName?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+            c.email?.toLowerCase().includes(debouncedSearch.toLowerCase())
         const matchesType = typeFilter === "all" || c.lastMessageType === typeFilter
         return matchesSearch && matchesType
     })
@@ -261,7 +263,7 @@ export default function CommunicationsPage() {
                         </Avatar>
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-foreground truncate">{contact?.name}</p>
-                            <p className="text-[10px] text-muted-foreground truncate">{contact?.email}</p>
+                            <p className="text-xs text-muted-foreground truncate">{contact?.email}</p>
                         </div>
                     </div>
 
@@ -272,10 +274,12 @@ export default function CommunicationsPage() {
                                 <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                             </div>
                         ) : filteredMessages.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-16 text-center">
-                                <MessageSquare className="h-10 w-10 text-muted-foreground/50 mb-3" />
-                                <p className="text-sm font-medium text-muted-foreground">No messages yet</p>
-                                <p className="text-xs text-muted-foreground mt-1">Send the first message below</p>
+                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                                <Send className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                                <h3 className="text-lg font-medium text-foreground mb-1">No messages yet</h3>
+                                <p className="text-sm text-muted-foreground max-w-sm">
+                                    Send the first message to start this conversation.
+                                </p>
                             </div>
                         ) : filteredMessages.map((msg: any) => {
                             const isOutbound = msg.direction === "outbound" || msg.direction === "OUTBOUND"
@@ -290,23 +294,23 @@ export default function CommunicationsPage() {
                                         "bg-muted rounded-bl-md"
                                     }`}>
                                         <div className="flex items-center gap-1.5 flex-wrap">
-                                            <Badge variant="outline" className={`text-[9px] px-1 py-0 gap-0.5 border-border ${isOutbound && !isScheduled && !isCancelled ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                                            <Badge variant="outline" className={`text-[10px] px-1 py-0 gap-0.5 border-border ${isOutbound && !isScheduled && !isCancelled ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
                                                 {typeIcon(msg.type)}
                                                 {msg.type}
                                             </Badge>
                                             {isScheduled && msg.scheduledAt && (
-                                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-amber-500/30 text-amber-500">
+                                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500/30 text-amber-500">
                                                     Scheduled
                                                 </Badge>
                                             )}
                                         </div>
                                         <p className={`text-sm leading-relaxed ${isCancelled ? "line-through" : ""}`}>{msg.content}</p>
                                         <div className="flex items-center justify-between">
-                                            <p className={`text-[10px] ${isOutbound && !isScheduled && !isCancelled ? "text-primary-foreground/50" : "text-muted-foreground"}`}>
+                                            <p className={`text-xs ${isOutbound && !isScheduled && !isCancelled ? "text-primary-foreground/50" : "text-muted-foreground"}`}>
                                                 {formatTime(msg.createdAt)}
                                             </p>
                                             {isScheduled && (
-                                                <button onClick={() => handleCancelScheduled(msg.id)} className="text-[10px] text-amber-500 font-medium">Cancel</button>
+                                                <button onClick={() => handleCancelScheduled(msg.id)} className="text-xs text-amber-500 font-medium">Cancel</button>
                                             )}
                                         </div>
                                     </div>
@@ -330,7 +334,7 @@ export default function CommunicationsPage() {
                                 <button
                                     key={t}
                                     onClick={() => setMessageType(t)}
-                                    className={`px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider transition-colors border touch-manipulation ${messageType === t ? `${typeColor(t)} border-current` : "text-muted-foreground border-transparent"}`}
+                                    className={`px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider transition-colors border touch-manipulation ${messageType === t ? `${typeColor(t)} border-current` : "text-muted-foreground border-transparent"}`}
                                 >
                                     {t}
                                 </button>
@@ -451,10 +455,16 @@ export default function CommunicationsPage() {
                             <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                         </div>
                     ) : filteredConversations.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-16 text-center">
-                            <MessageSquare className="h-10 w-10 text-muted-foreground/50 mb-3" />
-                            <p className="text-sm font-medium text-muted-foreground">No conversations</p>
-                            <p className="text-xs text-muted-foreground mt-1">Start a new conversation</p>
+                        <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                            <MessageSquare className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                            <h3 className="text-lg font-medium text-foreground mb-1">No conversations yet</h3>
+                            <p className="text-sm text-muted-foreground mb-4 max-w-sm">
+                                Start a conversation with a contact to begin tracking communications.
+                            </p>
+                            <Button size="sm" onClick={startNewConversation}>
+                                <Plus className="h-4 w-4 mr-1" />
+                                Start a conversation
+                            </Button>
                         </div>
                     ) : filteredConversations.map(convo => {
                         const needsAttention = convo.lastMessageDirection === "inbound"
@@ -477,10 +487,10 @@ export default function CommunicationsPage() {
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center justify-between mb-0.5">
                                         <span className={`text-sm truncate ${needsAttention ? "font-bold text-foreground" : "font-medium text-foreground"}`}>{convo.contactName}</span>
-                                        <span className="text-[10px] text-muted-foreground shrink-0 ml-2">{formatTime(convo.lastMessageTime)}</span>
+                                        <span className="text-xs text-muted-foreground shrink-0 ml-2">{formatTime(convo.lastMessageTime)}</span>
                                     </div>
                                     <div className="flex items-center gap-1.5 mb-1">
-                                        <Badge variant="outline" className={`text-[9px] px-1.5 py-0 gap-0.5 border-border ${typeColor(convo.lastMessageType)}`}>
+                                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 gap-0.5 border-border ${typeColor(convo.lastMessageType)}`}>
                                             {typeIcon(convo.lastMessageType)}
                                             {convo.lastMessageType}
                                         </Badge>
@@ -554,7 +564,7 @@ export default function CommunicationsPage() {
                                 <button
                                     key={f.value}
                                     onClick={() => setTypeFilter(f.value)}
-                                    className={`px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider transition-colors border ${typeFilter === f.value
+                                    className={`px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider transition-colors border ${typeFilter === f.value
                                             ? "bg-primary text-primary-foreground border-primary"
                                             : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
                                         }`}
@@ -587,11 +597,11 @@ export default function CommunicationsPage() {
                                         className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
                                     >
                                         <Avatar className="h-6 w-6">
-                                            <AvatarFallback className="text-[9px] bg-primary/10 text-primary">{c.name?.charAt(0)}</AvatarFallback>
+                                            <AvatarFallback className="text-[10px] bg-primary/10 text-primary">{c.name?.charAt(0)}</AvatarFallback>
                                         </Avatar>
                                         <div className="flex flex-col min-w-0">
                                             <span className="text-xs font-medium truncate">{c.name}</span>
-                                            <span className="text-[10px] text-muted-foreground truncate">{c.email}</span>
+                                            <span className="text-xs text-muted-foreground truncate">{c.email}</span>
                                         </div>
                                     </div>
                                 ))}
@@ -636,14 +646,14 @@ export default function CommunicationsPage() {
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center justify-between mb-0.5">
                                         <span className={`text-sm truncate ${needsAttention ? "font-bold text-foreground" : "font-semibold"}`}>{convo.contactName}</span>
-                                        <span className="text-[10px] text-muted-foreground shrink-0 ml-2">{formatTime(convo.lastMessageTime)}</span>
+                                        <span className="text-xs text-muted-foreground shrink-0 ml-2">{formatTime(convo.lastMessageTime)}</span>
                                     </div>
                                     <div className="flex items-center gap-1.5 mb-1">
-                                        <Badge variant="outline" className={`text-[9px] px-1.5 py-0 gap-0.5 ${typeColor(convo.lastMessageType)}`}>
+                                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 gap-0.5 ${typeColor(convo.lastMessageType)}`}>
                                             {typeIcon(convo.lastMessageType)}
                                             {convo.lastMessageType}
                                         </Badge>
-                                        <Badge variant="outline" className="text-[9px] px-1.5 py-0">
+                                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
                                             {convo.lastMessageDirection === "inbound" ? "↓ In" : "↑ Out"}
                                         </Badge>
                                     </div>
@@ -654,7 +664,7 @@ export default function CommunicationsPage() {
                     </div>
 
                     {/* Stats Footer */}
-                    <div className="p-3 border-t text-[10px] text-muted-foreground text-center">
+                    <div className="p-3 border-t text-xs text-muted-foreground text-center">
                         {conversations.length} conversation{conversations.length !== 1 ? "s" : ""}
                         {(() => {
                             const attentionCount = conversations.filter(c => c.lastMessageDirection === "inbound").length
@@ -736,9 +746,10 @@ export default function CommunicationsPage() {
                             {/* Messages */}
                             <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4">
                                 {messages.length === 0 && !threadSearch ? (
-                                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
-                                        <p className="text-sm">No messages yet</p>
-                                        <p className="text-xs">Send the first message below</p>
+                                    <div className="flex flex-col items-center justify-center h-full text-center">
+                                        <Send className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                                        <h3 className="text-lg font-medium text-foreground mb-1">No messages yet</h3>
+                                        <p className="text-sm text-muted-foreground max-w-sm">Send the first message to start this conversation.</p>
                                     </div>
                                 ) : (threadSearch && messages.filter(m => m.content?.toLowerCase().includes(threadSearch.toLowerCase())).length === 0) ? (
                                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
@@ -769,7 +780,7 @@ export default function CommunicationsPage() {
                                                     : "bg-muted rounded-bl-md"
                                             }`}>
                                                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                    <Badge variant="outline" className={`text-[9px] px-1 py-0 gap-0.5 border-border ${isOutbound && !isScheduled && !isCancelled ? "text-primary-foreground/70" : ""
+                                                    <Badge variant="outline" className={`text-[10px] px-1 py-0 gap-0.5 border-border ${isOutbound && !isScheduled && !isCancelled ? "text-primary-foreground/70" : ""
                                                         }`}>
                                                         {typeIcon(msg.type)}
                                                         {msg.type}
@@ -777,14 +788,14 @@ export default function CommunicationsPage() {
 
                                                     {/* Thread indicator */}
                                                     {msg.parentMessageId && (
-                                                        <Badge variant="outline" className="text-[9px] px-1 py-0 gap-0.5 bg-indigo-500/10 text-indigo-600 border-indigo-500/20">
+                                                        <Badge variant="outline" className="text-[10px] px-1 py-0 gap-0.5 bg-indigo-500/10 text-indigo-600 border-indigo-500/20">
                                                             Reply
                                                         </Badge>
                                                     )}
 
                                                     {/* Scheduled badge */}
                                                     {isScheduled && msg.scheduledAt && (
-                                                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 gap-0.5 border-amber-500/30 text-amber-600 bg-amber-500/10">
+                                                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5 border-amber-500/30 text-amber-600 bg-amber-500/10">
                                                             <CalendarDays className="h-2.5 w-2.5" />
                                                             Scheduled for {formatScheduledDate(msg.scheduledAt)}
                                                         </Badge>
@@ -792,7 +803,7 @@ export default function CommunicationsPage() {
 
                                                     {/* Cancelled badge */}
                                                     {isCancelled && (
-                                                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 gap-0.5 border-red-500/30 text-red-500 bg-red-500/10">
+                                                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5 border-red-500/30 text-red-500 bg-red-500/10">
                                                             <X className="h-2.5 w-2.5" />
                                                             Cancelled
                                                         </Badge>
@@ -810,18 +821,18 @@ export default function CommunicationsPage() {
                                                         return (
                                                             <div className="flex items-center gap-1.5">
                                                                 {tracking.opened ? (
-                                                                    <Badge variant="outline" className="text-[9px] px-1 py-0 gap-0.5 border-emerald-400/40 text-emerald-300 bg-emerald-500/10">
+                                                                    <Badge variant="outline" className="text-[10px] px-1 py-0 gap-0.5 border-emerald-400/40 text-emerald-300 bg-emerald-500/10">
                                                                         <Eye className="h-2.5 w-2.5" />
                                                                         Opened{tracking.openCount > 1 ? ` (${tracking.openCount})` : ""}
                                                                     </Badge>
                                                                 ) : (
-                                                                    <Badge variant="outline" className="text-[9px] px-1 py-0 gap-0.5 border-border text-primary-foreground/40">
+                                                                    <Badge variant="outline" className="text-[10px] px-1 py-0 gap-0.5 border-border text-primary-foreground/40">
                                                                         <Eye className="h-2.5 w-2.5" />
                                                                         Not opened
                                                                     </Badge>
                                                                 )}
                                                                 {tracking.totalClicks > 0 && (
-                                                                    <Badge variant="outline" className="text-[9px] px-1 py-0 gap-0.5 border-blue-400/40 text-blue-300 bg-blue-500/10">
+                                                                    <Badge variant="outline" className="text-[10px] px-1 py-0 gap-0.5 border-blue-400/40 text-blue-300 bg-blue-500/10">
                                                                         <MousePointerClick className="h-2.5 w-2.5" />
                                                                         {tracking.totalClicks} click{tracking.totalClicks !== 1 ? "s" : ""}
                                                                     </Badge>
@@ -842,7 +853,7 @@ export default function CommunicationsPage() {
                                                                 href={att.url}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
-                                                                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] border transition-colors ${
+                                                                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border transition-colors ${
                                                                     isOutbound && !isScheduled && !isCancelled
                                                                         ? "border-border text-primary-foreground/70 hover:text-primary-foreground"
                                                                         : "border-border text-muted-foreground hover:text-foreground"
@@ -856,7 +867,7 @@ export default function CommunicationsPage() {
                                                 )}
 
                                                 <div className="flex items-center justify-between">
-                                                    <p className={`text-[10px] ${
+                                                    <p className={`text-xs ${
                                                         isOutbound && !isScheduled && !isCancelled
                                                             ? "text-primary-foreground/50"
                                                             : "text-muted-foreground"
@@ -868,7 +879,7 @@ export default function CommunicationsPage() {
                                                     {isScheduled && (
                                                         <button
                                                             onClick={() => handleCancelScheduled(msg.id)}
-                                                            className="text-[10px] text-amber-600 hover:text-red-500 font-medium transition-colors"
+                                                            className="text-xs text-amber-600 hover:text-red-500 font-medium transition-colors"
                                                         >
                                                             Cancel
                                                         </button>
@@ -880,7 +891,7 @@ export default function CommunicationsPage() {
                                                                 setReplyToMessage(msg)
                                                                 textareaRef.current?.focus()
                                                             }}
-                                                            className={`text-[10px] font-medium transition-colors flex items-center gap-0.5 opacity-0 group-hover:opacity-100 ${
+                                                            className={`text-xs font-medium transition-colors flex items-center gap-0.5 opacity-0 group-hover:opacity-100 ${
                                                                 isOutbound && !isScheduled && !isCancelled
                                                                     ? "text-primary-foreground/50 hover:text-primary-foreground/80"
                                                                     : "text-muted-foreground hover:text-foreground"
@@ -930,12 +941,12 @@ export default function CommunicationsPage() {
                                 )}
 
                                 <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Send as:</span>
+                                    <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Send as:</span>
                                     {["email", "text", "phone"].map(t => (
                                         <button
                                             key={t}
                                             onClick={() => setMessageType(t)}
-                                            className={`px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider transition-colors border touch-manipulation ${messageType === t
+                                            className={`px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider transition-colors border touch-manipulation ${messageType === t
                                                     ? `${typeColor(t)} border-current`
                                                     : "text-muted-foreground border-transparent hover:bg-muted"
                                                 }`}
@@ -1055,7 +1066,7 @@ export default function CommunicationsPage() {
                                                 size="sm"
                                                 onClick={() => { setShowSchedulePicker(!showSchedulePicker); setShowSnippets(false) }}
                                                 disabled={!newMessage.trim()}
-                                                className={`h-7 text-[10px] rounded-lg ${showSchedulePicker ? "border-primary text-primary" : ""}`}
+                                                className={`h-7 text-xs rounded-lg ${showSchedulePicker ? "border-primary text-primary" : ""}`}
                                             >
                                                 <Clock className="h-3 w-3 mr-1" />
                                                 Schedule

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Paintbrush, Upload, Plane, Loader2 } from "lucide-react"
+import { Paintbrush, Upload, Hexagon, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { getBrandingSettings, updateBrandingSettings, uploadBrandingLogo } from "./actions"
 import type { BrandingSettings as BrandingData } from "./types"
@@ -98,7 +98,7 @@ export function BrandingSettings() {
                                 <img src={branding.logoUrl} alt="Logo" className="h-full w-full object-cover" />
                             ) : (
                                 <div className="flex h-full w-full items-center justify-center bg-primary text-primary-foreground" style={branding.primaryColor ? { backgroundColor: branding.primaryColor } : undefined}>
-                                    <Plane className="h-8 w-8" />
+                                    <Hexagon className="h-8 w-8" />
                                 </div>
                             )}
                         </div>
@@ -140,7 +140,7 @@ export function BrandingSettings() {
                         id="company-name"
                         value={branding.companyName || ""}
                         onChange={(e) => setBranding((prev) => ({ ...prev, companyName: e.target.value }))}
-                        placeholder="AFCrashpad"
+                        placeholder="Your Company"
                         maxLength={100}
                     />
                     <p className="text-xs text-muted-foreground">Displayed in the sidebar and email templates.</p>
@@ -176,11 +176,11 @@ export function BrandingSettings() {
                                 <img src={branding.logoUrl} alt="Preview" className="h-10 w-10 rounded-lg object-cover shadow" />
                             ) : (
                                 <div className="flex h-10 w-10 items-center justify-center rounded-lg text-white shadow" style={{ backgroundColor: branding.primaryColor || "#1a1a2e" }}>
-                                    <Plane className="h-6 w-6" />
+                                    <Hexagon className="h-6 w-6" />
                                 </div>
                             )}
                             <div>
-                                <div className="text-sm font-semibold">{branding.companyName || "AFCrashpad"}</div>
+                                <div className="text-sm font-semibold">{branding.companyName || "Vesta CRM"}</div>
                                 <div className="text-xs text-muted-foreground">CRM Portal</div>
                             </div>
                         </div>

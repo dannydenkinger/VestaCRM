@@ -56,8 +56,8 @@ import type {
     BacklinkEntry,
 } from "./types"
 
-const DEFAULT_DOMAIN = "afcrashpad.com"
-const DEFAULT_SITE_URL = "https://afcrashpad.com"
+const DEFAULT_DOMAIN = process.env.NEXT_PUBLIC_SITE_DOMAIN || "example.com"
+const DEFAULT_SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://example.com"
 
 export default function SEODashboard() {
     const [activeTab, setActiveTab] = useState("overview")

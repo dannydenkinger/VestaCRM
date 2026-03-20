@@ -344,7 +344,7 @@ export function DocumentTemplateDialog({
                                 <Textarea
                                     value={content}
                                     onChange={e => setContent(e.target.value)}
-                                    placeholder={`<h1>Crashpad Lease Agreement</h1>\n<p>This agreement is between AFCrashpad and <strong>{{contactName}}</strong>.</p>\n<p>Move-in date: {{stayStartDate}}</p>\n<p>Move-out date: {{stayEndDate}}</p>\n<p>Date: {{currentDate}}</p>`}
+                                    placeholder={`<h1>Service Agreement</h1>\n<p>This agreement is between our company and <strong>{{contactName}}</strong>.</p>\n<p>Start date: {{startDate}}</p>\n<p>End date: {{endDate}}</p>\n<p>Date: {{currentDate}}</p>`}
                                     className="min-h-[200px] text-xs font-mono"
                                 />
                             </div>

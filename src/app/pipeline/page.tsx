@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo, Suspense } from "react"
+import { useDebounce } from "@/hooks/useDebounce"
 import { Button } from "@/components/ui/button"
 import { Search, Plus, ListFilter, CheckCircle2, Settings, ChevronDown, LayoutGrid, List as ListIcon, ChevronRight, User, Building2, Upload, BarChart3, Download, Trash2, ArrowRightLeft, UserPlus, X, Phone, MessageSquare, MapPin } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -22,12 +23,9 @@ import {
     SheetDescription,
     SheetTitle,
 } from "@/components/ui/sheet"
-import { getPipelines, bulkCreateOpportunities, deleteOpportunity, updateOpportunity, getBaseNames, getUsers, createNewDeal, markOpportunitySeen, autoAdvanceOpportunities, runStayReminders, bulkDeleteDeals, bulkMoveDeals, bulkAssignDeals, softDeleteOpportunity, restoreOpportunity, permanentlyDeleteOpportunity } from "./actions"
-import { getAutomationSettings } from "@/app/settings/automations/actions"
+import { getPipelines, bulkCreateOpportunities, deleteOpportunity, updateOpportunity, createNewDeal, markOpportunitySeen, bulkDeleteDeals, bulkMoveDeals, bulkAssignDeals, softDeleteOpportunity, restoreOpportunity, permanentlyDeleteOpportunity, getPipelinePageData } from "./actions"
 import { getContactsList, getContactTimeline } from "@/app/contacts/actions"
 import type { TimelineItem } from "@/app/contacts/types"
-import { getSpecialAccommodations } from "@/app/settings/system-properties/actions"
-import { getPipelinePrioritySettings } from "@/app/settings/pipeline/actions"
 import { useEffect, useRef } from "react"
 import { useSearchParams, useRouter, usePathname } from "next/navigation"
 
@@ -42,7 +40,7 @@ import {
 } from "@/components/ui/dialog"
 import { ConversionMetrics } from "./analytics/ConversionMetrics"
 const DealDetailSheet = dynamic(() => import("./DealDetailSheet").then(mod => mod.DealDetailSheet), {
-    loading: () => null,
+    loading: () => <div className="flex items-center justify-center h-full"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>,
     ssr: false,
 })
 import { Skeleton } from "@/components/ui/skeleton"
@@ -64,17 +62,32 @@ import dynamic from "next/dynamic"
 
 // Lazy-loaded heavy dialogs (only shown on user action)
 const CSVImportDialog = dynamic(() => import("@/components/ui/CSVImportDialog").then(mod => mod.CSVImportDialog), {
-    loading: () => null,
+    loading: () => <div className="flex items-center justify-center p-8"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>,
     ssr: false,
 })
 const PipelineManagerDialog = dynamic(() => import("@/components/ui/PipelineManagerDialog").then(mod => mod.PipelineManagerDialog), {
-    loading: () => null,
+    loading: () => <div className="flex items-center justify-center p-8"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>,
     ssr: false,
 })
 
 export default function PipelinePage() {
     return (
-        <Suspense fallback={<div className="p-8">Loading pipeline...</div>}>
+        <Suspense fallback={
+            <div className="p-4 md:p-8 space-y-4">
+                <div className="flex items-center justify-between">
+                    <div className="h-8 w-48 bg-muted animate-pulse rounded-md" />
+                    <div className="flex gap-2">
+                        <div className="h-9 w-24 bg-muted animate-pulse rounded-md" />
+                        <div className="h-9 w-24 bg-muted animate-pulse rounded-md" />
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    {[...Array(4)].map((_, i) => (
+                        <div key={i} className="h-64 bg-muted animate-pulse rounded-xl" />
+                    ))}
+                </div>
+            </div>
+        }>
             <PipelineContent />
         </Suspense>
     )
@@ -95,23 +108,24 @@ function PipelineContent() {
     const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
     const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
-    const [baseNames, setBaseNames] = useState<string[]>([])
     const [allUsers, setAllUsers] = useState<any[]>([])
-    const [specialAccommodations, setSpecialAccommodations] = useState<{ id: string; name: string }[]>([])
     const [priorityRanges, setPriorityRanges] = useState({ urgentDays: 14, soonDays: 30 })
     const [draggedDealId, setDraggedDealId] = useState<string | null>(null)
     const [dragOverStageId, setDragOverStageId] = useState<string | null>(null)
     const [isContactPickerOpen, setIsContactPickerOpen] = useState(false)
     const [linkingDealId, setLinkingDealId] = useState<string | null>(null)
-    const [contactList, setContactList] = useState<{ id: string; name: string; email: string; phone: string; militaryBase: string }[]>([])
+    const [contactList, setContactList] = useState<{ id: string; name: string; email: string; phone: string }[]>([])
     const [contactSearch, setContactSearch] = useState("")
     const [pipelineSearch, setPipelineSearch] = useState("")
+    const debouncedPipelineSearch = useDebounce(pipelineSearch, 300)
     const [contactTimeline, setContactTimeline] = useState<TimelineItem[] | null>(null)
     const [timelineLoading, setTimelineLoading] = useState(false)
     const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
     const [selectedDealIds, setSelectedDealIds] = useState<Set<string>>(new Set())
     const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
     const [bulkActionLoading, setBulkActionLoading] = useState(false)
+    const [bulkMoveConfirm, setBulkMoveConfirm] = useState<string | null>(null)
+    const [bulkAssignConfirm, setBulkAssignConfirm] = useState<string | null>(null)
     const [statusFilter, setStatusFilter] = useState<DealStatus>("open")
 
     const handleDragStart = (e: React.DragEvent, dealId: string) => {
@@ -197,25 +211,22 @@ function PipelineContent() {
     });
 
     useEffect(() => {
-        // Fetch all initial data in parallel for faster load
-        Promise.all([
-            fetchPipelines(),
-            getBaseNames().then(setBaseNames),
-            getUsers().then(res => { if (res.success) setAllUsers(res.users || []); }),
-            getSpecialAccommodations().then(res => { if (res.success) setSpecialAccommodations(res.items || []); }),
-            getPipelinePrioritySettings().then(res => { if (res.success && res.settings) setPriorityRanges(res.settings); }),
-        ]);
-
-        // Non-critical: auto-advance and reminders run after initial load
-        getAutomationSettings().then(async (res) => {
-            if (res.success && res.settings?.autoAdvanceEnabled) {
-                const advRes = await autoAdvanceOpportunities();
-                if (advRes.success && advRes.advancedCount && advRes.advancedCount > 0) {
-                    fetchPipelines();
+        // Single consolidated server action replaces 6+ separate calls
+        getPipelinePageData().then(res => {
+            if (res.success && res.pipelines) {
+                setPipelines(res.pipelines as any);
+                const keys = Object.keys(res.pipelines);
+                if (keys.length > 0 && (!activePipelineKey || !(res.pipelines as any)[activePipelineKey])) {
+                    setActivePipelineKey(keys[0]);
                 }
             }
+            setAllUsers(res.users || []);
+            setPriorityRanges(res.priorityRanges || { urgentDays: 14, soonDays: 30 });
+            setIsLoading(false);
+            if (res.advancedCount && res.advancedCount > 0) {
+                toast.info(`Auto-advanced ${res.advancedCount} deal${res.advancedCount > 1 ? 's' : ''}`);
+            }
         });
-        runStayReminders();
     }, []);
 
     // Auto-open deal from ?deal= query param (notification/calendar link) — only once per dealId, then clear URL
@@ -300,29 +311,6 @@ function PipelineContent() {
         }
     };
 
-    const handleSyncCalculatorValue = (val: number, type: "BAH" | "VA" | "ON_BASE" | "OFF_BASE") => {
-        let updatedValue = val;
-        if ((type === "ON_BASE") && val < 1000) {
-            updatedValue = val * 30; // Estimate monthly if it looks like a daily rate
-        }
-        const updatedMargin = updatedValue * 0.25;
-
-        const updatedPipelines = { ...pipelines };
-        const deals = updatedPipelines[activePipelineKey].deals;
-        const dealIdx = deals.findIndex((d: any) => d.id === selectedDeal.id);
-
-        if (selectedDeal && dealIdx !== -1) {
-            deals[dealIdx] = {
-                ...deals[dealIdx],
-                value: updatedValue,
-                margin: updatedMargin
-            };
-            setPipelines(updatedPipelines);
-            // We need to update the selectedDeal state too to reflect in the UI immediately
-            setSelectedDeal({ ...deals[dealIdx] });
-        }
-    };
-
     const newDealTemplate = () => ({
         id: 'new',
         name: '',
@@ -337,7 +325,6 @@ function PipelineContent() {
         margin: 0,
         notes: '',
         assigneeId: null,
-        specialAccommodationId: null,
         contactId: null as string | null,
         assignee: session?.user?.name ? session.user.name.split(" ").map((w: string) => w[0]).join("").toUpperCase() : "—"
     });
@@ -356,7 +343,7 @@ function PipelineContent() {
         setIsContactPickerOpen(true);
     };
 
-    const handleSelectContactForOpportunity = (c: { id: string; name: string; email: string; phone: string; militaryBase: string }) => {
+    const handleSelectContactForOpportunity = (c: { id: string; name: string; email: string; phone: string }) => {
         if (linkingDealId && selectedDeal && selectedDeal.id === linkingDealId) {
             // Link contact to existing deal
             setSelectedDeal((prev: any) => prev ? {
@@ -365,7 +352,6 @@ function PipelineContent() {
                 name: c.name || prev.name,
                 email: c.email || prev.email,
                 phone: c.phone || prev.phone,
-                base: c.militaryBase || prev.base,
             } : null);
             setLinkingDealId(null);
         } else {
@@ -376,7 +362,6 @@ function PipelineContent() {
                 name: c.name || "New Lead",
                 email: c.email || "",
                 phone: c.phone || "",
-                base: c.militaryBase || ""
             });
         }
         setIsContactPickerOpen(false);
@@ -595,7 +580,6 @@ function PipelineContent() {
                         name: selectedDeal.name,
                         email: selectedDeal.email,
                         phone: selectedDeal.phone,
-                        base: selectedDeal.base,
                         stage: selectedDeal.stage,
                         priority: selectedDeal.priority,
                         startDate: selectedDeal.startDate,
@@ -604,7 +588,6 @@ function PipelineContent() {
                         margin: selectedDeal.margin,
                         notes: selectedDeal.notes,
                         assigneeId: selectedDeal.assigneeId,
-                        specialAccommodationId: selectedDeal.specialAccommodationId || null
                     }, activePipelineKey),
                     { onRetry: (attempt) => toast.info(`Retrying... (attempt ${attempt + 1}/4)`, { id: "retry-toast", duration: 2000 }) }
                 );
@@ -631,10 +614,8 @@ function PipelineContent() {
                     startDate: selectedDeal.startDate ? String(selectedDeal.startDate) : "",
                     endDate: selectedDeal.endDate ? String(selectedDeal.endDate) : "",
                     assigneeId: selectedDeal.assigneeId ?? null,
-                    specialAccommodationId: selectedDeal.specialAccommodationId ?? null,
                 };
                 if (pipelineStageId) payload.pipelineStageId = String(pipelineStageId);
-                if (selectedDeal.base != null && selectedDeal.base !== "") payload.base = String(selectedDeal.base);
                 if (selectedDeal.notes != null) payload.notes = String(selectedDeal.notes);
                 if (selectedDeal.contactId != null) payload.contactId = String(selectedDeal.contactId);
                 if (Array.isArray(selectedDeal.tags)) payload.tagIds = selectedDeal.tags.map((t: any) => String(t.tagId || t.id));
@@ -674,7 +655,6 @@ function PipelineContent() {
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null)
 
     // View Options State
-    const [showBase, setShowBase] = useState(true)
     const [showValue, setShowValue] = useState(true)
     const [showPriority, setShowPriority] = useState(true)
     const [showDates, setShowDates] = useState(true)
@@ -700,14 +680,13 @@ function PipelineContent() {
         filteredDeals = filteredDeals.filter((d: any) => (d.status || "open") === statusFilter);
 
         // Filter by search term
-        if (pipelineSearch.trim()) {
-            const term = pipelineSearch.trim().toLowerCase();
+        if (debouncedPipelineSearch.trim()) {
+            const term = debouncedPipelineSearch.trim().toLowerCase();
             filteredDeals = filteredDeals.filter((deal: any) => {
                 const name = (deal.name || deal.contactName || '').toLowerCase();
                 const email = (deal.email || deal.contactEmail || '').toLowerCase();
                 const phone = (deal.phone || deal.contactPhone || '').toLowerCase();
-                const base = (deal.base || deal.militaryBase || '').toLowerCase();
-                return name.includes(term) || email.includes(term) || phone.includes(term) || base.includes(term);
+                return name.includes(term) || email.includes(term) || phone.includes(term);
             });
         }
 
@@ -730,7 +709,7 @@ function PipelineContent() {
             });
         }
         return filteredDeals;
-    }, [currentPipeline.deals, sortConfig, pipelineSearch, statusFilter]);
+    }, [currentPipeline.deals, sortConfig, debouncedPipelineSearch, statusFilter]);
 
     // Pipeline with deals filtered by search (for KanbanView)
     const filteredPipeline = useMemo(() => ({
@@ -750,7 +729,6 @@ function PipelineContent() {
         activePipelineKey,
         viewMode,
         statusFilter,
-        showBase,
         showValue,
         showPriority,
         showDates,
@@ -766,7 +744,6 @@ function PipelineContent() {
         }
         setViewMode(state.viewMode)
         if (state.statusFilter) setStatusFilter(state.statusFilter)
-        setShowBase(state.showBase)
         setShowValue(state.showValue)
         setShowPriority(state.showPriority)
         setShowDates(state.showDates)
@@ -886,12 +863,6 @@ function PipelineContent() {
                                             })()}
                                         </div>
                                         <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground">
-                                            {deal.base && (
-                                                <span className="flex items-center gap-0.5 truncate">
-                                                    <MapPin className="h-2.5 w-2.5" />
-                                                    {deal.base}
-                                                </span>
-                                            )}
                                             {deal.value > 0 && (
                                                 <span className="font-mono font-semibold text-muted-foreground">${deal.value.toLocaleString()}</span>
                                             )}
@@ -912,16 +883,14 @@ function PipelineContent() {
                     setActiveTab={setActiveTab}
                     currentPipeline={currentPipeline}
                     activePipelineKey={activePipelineKey}
-                    baseNames={baseNames}
                     allUsers={allUsers}
-                    specialAccommodations={specialAccommodations}
+
                     userRole={userRole}
                     session={session}
                     isSaving={isSaving}
                     saveStatus={saveStatus}
                     onSave={handleSaveOpportunity}
                     onDelete={(id: string) => setDeleteTarget(id)}
-                    onSyncCalculatorValue={handleSyncCalculatorValue}
                     contactTimeline={contactTimeline}
                     timelineLoading={timelineLoading}
                     onRefetchTimeline={refetchContactTimeline}
@@ -1005,9 +974,6 @@ function PipelineContent() {
                         <DropdownMenuContent align="end" className="w-56">
                             <DropdownMenuLabel className="text-xs uppercase text-muted-foreground tracking-wider">Card Fields</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            <DropdownMenuCheckboxItem checked={showBase} onCheckedChange={setShowBase} className="cursor-pointer">
-                                Show Base Location
-                            </DropdownMenuCheckboxItem>
                             <DropdownMenuCheckboxItem checked={showValue} onCheckedChange={setShowValue} className="cursor-pointer">
                                 Show Deal Value
                             </DropdownMenuCheckboxItem>
@@ -1055,7 +1021,6 @@ function PipelineContent() {
                                     Name: d.name || "",
                                     Stage: pipeline.stages.find((s: any) => s.id === d.pipelineStageId)?.name || "",
                                     Value: d.opportunityValue || 0,
-                                    "Military Base": d.militaryBase || "",
                                     "Stay Start": d.stayStartDate ? new Date(d.stayStartDate).toLocaleDateString() : "",
                                     "Stay End": d.stayEndDate ? new Date(d.stayEndDate).toLocaleDateString() : "",
                                     Priority: d.priority || "",
@@ -1304,7 +1269,7 @@ function PipelineContent() {
                         currentPipeline={filteredPipeline}
                         mobileSelectedStage={mobileSelectedStage}
                         setMobileSelectedStage={setMobileSelectedStage}
-                        showBase={showBase}
+                        showBase={false}
                         showValue={showValue}
                         showPriority={showPriority}
                         showDates={showDates}
@@ -1366,7 +1331,7 @@ function PipelineContent() {
                                             return (
                                                 <DropdownMenuItem
                                                     key={stageId}
-                                                    onClick={() => handleBulkMove(stageId)}
+                                                    onClick={() => setBulkMoveConfirm(stageId)}
                                                     className="cursor-pointer"
                                                 >
                                                     {stageName}
@@ -1390,7 +1355,7 @@ function PipelineContent() {
                                             {allUsers.map((user: any) => (
                                                 <DropdownMenuItem
                                                     key={user.id}
-                                                    onClick={() => handleBulkAssign(user.id)}
+                                                    onClick={() => setBulkAssignConfirm(user.id)}
                                                     className="cursor-pointer"
                                                 >
                                                     <User className="mr-2 h-3.5 w-3.5" />
@@ -1429,7 +1394,7 @@ function PipelineContent() {
 
                         <ListView
                             sortedDeals={sortedDeals}
-                            showBase={showBase}
+                            showBase={false}
                             showValue={showValue}
                             showPriority={showPriority}
                             showDates={showDates}
@@ -1454,16 +1419,13 @@ function PipelineContent() {
                 setActiveTab={setActiveTab}
                 currentPipeline={currentPipeline}
                 activePipelineKey={activePipelineKey}
-                baseNames={baseNames}
                 allUsers={allUsers}
-                specialAccommodations={specialAccommodations}
                 userRole={userRole}
                 session={session}
                 isSaving={isSaving}
                 saveStatus={saveStatus}
                 onSave={handleSaveOpportunity}
                 onDelete={(id: string) => setDeleteTarget(id)}
-                onSyncCalculatorValue={handleSyncCalculatorValue}
                 contactTimeline={contactTimeline}
                 timelineLoading={timelineLoading}
                 onRefetchTimeline={refetchContactTimeline}
@@ -1508,6 +1470,47 @@ function PipelineContent() {
                             onClick={handleBulkDelete}
                         >
                             {bulkActionLoading ? "Deleting..." : `Delete ${selectedDealIds.size} Deals`}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={!!bulkMoveConfirm} onOpenChange={(open) => { if (!open) setBulkMoveConfirm(null) }}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Move {selectedDealIds.size} deal{selectedDealIds.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will move {selectedDealIds.size} selected deal{selectedDealIds.size !== 1 ? "s" : ""} to the &ldquo;{(() => {
+                                if (!bulkMoveConfirm || !currentPipeline) return ""
+                                const stage = currentPipeline.stages.find((s: any) => {
+                                    const sid = typeof s === "string" ? s : s.id || s.name
+                                    return sid === bulkMoveConfirm
+                                })
+                                return typeof stage === "string" ? stage : stage?.name || bulkMoveConfirm
+                            })()}&rdquo; stage.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => { if (bulkMoveConfirm) { handleBulkMove(bulkMoveConfirm); setBulkMoveConfirm(null) } }}>
+                            Move Deals
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={!!bulkAssignConfirm} onOpenChange={(open) => { if (!open) setBulkAssignConfirm(null) }}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Assign {selectedDealIds.size} deal{selectedDealIds.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will reassign {selectedDealIds.size} selected deal{selectedDealIds.size !== 1 ? "s" : ""} to {allUsers.find((u: any) => u.id === bulkAssignConfirm)?.name || allUsers.find((u: any) => u.id === bulkAssignConfirm)?.email || "the selected user"}.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => { if (bulkAssignConfirm) { handleBulkAssign(bulkAssignConfirm); setBulkAssignConfirm(null) } }}>
+                            Assign Deals
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

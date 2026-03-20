@@ -1,7 +1,7 @@
-// AFCrashpad CRM Service Worker - Offline Support
-const CACHE_VERSION = "v3";
-const STATIC_CACHE = `afcrashpad-static-${CACHE_VERSION}`;
-const DATA_CACHE = `afcrashpad-data-${CACHE_VERSION}`;
+// Vesta CRM Service Worker - Offline Support
+const CACHE_VERSION = "v1";
+const STATIC_CACHE = `vesta-static-${CACHE_VERSION}`;
+const DATA_CACHE = `vesta-data-${CACHE_VERSION}`;
 const OFFLINE_QUEUE_STORE = "offline-mutations";
 
 // App shell files to pre-cache
@@ -10,6 +10,9 @@ const APP_SHELL = [
   "/pipeline",
   "/contacts",
   "/dashboard",
+  "/tasks",
+  "/calendar",
+  "/communications",
   "/manifest.json",
 ];
 
@@ -67,17 +70,17 @@ self.addEventListener("fetch", (event) => {
 
 function isStaticAsset(url) {
   const pathname = url.pathname;
-  // Note: /_next/static/, .js, .css are intentionally excluded — Next.js
-  // fingerprints these with content hashes and sets immutable cache headers.
-  // Caching them here with cache-first breaks Turbopack HMR in development.
   return (
+    pathname.startsWith("/_next/static/") ||
     pathname.startsWith("/icons/") ||
     pathname.endsWith(".woff2") ||
     pathname.endsWith(".woff") ||
     pathname.endsWith(".png") ||
     pathname.endsWith(".jpg") ||
     pathname.endsWith(".svg") ||
-    pathname.endsWith(".ico")
+    pathname.endsWith(".ico") ||
+    pathname.endsWith(".js") ||
+    pathname.endsWith(".css")
   );
 }
 
@@ -123,7 +126,7 @@ async function networkFirst(request, cacheName) {
 
 function openOfflineDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open("afcrashpad-offline", 1);
+    const req = indexedDB.open("vesta-offline", 1);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(OFFLINE_QUEUE_STORE)) {

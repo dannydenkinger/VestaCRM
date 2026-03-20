@@ -14,60 +14,11 @@ interface ChangelogEntry {
 
 const changelog: ChangelogEntry[] = [
     {
-        version: "2.5.0",
-        date: "2026-03-11",
-        type: "feature",
-        title: "Sprint 5 QoL Improvements",
-        description: "Blog post scheduling, calculator result history, expense tracking, goal tracking on dashboard, inline contact editing, subtask support, and more.",
-    },
-    {
-        version: "2.4.0",
-        date: "2026-03-08",
-        type: "feature",
-        title: "Sprint 4 Enhancements",
-        description: "Quick-publish blog status cycling, tools favorites & recents, quick notes from contact list, mini calendar sidebar, and dashboard sparklines.",
-    },
-    {
-        version: "2.3.0",
-        date: "2026-03-05",
-        type: "feature",
-        title: "Sprint 3 Features",
-        description: "Real-time push notifications, document preview, pipeline card aging indicators, bulk task operations, and accessibility improvements.",
-    },
-    {
-        version: "2.2.0",
-        date: "2026-03-01",
-        type: "improvement",
-        title: "Sprint 2 Polish",
-        description: "Pipeline refactoring (1878→846 lines), contact detail extraction, unit test coverage, custom error pages, and search page.",
-    },
-    {
-        version: "2.1.0",
-        date: "2026-02-25",
-        type: "feature",
-        title: "Sprint 1 Foundation",
-        description: "Command palette, notification center, breadcrumbs, settings search, scheduled reports, workflow builder, and auto-assignment rules.",
-    },
-    {
-        version: "2.0.0",
-        date: "2026-02-15",
-        type: "feature",
-        title: "Major Platform Release",
-        description: "Blog CMS with AI generation, WordPress publishing, SEO scoring, content clusters, email sequences, and push notifications.",
-    },
-    {
-        version: "1.5.0",
-        date: "2026-02-01",
-        type: "improvement",
-        title: "Mobile UX Rework",
-        description: "Professional-grade responsive design across all pages, touch-optimized interactions, and performance improvements.",
-    },
-    {
         version: "1.0.0",
-        date: "2026-01-15",
+        date: "2026-03-19",
         type: "feature",
-        title: "Initial Launch",
-        description: "Core CRM with pipeline management, contacts, calendar, communications, finance tracking, and military calculators.",
+        title: "Vesta CRM Launch",
+        description: "Full-featured CRM with pipeline management, contacts, calendar integration, communications, document management, and optional marketing and finance modules.",
     },
 ]
 
@@ -86,7 +37,7 @@ export function Changelog() {
                     <Megaphone className="h-4 w-4" />
                     Changelog
                 </CardTitle>
-                <CardDescription>Recent updates and improvements to AFCrashpad CRM.</CardDescription>
+                <CardDescription>Recent updates and improvements to Vesta CRM.</CardDescription>
             </CardHeader>
             <CardContent>
                 <div className="relative space-y-0">

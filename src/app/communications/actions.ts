@@ -1,7 +1,8 @@
 "use server"
 
 import { z } from "zod";
-import { adminDb } from "@/lib/firebase-admin";
+import { tenantDb } from "@/lib/tenant-db";
+import { auth } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { getTrackingForContact } from "@/lib/email-tracking";
 import { sendTrackedEmail } from "@/lib/email";
@@ -39,16 +40,21 @@ const snippetSchema = z.object({
 // ── Conversations ────────────────────────────────────────────────────────────
 
 export async function getConversations(channel?: "all" | "email" | "sms") {
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, conversations: [] };
+    const workspaceId = (session.user as any).workspaceId;
+    const db = tenantDb(workspaceId);
+
     try {
         // Fetch all contacts
-        const contactsSnap = await adminDb.collection('contacts').get();
+        const contactsSnap = await db.collection('contacts').get();
 
         // Fetch latest message per contact in parallel (only 1 message each, not all)
         const conversationPromises = contactsSnap.docs.map(async (contactDoc) => {
             const contactId = contactDoc.id;
             const contactData = contactDoc.data();
 
-            let query = adminDb.collection('contacts').doc(contactId).collection('messages')
+            let query = db.subcollection('contacts', contactId, 'messages')
                 .orderBy('createdAt', 'desc') as FirebaseFirestore.Query;
 
             // Filter by channel type if specified
@@ -94,11 +100,16 @@ export async function getMessages(contactId: string, channel?: "all" | "email" |
     if (!parsed.success) return { success: false, messages: [], contact: null };
     contactId = parsed.data.contactId;
 
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, messages: [], contact: null };
+    const workspaceId = (session.user as any).workspaceId;
+    const db = tenantDb(workspaceId);
+
     try {
-        const contactDoc = await adminDb.collection('contacts').doc(contactId).get();
+        const contactDoc = await db.doc('contacts', contactId).get();
         const contactData = contactDoc.data();
 
-        const messagesSnap = await adminDb.collection('contacts').doc(contactId).collection('messages')
+        const messagesSnap = await db.subcollection('contacts', contactId, 'messages')
             .orderBy('createdAt', 'asc')
             .get();
 
@@ -127,7 +138,8 @@ export async function getMessages(contactId: string, channel?: "all" | "email" |
             const trackingMap: Record<string, { opens: number; clicks: number; lastOpenedAt: string | null }> = {}
             for (let i = 0; i < trackingIds.length; i += 30) {
                 const batch = trackingIds.slice(i, i + 30)
-                const trackingSnap = await adminDb.collection('email_tracking')
+                const trackingSnap = await db.collectionRef('email_tracking')
+                    .where('workspaceId', '==', workspaceId)
                     .where('__name__', 'in', batch)
                     .get()
                 for (const tDoc of trackingSnap.docs) {
@@ -174,12 +186,17 @@ export async function sendMessage(
     type = parsed.data.type;
     content = parsed.data.content;
 
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, error: "Not authenticated" };
+    const workspaceId = (session.user as any).workspaceId;
+    const db = tenantDb(workspaceId);
+
     try {
         let trackingId: string | null = null;
 
         // If sending an email, actually send it via Resend with tracking
         if (type === "email") {
-            const contactDoc = await adminDb.collection('contacts').doc(contactId).get();
+            const contactDoc = await db.doc('contacts', contactId).get();
             const contactData = contactDoc.data();
             if (contactData?.email) {
                 // Convert plain text to HTML for the email
@@ -197,13 +214,14 @@ export async function sendMessage(
                     subject: content.split("\n")[0].substring(0, 100), // First line as subject
                     html,
                     contactId,
+                    workspaceId,
                     attachments: resendAttachments,
                 });
                 trackingId = result.trackingId;
             }
         }
 
-        await adminDb.collection('contacts').doc(contactId).collection('messages').add({
+        await db.addToSubcollection('contacts', contactId, 'messages', {
             contactId,
             type,
             direction: "OUTBOUND",
@@ -235,13 +253,18 @@ export async function scheduleMessage(
     const parsed = scheduleMessageSchema.safeParse({ contactId, type, content, scheduledAt, attachments });
     if (!parsed.success) return { success: false, error: "Invalid input" };
 
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, error: "Not authenticated" };
+    const workspaceId = (session.user as any).workspaceId;
+    const db = tenantDb(workspaceId);
+
     try {
         const scheduledDate = new Date(parsed.data.scheduledAt);
         if (scheduledDate <= new Date()) {
             return { success: false, error: "Scheduled time must be in the future" };
         }
 
-        await adminDb.collection('contacts').doc(parsed.data.contactId).collection('messages').add({
+        await db.addToSubcollection('contacts', parsed.data.contactId, 'messages', {
             contactId: parsed.data.contactId,
             type: parsed.data.type,
             direction: "OUTBOUND",
@@ -265,8 +288,13 @@ export async function cancelScheduledMessage(contactId: string, messageId: strin
     const parsedMessage = firestoreIdSchema.safeParse(messageId);
     if (!parsedContact.success || !parsedMessage.success) return { success: false, error: "Invalid input" };
 
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, error: "Not authenticated" };
+    const workspaceId = (session.user as any).workspaceId;
+    const db = tenantDb(workspaceId);
+
     try {
-        const docRef = adminDb.collection('contacts').doc(parsedContact.data).collection('messages').doc(parsedMessage.data);
+        const docRef = db.subcollection('contacts', parsedContact.data, 'messages').doc(parsedMessage.data);
         const doc = await docRef.get();
         if (!doc.exists) return { success: false, error: "Message not found" };
 
@@ -289,13 +317,18 @@ export async function cancelScheduledMessage(contactId: string, messageId: strin
 export async function processScheduledMessages(): Promise<{ sent: number; failed: number }> {
     const results = { sent: 0, failed: 0 };
 
+    const session = await auth();
+    if (!session?.user?.id) return results;
+    const workspaceId = (session.user as any).workspaceId;
+    const db = tenantDb(workspaceId);
+
     try {
         const now = new Date();
 
         // Query all contacts' messages subcollections is not efficient at scale.
         // Instead, we use a top-level collection for scheduled messages lookups.
         // For now, we scan the scheduled_messages collection.
-        const scheduledSnap = await adminDb
+        const scheduledSnap = await db
             .collectionGroup('messages')
             .where('status', '==', 'scheduled')
             .where('scheduledAt', '<=', now)
@@ -308,7 +341,7 @@ export async function processScheduledMessages(): Promise<{ sent: number; failed
                 let trackingId: string | null = null;
 
                 if (msg.type === "email") {
-                    const contactDoc = await adminDb.collection('contacts').doc(msg.contactId).get();
+                    const contactDoc = await db.doc('contacts', msg.contactId).get();
                     const contactData = contactDoc.data();
                     if (contactData?.email) {
                         const html = `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
@@ -324,6 +357,7 @@ export async function processScheduledMessages(): Promise<{ sent: number; failed
                             subject: msg.content.split("\n")[0].substring(0, 100),
                             html,
                             contactId: msg.contactId,
+                            workspaceId,
                             attachments: resendAttachments,
                         });
                         trackingId = result.trackingId;
@@ -354,8 +388,13 @@ export async function processScheduledMessages(): Promise<{ sent: number; failed
 // ── Snippets (Canned Responses) ──────────────────────────────────────────────
 
 export async function getSnippets() {
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, snippets: [] };
+    const workspaceId = (session.user as any).workspaceId;
+    const db = tenantDb(workspaceId);
+
     try {
-        const snap = await adminDb.collection('email_snippets')
+        const snap = await db.collection('email_snippets')
             .orderBy('createdAt', 'desc')
             .get();
 
@@ -381,8 +420,13 @@ export async function createSnippet(title: string, content: string) {
     const parsed = snippetSchema.safeParse({ title, content });
     if (!parsed.success) return { success: false, error: "Invalid input" };
 
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, error: "Not authenticated" };
+    const workspaceId = (session.user as any).workspaceId;
+    const db = tenantDb(workspaceId);
+
     try {
-        const docRef = await adminDb.collection('email_snippets').add({
+        const docRef = await db.add('email_snippets', {
             title: parsed.data.title,
             content: parsed.data.content,
             createdAt: new Date(),
@@ -400,8 +444,13 @@ export async function updateSnippet(id: string, title: string, content: string) 
     const parsed = snippetSchema.safeParse({ title, content });
     if (!parsedId.success || !parsed.success) return { success: false, error: "Invalid input" };
 
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, error: "Not authenticated" };
+    const workspaceId = (session.user as any).workspaceId;
+    const db = tenantDb(workspaceId);
+
     try {
-        await adminDb.collection('email_snippets').doc(parsedId.data).update({
+        await db.doc('email_snippets', parsedId.data).update({
             title: parsed.data.title,
             content: parsed.data.content,
             updatedAt: new Date(),
@@ -418,8 +467,13 @@ export async function deleteSnippet(id: string) {
     const parsedId = firestoreIdSchema.safeParse(id);
     if (!parsedId.success) return { success: false, error: "Invalid input" };
 
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, error: "Not authenticated" };
+    const workspaceId = (session.user as any).workspaceId;
+    const db = tenantDb(workspaceId);
+
     try {
-        await adminDb.collection('email_snippets').doc(parsedId.data).delete();
+        await db.doc('email_snippets', parsedId.data).delete();
         return { success: true };
     } catch (error) {
         console.error("Failed to delete snippet:", error);
@@ -433,8 +487,13 @@ export async function getContactDocuments(contactId: string) {
     const parsed = firestoreIdSchema.safeParse(contactId);
     if (!parsed.success) return { success: false, documents: [] };
 
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, documents: [] };
+    const workspaceId = (session.user as any).workspaceId;
+    const db = tenantDb(workspaceId);
+
     try {
-        const snap = await adminDb.collection('contacts').doc(parsed.data).collection('documents')
+        const snap = await db.subcollection('contacts', parsed.data, 'documents')
             .orderBy('createdAt', 'desc')
             .get();
 
@@ -459,12 +518,17 @@ export async function getContactDocuments(contactId: string) {
 // ── Communication Analytics ──────────────────────────────────────────────────
 
 export async function getCommunicationAnalytics() {
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, analytics: null };
+    const workspaceId = (session.user as any).workspaceId;
+    const db = tenantDb(workspaceId);
+
     try {
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
         // Fetch all tracking records
-        const allTrackingSnap = await adminDb.collection('email_tracking')
+        const allTrackingSnap = await db.collection('email_tracking')
             .orderBy('sentAt', 'desc')
             .get();
 
@@ -503,7 +567,7 @@ export async function getCommunicationAnalytics() {
         // Check for inbound messages from emailed contacts
         for (const cid of contactsEmailed) {
             try {
-                const inboundSnap = await adminDb.collection('contacts').doc(cid).collection('messages')
+                const inboundSnap = await db.subcollection('contacts', cid, 'messages')
                     .where('direction', '==', 'INBOUND')
                     .limit(1)
                     .get();
@@ -601,6 +665,11 @@ export async function threadIncomingReply({
     inReplyTo?: string;
     messageId?: string;
 }) {
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, error: "Not authenticated" };
+    const workspaceId = (session.user as any).workspaceId;
+    const db = tenantDb(workspaceId);
+
     try {
         let contactId: string | null = null;
         let parentMessageId: string | null = null;
@@ -608,7 +677,7 @@ export async function threadIncomingReply({
 
         // Strategy 1: Match by In-Reply-To header
         if (inReplyTo) {
-            const trackingSnap = await adminDb.collection('email_tracking')
+            const trackingSnap = await db.collection('email_tracking')
                 .where('emailId', '==', inReplyTo)
                 .limit(1)
                 .get();
@@ -622,7 +691,7 @@ export async function threadIncomingReply({
                 }
 
                 // Find the original outbound message by trackingId
-                const originalMsgSnap = await adminDb.collection('contacts').doc(contactId).collection('messages')
+                const originalMsgSnap = await db.subcollection('contacts', contactId, 'messages')
                     .where('trackingId', '==', trackingSnap.docs[0].id)
                     .limit(1)
                     .get();
@@ -639,7 +708,7 @@ export async function threadIncomingReply({
             const cleanSubject = subject.replace(/^(Re|RE|Fwd|FWD|Fw|FW):\s*/g, '').trim();
 
             // Find contact by email
-            const contactSnap = await adminDb.collection('contacts')
+            const contactSnap = await db.collection('contacts')
                 .where('email', '==', fromEmail)
                 .limit(1)
                 .get();
@@ -649,7 +718,7 @@ export async function threadIncomingReply({
 
                 // Look for an outbound message with matching subject
                 if (cleanSubject) {
-                    const messagesSnap = await adminDb.collection('contacts').doc(contactId).collection('messages')
+                    const messagesSnap = await db.subcollection('contacts', contactId, 'messages')
                         .where('direction', '==', 'OUTBOUND')
                         .where('type', '==', 'email')
                         .orderBy('createdAt', 'desc')
@@ -672,7 +741,7 @@ export async function threadIncomingReply({
 
         // Strategy 3: Last resort - match by sender email only
         if (!contactId) {
-            const contactSnap = await adminDb.collection('contacts')
+            const contactSnap = await db.collection('contacts')
                 .where('email', '==', fromEmail)
                 .limit(1)
                 .get();
@@ -687,7 +756,7 @@ export async function threadIncomingReply({
         }
 
         // Store the incoming reply
-        await adminDb.collection('contacts').doc(contactId).collection('messages').add({
+        await db.addToSubcollection('contacts', contactId, 'messages', {
             contactId,
             type: "email",
             direction: "INBOUND",
@@ -711,8 +780,13 @@ export async function threadIncomingReply({
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 export async function getAllContacts() {
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, contacts: [] };
+    const workspaceId = (session.user as any).workspaceId;
+    const db = tenantDb(workspaceId);
+
     try {
-        const snapshot = await adminDb.collection('contacts').orderBy('name', 'asc').get();
+        const snapshot = await db.collection('contacts').orderBy('name', 'asc').get();
         const contacts = snapshot.docs.map(doc => {
             const c = doc.data();
             return {
@@ -732,8 +806,12 @@ export async function getEmailTracking(contactId: string) {
     const parsed = z.string().min(1).max(128).safeParse(contactId);
     if (!parsed.success) return { success: false, tracking: [] };
 
+    const session = await auth();
+    if (!session?.user?.id) return { success: false, tracking: [] };
+
     try {
-        const tracking = await getTrackingForContact(parsed.data);
+        const workspaceId2 = (session.user as any).workspaceId;
+        const tracking = await getTrackingForContact(workspaceId2, parsed.data);
         return { success: true, tracking };
     } catch (error) {
         console.error("Failed to fetch email tracking:", error);

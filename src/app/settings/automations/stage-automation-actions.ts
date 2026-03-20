@@ -1,10 +1,9 @@
 "use server"
 
-import { adminDb } from "@/lib/firebase-admin"
-import { auth } from "@/auth"
+import { tenantDb } from "@/lib/tenant-db"
 import { revalidatePath } from "next/cache"
 import { logAudit } from "@/lib/audit"
-import { requireAdmin } from "@/lib/auth-guard"
+import { requireAdmin, requireAuth } from "@/lib/auth-guard"
 import type { StageAutomationAction, StageAutomationRule } from "@/lib/stage-automation-types"
 
 // ── Fetch all stage automation rules ─────────────────────────────────────────
@@ -15,7 +14,11 @@ export async function getStageAutomationRules(): Promise<{
     error?: string
 }> {
     try {
-        const snap = await adminDb
+        const session = await requireAuth()
+        const workspaceId = session.user.workspaceId
+        const db = tenantDb(workspaceId)
+
+        const snap = await db
             .collection("stage_automations")
             .orderBy("createdAt", "desc")
             .get()
@@ -51,21 +54,22 @@ export async function createStageAutomationRule(data: {
     pipelineName: string
     actions: StageAutomationAction[]
 }): Promise<{ success: boolean; id?: string; error?: string }> {
+    let session
     try {
-        await requireAdmin()
+        session = await requireAdmin()
     } catch {
         return { success: false, error: "Admin access required" }
     }
 
     try {
-        const session = await auth()
-        if (!session?.user?.email) return { success: false, error: "Unauthorized" }
+        const workspaceId = session.user.workspaceId
+        const db = tenantDb(workspaceId)
 
         if (!data.stageId || !data.actions?.length) {
             return { success: false, error: "Stage and at least one action are required" }
         }
 
-        const ref = await adminDb.collection("stage_automations").add({
+        const ref = await db.add("stage_automations", {
             stageId: data.stageId,
             stageName: data.stageName,
             pipelineId: data.pipelineId,
@@ -76,9 +80,9 @@ export async function createStageAutomationRule(data: {
             updatedAt: new Date(),
         })
 
-        logAudit({
-            userId: (session.user as any).id || "",
-            userEmail: session.user.email,
+        logAudit(workspaceId, {
+            userId: session.user.id || "",
+            userEmail: session.user.email || "",
             userName: session.user.name || "",
             action: "create",
             entity: "stage_automation",
@@ -108,24 +112,25 @@ export async function updateStageAutomationRule(
         enabled?: boolean
     }
 ): Promise<{ success: boolean; error?: string }> {
+    let session
     try {
-        await requireAdmin()
+        session = await requireAdmin()
     } catch {
         return { success: false, error: "Admin access required" }
     }
 
     try {
-        const session = await auth()
-        if (!session?.user?.email) return { success: false, error: "Unauthorized" }
+        const workspaceId = session.user.workspaceId
+        const db = tenantDb(workspaceId)
 
-        await adminDb.collection("stage_automations").doc(id).update({
+        await db.doc("stage_automations", id).update({
             ...data,
             updatedAt: new Date(),
         })
 
-        logAudit({
-            userId: (session.user as any).id || "",
-            userEmail: session.user.email,
+        logAudit(workspaceId, {
+            userId: session.user.id || "",
+            userEmail: session.user.email || "",
             userName: session.user.name || "",
             action: "update",
             entity: "stage_automation",
@@ -147,21 +152,22 @@ export async function updateStageAutomationRule(
 export async function deleteStageAutomationRule(
     id: string
 ): Promise<{ success: boolean; error?: string }> {
+    let session
     try {
-        await requireAdmin()
+        session = await requireAdmin()
     } catch {
         return { success: false, error: "Admin access required" }
     }
 
     try {
-        const session = await auth()
-        if (!session?.user?.email) return { success: false, error: "Unauthorized" }
+        const workspaceId = session.user.workspaceId
+        const db = tenantDb(workspaceId)
 
-        await adminDb.collection("stage_automations").doc(id).delete()
+        await db.doc("stage_automations", id).delete()
 
-        logAudit({
-            userId: (session.user as any).id || "",
-            userEmail: session.user.email,
+        logAudit(workspaceId, {
+            userId: session.user.id || "",
+            userEmail: session.user.email || "",
             userName: session.user.name || "",
             action: "delete",
             entity: "stage_automation",

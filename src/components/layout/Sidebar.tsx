@@ -1,19 +1,18 @@
 "use client"
-import { useState, useEffect, useCallback, useRef } from "react"
+import React, { useState, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import NextImage from "next/image"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Users, Calendar, Settings, Plane, ChevronLeft, ChevronRight, Megaphone, LayoutGrid, Wrench, MessageSquare, X, Wallet, LogOut, CheckSquare, FileText } from "lucide-react"
+import { LayoutDashboard, Users, Calendar, Settings, Hexagon, ChevronLeft, ChevronRight, Megaphone, LayoutGrid, MessageSquare, X, Wallet, LogOut, CheckSquare, FileText } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useSession, signOut } from "next-auth/react"
-import { getCurrentUserRole, getSidebarProfile } from "@/app/settings/users/actions"
 import { getVisibleNavItems, type UserRole } from "@/lib/role-permissions"
-import { getBrandingSettings } from "@/app/settings/branding/actions"
-import { getOverdueTaskCount } from "@/app/calendar/actions"
+import { getSidebarData } from "@/app/sidebar/actions"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { FEATURES } from "@/lib/feature-flags"
 
 type NavItem = { name: string; href: string; icon: any } | { separator: string }
 
@@ -23,14 +22,13 @@ const navItems: NavItem[] = [
     { name: "Pipeline", href: "/pipeline", icon: LayoutGrid },
     { name: "Contacts", href: "/contacts", icon: Users },
     { separator: "Activity" },
-    { name: "Calendar", href: "/calendar", icon: Calendar },
-    { name: "Documents", href: "/documents", icon: FileText },
+    ...(FEATURES.GOOGLE_CALENDAR ? [{ name: "Calendar", href: "/calendar", icon: Calendar }] : []),
+    ...(FEATURES.DOCUMENTS ? [{ name: "Documents", href: "/documents", icon: FileText }] : []),
     { name: "Communications", href: "/communications", icon: MessageSquare },
     { name: "Tasks", href: "/tasks", icon: CheckSquare },
-    { separator: "Finance & Growth" },
-    { name: "Finance", href: "/finance", icon: Wallet },
-    { name: "Marketing", href: "/marketing", icon: Megaphone },
-    { name: "Tools", href: "/tools", icon: Wrench },
+    ...(FEATURES.FINANCE || FEATURES.MARKETING ? [{ separator: "Finance & Growth" } as NavItem] : []),
+    ...(FEATURES.FINANCE ? [{ name: "Finance", href: "/finance", icon: Wallet }] : []),
+    ...(FEATURES.MARKETING ? [{ name: "Marketing", href: "/marketing", icon: Megaphone }] : []),
     { separator: "Admin" },
     { name: "Settings", href: "/settings", icon: Settings },
 ]
@@ -41,7 +39,7 @@ interface SidebarProps {
     mobileCollapsed?: boolean
 }
 
-export function Sidebar({ onNavigate, className, mobileCollapsed }: SidebarProps) {
+function SidebarInner({ onNavigate, className, mobileCollapsed }: SidebarProps) {
     const pathname = usePathname()
     const router = useRouter()
     const { data: session } = useSession()
@@ -94,36 +92,14 @@ export function Sidebar({ onNavigate, className, mobileCollapsed }: SidebarProps
             }
         }, 0)
 
-        async function fetchRole() {
-            if (session?.user?.id) {
-                const role = await getCurrentUserRole()
-                setRealRole(role as UserRole)
-            }
-        }
-        fetchRole()
-
-        async function fetchProfile() {
-            const profile = await getSidebarProfile()
-            if (profile.imageUrl) setProfileImageUrl(profile.imageUrl)
-            if (profile.name) setDisplayName(profile.name)
-        }
-        fetchProfile()
-
-        async function fetchBranding() {
-            try {
-                const b = await getBrandingSettings()
-                if (b) setBranding(b)
-            } catch { }
-        }
-        fetchBranding()
-
-        async function fetchOverdueCount() {
-            try {
-                const count = await getOverdueTaskCount()
-                setOverdueCount(count)
-            } catch { }
-        }
-        fetchOverdueCount()
+        // Single consolidated fetch for all sidebar data (1 round trip instead of 4)
+        getSidebarData().then(data => {
+            setRealRole(data.role as UserRole)
+            if (data.name) setDisplayName(data.name)
+            if (data.imageUrl) setProfileImageUrl(data.imageUrl)
+            if (data.branding) setBranding(data.branding)
+            setOverdueCount(data.overdueTaskCount)
+        }).catch(() => {})
 
         return () => clearTimeout(timer)
     }, [session])
@@ -165,12 +141,12 @@ export function Sidebar({ onNavigate, className, mobileCollapsed }: SidebarProps
                     <img src={branding.logoUrl} alt={branding.companyName || "Logo"} className="h-10 w-10 shrink-0 rounded-lg object-cover shadow" />
                 ) : (
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow" style={branding?.primaryColor ? { backgroundColor: branding.primaryColor } : undefined}>
-                        <Plane className="h-6 w-6" />
+                        <Hexagon className="h-6 w-6" />
                     </div>
                 )}
                 {!showCollapsed && (
                     <div className="overflow-hidden">
-                        <h2 className="text-lg font-semibold tracking-tight whitespace-nowrap">{branding?.companyName || "AFCrashpad"}</h2>
+                        <h2 className="text-lg font-semibold tracking-tight whitespace-nowrap">{branding?.companyName || "Vesta CRM"}</h2>
                         <p className="text-xs text-muted-foreground font-medium whitespace-nowrap">CRM Portal</p>
                     </div>
                 )}
@@ -184,7 +160,7 @@ export function Sidebar({ onNavigate, className, mobileCollapsed }: SidebarProps
                         }
                         return (
                             <div key={`sep-${idx}`} className="pt-4 pb-1 px-3">
-                                <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider">{item.separator}</span>
+                                <span className="text-xs font-semibold text-muted-foreground/50 uppercase tracking-wider">{item.separator}</span>
                             </div>
                         )
                     }
@@ -229,7 +205,7 @@ export function Sidebar({ onNavigate, className, mobileCollapsed }: SidebarProps
                             <Icon className={cn("shrink-0", showCollapsed ? "h-5 w-5" : "h-4 w-4")} />
                             {!showCollapsed && <span>{item.name}</span>}
                             {!showCollapsed && item.name === "Tasks" && overdueCount > 0 && (
-                                <span className="ml-auto text-[10px] font-bold bg-rose-500 text-white rounded-full h-5 min-w-[20px] flex items-center justify-center px-1.5">
+                                <span className="ml-auto text-xs font-bold bg-rose-500 text-white rounded-full h-5 min-w-[20px] flex items-center justify-center px-1.5">
                                     {overdueCount}
                                 </span>
                             )}
@@ -275,3 +251,5 @@ export function Sidebar({ onNavigate, className, mobileCollapsed }: SidebarProps
         </div>
     )
 }
+
+export const Sidebar = React.memo(SidebarInner)

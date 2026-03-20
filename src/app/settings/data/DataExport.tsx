@@ -47,7 +47,7 @@ export function DataExport() {
             const totalRecords = Object.values(result.data).reduce((sum, arr) => sum + arr.length, 0)
             setProgress("Preparing download...")
             const timestamp = new Date().toISOString().split("T")[0]
-            downloadJson(result, `afcrashpad-backup-${timestamp}.json`)
+            downloadJson(result, `vesta-backup-${timestamp}.json`)
             toast.success(`Export complete: ${totalRecords} records exported`)
         } catch (err: any) {
             toast.error(err.message || "Export failed")
@@ -70,7 +70,7 @@ export function DataExport() {
             setProgress("Preparing download...")
             const timestamp = new Date().toISOString().split("T")[0]
             const suffix = Array.from(selectedCollections).join("-")
-            downloadJson(result, `afcrashpad-${suffix}-${timestamp}.json`)
+            downloadJson(result, `vesta-${suffix}-${timestamp}.json`)
             toast.success(`Export complete: ${totalRecords} records exported`)
         } catch (err: any) {
             toast.error(err.message || "Export failed")

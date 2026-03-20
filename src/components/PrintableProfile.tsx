@@ -81,16 +81,13 @@ export function buildContactProfileHtml(contact: any): string {
         ${field("Email Address", contact.email)}
         ${field("Phone Number", contact.phone)}
         ${field("Business Name", contact.businessName, "col-span-2")}
-        ${field("Military Base", contact.militaryBase, "col-span-2")}
       </div>
     </div>
 
     <div class="print-section">
-      <div class="print-section-title">Status &amp; Stay Dates</div>
+      <div class="print-section-title">Status</div>
       <div class="print-grid">
         ${field("Status", contact.status)}
-        ${field("Stay Start", formatDate(contact.stayStartDate))}
-        ${field("Stay End", formatDate(contact.stayEndDate))}
       </div>
     </div>
 
@@ -146,7 +143,6 @@ export function buildDealProfileHtml(deal: any): string {
         ${field("Full Name", deal.name, "col-span-2")}
         ${field("Email Address", deal.email)}
         ${field("Phone Number", deal.phone)}
-        ${field("Military Base", deal.base, "col-span-2")}
       </div>
     </div>
 

@@ -61,7 +61,7 @@ const CONDITION_FIELDS = [
     { value: "value", label: "Deal Value" },
     { value: "tag", label: "Tag" },
     { value: "source", label: "Lead Source" },
-    { value: "base", label: "Military Base" },
+    { value: "location", label: "Location" },
 ] as const
 
 const CONDITION_OPERATORS = [

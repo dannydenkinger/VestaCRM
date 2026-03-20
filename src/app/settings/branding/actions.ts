@@ -1,10 +1,9 @@
 "use server"
 
 import { z } from "zod"
-import { adminDb } from "@/lib/firebase-admin"
+import { tenantDb } from "@/lib/tenant-db"
 import { getAdminStorageBucket } from "@/lib/firebase-admin"
-import { requireAdmin } from "@/lib/auth-guard"
-import { auth } from "@/auth"
+import { requireAdmin, requireAuth } from "@/lib/auth-guard"
 import { logAudit } from "@/lib/audit"
 import { revalidatePath } from "next/cache"
 import type { BrandingSettings } from "./types"
@@ -17,7 +16,11 @@ const updateBrandingSchema = z.object({
 
 export async function getBrandingSettings(): Promise<BrandingSettings | null> {
     try {
-        const doc = await adminDb.collection("settings").doc("branding").get()
+        const session = await requireAuth()
+        const workspaceId = session.user.workspaceId
+        const db = tenantDb(workspaceId)
+
+        const doc = await db.settingsDoc("branding").get()
         if (!doc.exists) return null
         const data = doc.data()
         return {
@@ -31,12 +34,14 @@ export async function getBrandingSettings(): Promise<BrandingSettings | null> {
 }
 
 export async function updateBrandingSettings(data: BrandingSettings) {
-    await requireAdmin()
+    const session = await requireAdmin()
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
 
     const parsed = updateBrandingSchema.safeParse(data)
     if (!parsed.success) throw new Error("Invalid input: " + parsed.error.message)
 
-    await adminDb.collection("settings").doc("branding").set(
+    await db.settingsDoc("branding").set(
         {
             ...parsed.data,
             updatedAt: new Date(),
@@ -44,19 +49,16 @@ export async function updateBrandingSettings(data: BrandingSettings) {
         { merge: true }
     )
 
-    const session = await auth()
-    if (session?.user) {
-        logAudit({
-            userId: (session.user as any).id || "",
-            userEmail: session.user.email || "",
-            userName: session.user.name || "",
-            action: "update",
-            entity: "settings",
-            entityId: "branding",
-            entityName: "Branding Settings",
-            metadata: parsed.data,
-        }).catch(() => {})
-    }
+    logAudit(workspaceId, {
+        userId: session.user.id || "",
+        userEmail: session.user.email || "",
+        userName: session.user.name || "",
+        action: "update",
+        entity: "settings",
+        entityId: "branding",
+        entityName: "Branding Settings",
+        metadata: parsed.data,
+    }).catch(() => {})
 
     revalidatePath("/settings")
     revalidatePath("/")
@@ -64,7 +66,9 @@ export async function updateBrandingSettings(data: BrandingSettings) {
 }
 
 export async function uploadBrandingLogo(formData: FormData): Promise<{ url: string }> {
-    await requireAdmin()
+    const session = await requireAdmin()
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
 
     const file = formData.get("logo") as File
     if (!file || file.size === 0) throw new Error("No file provided")
@@ -73,7 +77,7 @@ export async function uploadBrandingLogo(formData: FormData): Promise<{ url: str
 
     const bucket = getAdminStorageBucket()
     const ext = file.name.split(".").pop() || "png"
-    const fileName = `branding/logo-${Date.now()}.${ext}`
+    const fileName = `branding/${workspaceId}/logo-${Date.now()}.${ext}`
     const fileRef = bucket.file(fileName)
 
     const buffer = Buffer.from(await file.arrayBuffer())
@@ -89,7 +93,7 @@ export async function uploadBrandingLogo(formData: FormData): Promise<{ url: str
     const url = `https://storage.googleapis.com/${bucket.name}/${fileName}`
 
     // Save URL to branding settings
-    await adminDb.collection("settings").doc("branding").set(
+    await db.settingsDoc("branding").set(
         { logoUrl: url, updatedAt: new Date() },
         { merge: true }
     )

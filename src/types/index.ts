@@ -3,7 +3,6 @@ export interface Contact {
     name: string
     email: string
     phone: string
-    militaryBase: string
     status: string
     tags: string[]
     leadSource: string
@@ -35,7 +34,6 @@ export interface Opportunity {
     name: string
     email: string
     phone: string
-    base: string
     stage: string
     status: DealStatus
     priority: string
@@ -46,13 +44,12 @@ export interface Opportunity {
     notes: string
     assigneeId: string | null
     contactId: string | null
-    specialAccommodationId: string | null
     tags: string[]
     expenses?: {
-        monthlyRent: number
+        monthlyCost: number
         cleaningFee: number
-        petFee: number
-        nonrefundableDeposit: number
+        otherFee: number
+        deposit: number
     }
     unread?: boolean
     lastSeenAt?: string

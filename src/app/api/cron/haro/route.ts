@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { fetchAndProcessHaroEmails, checkHaroDeadlines } from "@/app/marketing/haro/actions"
 import { adminDb } from "@/lib/firebase-admin"
+import { tenantDb } from "@/lib/tenant-db"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120 // Allow up to 2 minutes for processing
@@ -14,29 +15,41 @@ export async function GET(request: Request) {
     }
 
     try {
-        // Check if HARO automation is enabled
-        const settingsDoc = await adminDb.collection("haro_settings").doc("default").get()
-        if (settingsDoc.exists && !settingsDoc.data()?.enabled) {
-            return NextResponse.json({ message: "HARO automation is disabled", skipped: true })
+        // Iterate all active workspaces
+        const workspacesSnap = await adminDb.collection("workspaces").where("status", "==", "active").get()
+        const results: Record<string, any> = {}
+
+        for (const wsDoc of workspacesSnap.docs) {
+            const db = tenantDb(wsDoc.id)
+
+            // Check if HARO automation is enabled for this workspace
+            const settingsDoc = await db.settingsDoc("haro").get()
+            if (settingsDoc.exists && !settingsDoc.data()?.enabled) {
+                results[wsDoc.id] = { skipped: true, message: "HARO automation is disabled" }
+                continue
+            }
+
+            // Idempotency: prevent duplicate runs within the same hour
+            const now = new Date()
+            const runKey = `${wsDoc.id}_haro_${now.toISOString().slice(0, 13)}`
+            const runRef = adminDb.collection("cron_runs").doc(runKey)
+            const existingRun = await runRef.get()
+            if (existingRun.exists) {
+                results[wsDoc.id] = { skipped: true, message: "Already processed this hour" }
+                continue
+            }
+            await runRef.set({ startedAt: now, cronJob: "haro", workspaceId: wsDoc.id })
+
+            // Process new emails and check deadlines in parallel
+            const [result, deadlines] = await Promise.all([
+                fetchAndProcessHaroEmails(),
+                checkHaroDeadlines(),
+            ])
+            await runRef.update({ completedAt: new Date() })
+            results[wsDoc.id] = { ...result, deadlines }
         }
 
-        // Idempotency: prevent duplicate runs within the same hour
-        const now = new Date()
-        const runKey = `haro_${now.toISOString().slice(0, 13)}` // e.g. "haro_2026-03-15T14"
-        const runRef = adminDb.collection("cron_runs").doc(runKey)
-        const existingRun = await runRef.get()
-        if (existingRun.exists) {
-            return NextResponse.json({ message: "Already processed this hour", skipped: true })
-        }
-        await runRef.set({ startedAt: now, cronJob: "haro" })
-
-        // Process new emails and check deadlines in parallel
-        const [result, deadlines] = await Promise.all([
-            fetchAndProcessHaroEmails(),
-            checkHaroDeadlines(),
-        ])
-        await runRef.update({ completedAt: new Date() })
-        return NextResponse.json({ ...result, deadlines })
+        return NextResponse.json({ success: true, results })
     } catch (err: any) {
         console.error("HARO cron error:", err)
         return NextResponse.json({ error: err.message || "Failed to process HARO emails" }, { status: 500 })

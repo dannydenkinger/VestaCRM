@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getAdminStorageBucket } from "@/lib/firebase-admin";
-import { adminDb } from "@/lib/firebase-admin";
+import { tenantDb } from "@/lib/tenant-db";
 import { revalidatePath } from "next/cache";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -33,6 +33,11 @@ export async function POST(
         if (!session?.user) {
             return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
         }
+        const workspaceId = (session.user as any).workspaceId;
+        if (!workspaceId) {
+            return NextResponse.json({ success: false, error: "No workspace found" }, { status: 403 });
+        }
+        const db = tenantDb(workspaceId);
 
         // Rate limit: 20 uploads per minute per user
         const { allowed } = rateLimit(`upload:${session.user.id}`, 20);
@@ -92,19 +97,15 @@ export async function POST(
         const displayName = nameOverride || file.name || "Uploaded document";
         const folder = (formData.get("folder") as string)?.trim() || "General";
 
-        await adminDb
-            .collection("contacts")
-            .doc(contactId)
-            .collection("documents")
-            .add({
-                name: displayName,
-                url: signedUrl,
-                status: "LINK",
-                folder,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-                storagePath,
-            });
+        await db.addToSubcollection("contacts", contactId, "documents", {
+            name: displayName,
+            url: signedUrl,
+            status: "LINK",
+            folder,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            storagePath,
+        });
 
         revalidatePath("/contacts");
         revalidatePath("/pipeline");

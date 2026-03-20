@@ -1,10 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
-import { adminDb } from "@/lib/firebase-admin"
+import { auth } from "@/auth"
 import { getAdminStorageBucket } from "@/lib/firebase-admin"
+import { tenantDb } from "@/lib/tenant-db"
 import { PDFDocument } from "pdf-lib"
 
 export async function POST(req: NextRequest) {
     try {
+        const session = await auth()
+        if (!session?.user) {
+            return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
+        }
+        const workspaceId = (session.user as any).workspaceId
+        if (!workspaceId) {
+            return NextResponse.json({ success: false, error: "No workspace found" }, { status: 403 })
+        }
+        const db = tenantDb(workspaceId)
+
         const { configId, documentId, contactId } = await req.json()
 
         if (!configId || !documentId) {
@@ -12,7 +23,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Fetch the signature config
-        const configDoc = await adminDb.collection("document_signature_configs").doc(configId).get()
+        const configDoc = await db.doc("document_signature_configs", configId).get()
         if (!configDoc.exists) {
             return NextResponse.json({ success: false, error: "Config not found" }, { status: 404 })
         }
@@ -25,7 +36,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Fetch all completed signature requests for this config
-        const requestsSnap = await adminDb.collection("signature_requests")
+        const requestsSnap = await db.collection("signature_requests")
             .where("configId", "==", configId)
             .where("status", "==", "signed")
             .get()
@@ -114,8 +125,8 @@ export async function POST(req: NextRequest) {
 
         // Update the document with signed PDF URL
         const docRef = contactId
-            ? adminDb.collection("contacts").doc(contactId).collection("documents").doc(documentId)
-            : adminDb.collection("documents").doc(documentId)
+            ? db.subcollection("contacts", contactId, "documents").doc(documentId)
+            : db.doc("documents", documentId)
 
         await docRef.update({
             signedPdfUrl: signedUrl,

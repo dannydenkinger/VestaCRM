@@ -138,7 +138,7 @@ CRITICAL RULES:
 - Absolutely NO text, words, letters, numbers, watermarks, or logos anywhere in the image
 - NO artificial frames, vignettes, or decorative borders
 - High detail, sharp focus, professional color grading
-- Suitable for a military/aviation housing and travel website`
+- Suitable for a professional business blog`
 }
 
 /**

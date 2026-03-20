@@ -1,16 +1,17 @@
 "use server"
 
-import { adminDb } from "@/lib/firebase-admin";
-import { auth } from "@/auth";
+import { tenantDb } from "@/lib/tenant-db"
+import { requireAuth } from "@/lib/auth-guard"
 
 export async function getReportingData() {
     try {
-        const session = await auth();
-        if (!session?.user) return { success: false, error: "Unauthorized" };
+        const session = await requireAuth()
+        const workspaceId = session.user.workspaceId
+        const db = tenantDb(workspaceId)
 
         // 1. Total Closed Profit (assuming 'Booked' or similar stage means closed)
         // First we need to find the IDs of stages that mean "closed/booked"
-        const stagesSnap = await adminDb.collectionGroup('stages').get();
+        const stagesSnap = await db.collectionGroup('stages').get();
         const bookedStageIds = stagesSnap.docs
             .filter(doc => ['Booked', 'Closed', 'Signed', 'Closed Won'].includes(doc.data().name))
             .map(doc => doc.id);
@@ -19,7 +20,7 @@ export async function getReportingData() {
         let bookedCount = 0;
         let totalOpportunitiesCount = 0;
 
-        const oppsSnap = await adminDb.collection('opportunities').get();
+        const oppsSnap = await db.collection('opportunities').get();
         totalOpportunitiesCount = oppsSnap.size;
 
         oppsSnap.forEach(doc => {
@@ -36,18 +37,14 @@ export async function getReportingData() {
         const conversionRate = totalOpportunitiesCount > 0 ? (bookedCount / totalOpportunitiesCount) * 100 : 0;
 
         // 3. SEO Keywords & Base Performance (aggregate from contacts)
-        const contactsSnap = await adminDb.collection('contacts').get();
+        const contactsSnap = await db.collection('contacts').get();
         
         const keywordCounts: Record<string, number> = {};
-        const baseCounts: Record<string, number> = {};
 
         contactsSnap.forEach(doc => {
             const data = doc.data();
             if (data.sourceKeyword) {
                 keywordCounts[data.sourceKeyword] = (keywordCounts[data.sourceKeyword] || 0) + 1;
-            }
-            if (data.militaryBase) {
-                baseCounts[data.militaryBase] = (baseCounts[data.militaryBase] || 0) + 1;
             }
         });
 
@@ -56,10 +53,6 @@ export async function getReportingData() {
             .sort((a, b) => b.count - a.count)
             .slice(0, 10);
 
-        const basePerformance = Object.entries(baseCounts)
-            .map(([base, count]) => ({ base, count }))
-            .sort((a, b) => b.count - a.count);
-
         return {
             success: true,
             data: {
@@ -67,8 +60,7 @@ export async function getReportingData() {
                 avgProfit,
                 bookedCount,
                 conversionRate,
-                topKeywords,
-                basePerformance
+                topKeywords
             }
         };
     } catch (error) {

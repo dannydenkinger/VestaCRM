@@ -380,7 +380,7 @@ export function AutoAssignRules({ users }: AutoAssignRulesProps) {
                                                         </SelectTrigger>
                                                         <SelectContent>
                                                             <SelectItem value="lead_source">Lead Source</SelectItem>
-                                                            <SelectItem value="base">Military Base</SelectItem>
+                                                            <SelectItem value="location">Location</SelectItem>
                                                             <SelectItem value="source">Source</SelectItem>
                                                         </SelectContent>
                                                     </Select>

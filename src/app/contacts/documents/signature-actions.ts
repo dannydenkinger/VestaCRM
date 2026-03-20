@@ -1,7 +1,8 @@
 "use server"
 
 import { adminDb } from "@/lib/firebase-admin"
-import { auth } from "@/auth"
+import { tenantDb } from "@/lib/tenant-db"
+import { requireAuth } from "@/lib/auth-guard"
 import { revalidatePath } from "next/cache"
 import crypto from "crypto"
 
@@ -9,16 +10,17 @@ import crypto from "crypto"
 
 export async function requestSignature(documentId: string, contactId: string) {
     try {
-        const session = await auth()
-        if (!session?.user) return { success: false, error: "Unauthorized" }
+        const session = await requireAuth()
+        const workspaceId = session.user.workspaceId
+        const db = tenantDb(workspaceId)
 
         // Fetch the contact to get email
-        const contactDoc = await adminDb.collection("contacts").doc(contactId).get()
+        const contactDoc = await db.doc("contacts", contactId).get()
         if (!contactDoc.exists) return { success: false, error: "Contact not found" }
         const contact = contactDoc.data()!
 
         // Fetch the document
-        const docRef = adminDb.collection("contacts").doc(contactId).collection("documents").doc(documentId)
+        const docRef = db.subcollection("contacts", contactId, "documents").doc(documentId)
         const docSnap = await docRef.get()
         if (!docSnap.exists) return { success: false, error: "Document not found" }
         const document = docSnap.data()!
@@ -26,8 +28,8 @@ export async function requestSignature(documentId: string, contactId: string) {
         // Generate a unique token
         const token = crypto.randomBytes(32).toString("hex")
 
-        // Create the signature request
-        const sigRef = await adminDb.collection("signature_requests").add({
+        // Create the signature request (workspace-scoped)
+        const sigRef = await db.add("signature_requests", {
             documentId,
             contactId,
             contactEmail: contact.email || "",
@@ -63,6 +65,9 @@ export async function requestSignature(documentId: string, contactId: string) {
     }
 }
 
+/**
+ * Public-facing — no auth required. Token-based lookup across all workspaces.
+ */
 export async function getSignatureRequest(token: string) {
     try {
         const snapshot = await adminDb.collection("signature_requests")
@@ -98,13 +103,16 @@ export async function getSignatureRequest(token: string) {
     }
 }
 
+/**
+ * Public-facing — no auth required. Token-based submission across all workspaces.
+ */
 export async function submitSignature(token: string, signatureDataUrl: string) {
     try {
         if (!token || !signatureDataUrl) {
             return { success: false, error: "Missing required fields" }
         }
 
-        // Find the signature request by token
+        // Find the signature request by token (global lookup)
         const snapshot = await adminDb.collection("signature_requests")
             .where("token", "==", token)
             .limit(1)
@@ -145,6 +153,7 @@ export async function submitSignature(token: string, signatureDataUrl: string) {
 
             if (allSigned) {
                 // Update either standalone doc or contact-attached doc
+                // Use the workspaceId from the signature request data to get the right doc ref
                 const docRef = sigData.contactId
                     ? adminDb.collection("contacts").doc(sigData.contactId).collection("documents").doc(sigData.documentId)
                     : adminDb.collection("documents").doc(sigData.documentId)
@@ -160,14 +169,28 @@ export async function submitSignature(token: string, signatureDataUrl: string) {
 
         // Create a notification for the CRM user who requested the signature
         try {
-            await adminDb.collection("notifications").add({
-                title: "Document Signed",
-                message: `${sigData.contactName || "A contact"} signed "${sigData.documentName || "a document"}"`,
-                type: "document_signed",
-                linkUrl: `/contacts`,
-                read: false,
-                createdAt: new Date(),
-            })
+            // Use the workspaceId from the signature request to scope the notification
+            const workspaceId = sigData.workspaceId
+            if (workspaceId) {
+                const db = tenantDb(workspaceId)
+                await db.add("notifications", {
+                    title: "Document Signed",
+                    message: `${sigData.contactName || "A contact"} signed "${sigData.documentName || "a document"}"`,
+                    type: "document_signed",
+                    linkUrl: `/contacts`,
+                    read: false,
+                    createdAt: new Date(),
+                })
+            } else {
+                await adminDb.collection("notifications").add({
+                    title: "Document Signed",
+                    message: `${sigData.contactName || "A contact"} signed "${sigData.documentName || "a document"}"`,
+                    type: "document_signed",
+                    linkUrl: `/contacts`,
+                    read: false,
+                    createdAt: new Date(),
+                })
+            }
         } catch {
             // Non-critical: notification creation failure shouldn't block signing
         }
@@ -181,7 +204,11 @@ export async function submitSignature(token: string, signatureDataUrl: string) {
 
 export async function getSignatureStatus(documentId: string, contactId: string) {
     try {
-        const snapshot = await adminDb.collection("signature_requests")
+        const session = await requireAuth()
+        const workspaceId = session.user.workspaceId
+        const db = tenantDb(workspaceId)
+
+        const snapshot = await db.collection("signature_requests")
             .where("documentId", "==", documentId)
             .where("contactId", "==", contactId)
             .orderBy("requestedAt", "desc")
@@ -211,6 +238,9 @@ export async function getSignatureStatus(documentId: string, contactId: string) 
 
 // ── Block-Based Signature Submission ──
 
+/**
+ * Public-facing — no auth required. Token-based submission.
+ */
 export async function submitBlockSignatures(
     token: string,
     blockSignatures: { blockId: string; signatureDataUrl: string }[]
@@ -290,7 +320,7 @@ export async function submitBlockSignatures(
 
                 // Trigger signed PDF generation if there's a configId
                 if (configId) {
-                    const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "https://app.afcrashpad.com"
+                    const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
                     try {
                         await fetch(`${baseUrl}/api/documents/generate-signed-pdf`, {
                             method: "POST",
@@ -310,14 +340,27 @@ export async function submitBlockSignatures(
 
         // Create notification
         try {
-            await adminDb.collection("notifications").add({
-                title: "Document Signed",
-                message: `${sigData.contactName || sigData.recipientEmail || "A signer"} signed "${sigData.documentName || "a document"}"`,
-                type: "document_signed",
-                linkUrl: `/documents`,
-                read: false,
-                createdAt: new Date(),
-            })
+            const workspaceId = sigData.workspaceId
+            if (workspaceId) {
+                const db = tenantDb(workspaceId)
+                await db.add("notifications", {
+                    title: "Document Signed",
+                    message: `${sigData.contactName || sigData.recipientEmail || "A signer"} signed "${sigData.documentName || "a document"}"`,
+                    type: "document_signed",
+                    linkUrl: `/documents`,
+                    read: false,
+                    createdAt: new Date(),
+                })
+            } else {
+                await adminDb.collection("notifications").add({
+                    title: "Document Signed",
+                    message: `${sigData.contactName || sigData.recipientEmail || "A signer"} signed "${sigData.documentName || "a document"}"`,
+                    type: "document_signed",
+                    linkUrl: `/documents`,
+                    read: false,
+                    createdAt: new Date(),
+                })
+            }
         } catch {
             // Non-critical
         }

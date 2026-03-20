@@ -1,31 +1,73 @@
 import { google } from "googleapis"
 import { JWT } from "google-auth-library"
+import { tenantDb } from "@/lib/tenant-db"
 
-const clientEmail = process.env.GA_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL
-const rawKey = process.env.GA_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY
-const privateKey = rawKey?.replace(/\\n/g, "\n")
-const siteUrl = process.env.GSC_SITE_URL // e.g. "https://afcrashpad.com" or "sc-domain:afcrashpad.com"
+// ── Env-var fallback credentials (service account) ──
+const envClientEmail = process.env.GA_CLIENT_EMAIL || process.env.FIREBASE_CLIENT_EMAIL
+const envRawKey = process.env.GA_PRIVATE_KEY || process.env.FIREBASE_PRIVATE_KEY
+const envPrivateKey = envRawKey?.replace(/\\n/g, "\n")
+const envSiteUrl = process.env.GSC_SITE_URL
 
-let _auth: JWT | null = null
+// ── Per-workspace lazy cache ──
+const _authCache = new Map<string, { auth: JWT | InstanceType<typeof google.auth.OAuth2>; siteUrl: string | null }>()
 
-function getAuth() {
-    if (!clientEmail || !privateKey) return null
-    if (!_auth) {
-        _auth = new JWT({
-            email: clientEmail,
-            key: privateKey,
+/**
+ * Get auth client — tries OAuth tokens from workspace settings first,
+ * falls back to env-var service account JWT.
+ */
+async function getAuth(workspaceId: string) {
+    // Check cache
+    const cached = _authCache.get(workspaceId)
+    if (cached) {
+        return { auth: cached.auth, siteUrl: cached.siteUrl || envSiteUrl || undefined }
+    }
+
+    let auth: JWT | InstanceType<typeof google.auth.OAuth2> | null = null
+    let oauthSiteUrl: string | null = null
+
+    try {
+        const db = tenantDb(workspaceId)
+        const doc = await db.settingsDoc("integrations").get()
+        const data = doc.data()
+        if (data?.google?.refreshToken) {
+            const oauth2Client = new google.auth.OAuth2(
+                process.env.GOOGLE_CLIENT_ID,
+                process.env.GOOGLE_CLIENT_SECRET,
+            )
+            oauth2Client.setCredentials({
+                refresh_token: data.google.refreshToken,
+                access_token: data.google.accessToken,
+                expiry_date: data.google.expiresAt ? data.google.expiresAt * 1000 : undefined,
+            })
+            auth = oauth2Client
+            oauthSiteUrl = data.google.gscSiteUrl || null
+        }
+    } catch (err) {
+        console.error("Failed to init GSC via OAuth, falling back to env vars:", err)
+    }
+
+    // Fallback to env-var service account
+    if (!auth && envClientEmail && envPrivateKey) {
+        auth = new JWT({
+            email: envClientEmail,
+            key: envPrivateKey,
             scopes: ["https://www.googleapis.com/auth/webmasters.readonly"],
         })
     }
-    return _auth
+
+    if (auth) {
+        _authCache.set(workspaceId, { auth, siteUrl: oauthSiteUrl })
+    }
+
+    return { auth, siteUrl: oauthSiteUrl || envSiteUrl || undefined }
 }
 
-export async function getSearchAnalytics(days: number = 28) {
-    const auth = getAuth()
+export async function getSearchAnalytics(workspaceId: string, days: number = 28) {
+    const { auth, siteUrl } = await getAuth(workspaceId)
     if (!auth || !siteUrl) return null
 
     try {
-        const searchconsole = google.searchconsole({ version: "v1", auth })
+        const searchconsole = google.searchconsole({ version: "v1", auth: auth as any })
 
         const endDate = new Date()
         const startDate = new Date()
@@ -33,7 +75,6 @@ export async function getSearchAnalytics(days: number = 28) {
 
         const formatDate = (d: Date) => d.toISOString().split("T")[0]
 
-        // Fetch daily click/impression data
         const [dailyResponse, queryResponse] = await Promise.all([
             searchconsole.searchanalytics.query({
                 siteUrl,
@@ -94,12 +135,12 @@ export async function getSearchAnalytics(days: number = 28) {
     }
 }
 
-export async function getGSCPages(days: number = 28) {
-    const auth = getAuth()
+export async function getGSCPages(workspaceId: string, days: number = 28) {
+    const { auth, siteUrl } = await getAuth(workspaceId)
     if (!auth || !siteUrl) return null
 
     try {
-        const searchconsole = google.searchconsole({ version: "v1", auth })
+        const searchconsole = google.searchconsole({ version: "v1", auth: auth as any })
         const endDate = new Date()
         const startDate = new Date()
         startDate.setDate(startDate.getDate() - days)

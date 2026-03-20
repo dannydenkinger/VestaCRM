@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from "next/navigation"
 import { Bell, Search } from "lucide-react"
 import { useBranding } from "@/hooks/useBranding"
-import { Plane } from "lucide-react"
+import { Hexagon } from "lucide-react"
 
 const PAGE_TITLES: Record<string, string> = {
     "/dashboard": "Dashboard",
@@ -33,13 +33,13 @@ export function MobileTopNav({ onNotificationsClick, unreadCount = 0 }: MobileTo
     // Get page title from pathname
     const pageTitle = PAGE_TITLES[pathname] ||
         Object.entries(PAGE_TITLES).find(([prefix]) => pathname.startsWith(prefix))?.[1] ||
-        companyName || "AFCrashpad"
+        companyName || "Vesta CRM"
 
     return (
         <header className="shrink-0 z-30 bg-background/95 backdrop-blur-md border-b border-border/30 flex items-center justify-between px-4 safe-top" style={{ minHeight: 'calc(3rem + env(safe-area-inset-top, 0px))' }}>
             <div className="flex items-center gap-2.5">
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
-                    <Plane className="h-3.5 w-3.5 text-primary" />
+                    <Hexagon className="h-3.5 w-3.5 text-primary" />
                 </div>
                 <span className="text-sm font-semibold text-foreground">{pageTitle}</span>
             </div>

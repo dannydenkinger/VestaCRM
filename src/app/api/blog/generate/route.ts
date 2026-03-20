@@ -58,11 +58,11 @@ Important: Return ONLY the JSON object, no markdown code fences or other text.`
 Focus keyword: "${focusKeyword}"
 ${secondaryKeywords.length > 0 ? `Secondary keywords: ${secondaryKeywords.join(", ")}` : ""}
 Target word count: ~${wordTarget} words
-${tone ? `Tone: ${tone}` : "Tone: Professional but approachable, written for military service members"}
+${tone ? `Tone: ${tone}` : "Tone: Professional but approachable"}
 ${clusterContext ? `\nContext from pillar article:\n${clusterContext}` : ""}
 ${additionalInstructions ? `\nAdditional instructions:\n${additionalInstructions}` : ""}
 
-The article is for afcrashpad.com, a service providing crashpad housing for Air Force personnel during temporary duty (TDY) and permanent change of station (PCS).`
+Write the article in a professional but approachable style suitable for a business blog.`
 
         const client = new Anthropic({ apiKey })
 

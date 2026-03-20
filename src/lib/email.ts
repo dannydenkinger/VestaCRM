@@ -25,7 +25,7 @@ export async function sendEmail({
     subject: string;
     html: string;
 }) {
-    const from = process.env.RESEND_FROM_EMAIL || "AFCrashpad CRM <noreply@afcrashpad.com>";
+    const from = process.env.RESEND_FROM_EMAIL || "Vesta CRM <noreply@example.com>";
 
     const { data, error } = await getResend().emails.send({
         from,
@@ -52,22 +52,24 @@ export async function sendTrackedEmail({
     subject,
     html,
     contactId,
+    workspaceId,
     attachments,
 }: {
     to: string;
     subject: string;
     html: string;
     contactId: string;
+    workspaceId: string;
     attachments?: { filename: string; content: Buffer }[];
 }): Promise<{ data: any; trackingId: string }> {
-    const { trackingId, trackedHtml } = await createTrackedEmail({
+    const { trackingId, trackedHtml } = await createTrackedEmail(workspaceId, {
         contactId,
         recipientEmail: to,
         subject,
         html,
     });
 
-    const from = process.env.RESEND_FROM_EMAIL || "AFCrashpad CRM <noreply@afcrashpad.com>";
+    const from = process.env.RESEND_FROM_EMAIL || "Vesta CRM <noreply@example.com>";
 
     const { data, error } = await getResend().emails.send({
         from,
@@ -84,7 +86,7 @@ export async function sendTrackedEmail({
 
     // Store the Resend email ID in the tracking record
     if (data?.id) {
-        updateTrackingEmailId(trackingId, data.id).catch(() => {});
+        updateTrackingEmailId(workspaceId, trackingId, data.id).catch(() => {});
     }
 
     return { data, trackingId };

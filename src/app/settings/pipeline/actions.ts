@@ -1,18 +1,20 @@
 "use server"
 
-import { adminDb } from "@/lib/firebase-admin"
-import { auth } from "@/auth"
+import { tenantDb } from "@/lib/tenant-db"
 import { revalidatePath } from "next/cache"
-import { requireAdmin } from "@/lib/auth-guard"
+import { requireAdmin, requireAuth } from "@/lib/auth-guard"
 import type { PipelinePrioritySettings } from "./types"
 
 const DEFAULT_URGENT_DAYS = 14
 const DEFAULT_SOON_DAYS = 30
-const SETTINGS_DOC_ID = "pipeline"
 
 export async function getPipelinePrioritySettings(): Promise<{ success: boolean; settings?: PipelinePrioritySettings }> {
     try {
-        const doc = await adminDb.collection("settings").doc(SETTINGS_DOC_ID).get()
+        const session = await requireAuth()
+        const workspaceId = session.user.workspaceId
+        const db = tenantDb(workspaceId)
+
+        const doc = await db.settingsDoc("pipeline").get()
         const data = doc.data()
         return {
             success: true,
@@ -31,8 +33,9 @@ export async function getPipelinePrioritySettings(): Promise<{ success: boolean;
 }
 
 export async function updatePipelinePrioritySettings(settings: PipelinePrioritySettings) {
+    let session
     try {
-        await requireAdmin()
+        session = await requireAdmin()
     } catch {
         return { success: false, error: "Admin access required" }
     }
@@ -41,7 +44,10 @@ export async function updatePipelinePrioritySettings(settings: PipelinePriorityS
     const soonDays = Math.max(urgentDays, Math.floor(Number(settings.soonDays)) || DEFAULT_SOON_DAYS)
 
     try {
-        await adminDb.collection("settings").doc(SETTINGS_DOC_ID).set(
+        const workspaceId = session.user.workspaceId
+        const db = tenantDb(workspaceId)
+
+        await db.settingsDoc("pipeline").set(
             { priorityUrgentDays: urgentDays, prioritySoonDays: soonDays, updatedAt: new Date() },
             { merge: true }
         )

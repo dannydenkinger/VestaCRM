@@ -1,15 +1,16 @@
 "use server"
 
-import { adminDb } from "@/lib/firebase-admin"
-import { auth } from "@/auth"
+import { tenantDb } from "@/lib/tenant-db"
+import { requireAuth } from "@/lib/auth-guard"
 
 export async function getRevenueForecast(pipelineId: string, months: number = 6) {
-    const session = await auth()
-    if (!session?.user) return { success: false, error: "Unauthorized" }
+    const session = await requireAuth()
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
 
     try {
         // Get stages with probabilities
-        const stagesSnap = await adminDb.collection("pipelines").doc(pipelineId).collection("stages").orderBy("order", "asc").get()
+        const stagesSnap = await db.subcollection("pipelines", pipelineId, "stages").orderBy("order", "asc").get()
         const stages = stagesSnap.docs.map(s => ({
             id: s.id,
             name: s.data().name || "",
@@ -24,7 +25,7 @@ export async function getRevenueForecast(pipelineId: string, months: number = 6)
         const closedNames = new Set(["Booked", "Closed", "Signed", "Closed Won", "Lost", "Abandoned", "Current Tenant"])
 
         // Get pipeline opps
-        const oppsSnap = await adminDb.collection("opportunities").get()
+        const oppsSnap = await db.collection("opportunities").get()
         const opps = oppsSnap.docs
             .filter(d => stageIds.has(d.data().pipelineStageId))
             .map(d => {

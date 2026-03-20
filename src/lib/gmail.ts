@@ -1,4 +1,4 @@
-import { adminDb } from "@/lib/firebase-admin"
+import { tenantDb } from "@/lib/tenant-db"
 
 interface GmailTokens {
     accessToken: string
@@ -7,13 +7,15 @@ interface GmailTokens {
     email: string
 }
 
-async function getGmailTokens(): Promise<GmailTokens | null> {
-    const doc = await adminDb.collection("oauth_tokens").doc("gmail").get()
+async function getGmailTokens(workspaceId: string): Promise<GmailTokens | null> {
+    const db = tenantDb(workspaceId)
+    const doc = await db.settingsDoc("oauth_gmail").get()
     if (!doc.exists) return null
     return doc.data() as GmailTokens
 }
 
-async function refreshAccessToken(tokens: GmailTokens): Promise<string> {
+async function refreshAccessToken(workspaceId: string, tokens: GmailTokens): Promise<string> {
+    const db = tenantDb(workspaceId)
     const response = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -28,7 +30,7 @@ async function refreshAccessToken(tokens: GmailTokens): Promise<string> {
     if (!data.access_token) throw new Error(`Failed to refresh Gmail token: ${data.error || data.error_description || JSON.stringify(data)}`)
 
     // Update stored token
-    await adminDb.collection("oauth_tokens").doc("gmail").update({
+    await db.settingsDoc("oauth_gmail").update({
         accessToken: data.access_token,
         accessTokenExpires: Date.now() + data.expires_in * 1000,
         updatedAt: new Date().toISOString(),
@@ -37,8 +39,8 @@ async function refreshAccessToken(tokens: GmailTokens): Promise<string> {
     return data.access_token
 }
 
-async function getValidAccessToken(): Promise<string> {
-    const tokens = await getGmailTokens()
+async function getValidAccessToken(workspaceId: string): Promise<string> {
+    const tokens = await getGmailTokens(workspaceId)
     if (!tokens) throw new Error("No Gmail tokens found. Please sign out and sign back in to grant Gmail access.")
 
     // Always refresh if expired or within 60s of expiry
@@ -46,7 +48,7 @@ async function getValidAccessToken(): Promise<string> {
         return tokens.accessToken
     }
 
-    return refreshAccessToken(tokens)
+    return refreshAccessToken(workspaceId, tokens)
 }
 
 interface GmailMessage {
@@ -57,11 +59,11 @@ interface GmailMessage {
     body: string
 }
 
-export async function fetchHaroEmails(opts?: {
+export async function fetchHaroEmails(workspaceId: string, opts?: {
     maxResults?: number
     afterDate?: string
 }): Promise<GmailMessage[]> {
-    let accessToken = await getValidAccessToken()
+    let accessToken = await getValidAccessToken(workspaceId)
     const maxResults = opts?.maxResults || 5
 
     // Search for HARO emails
@@ -78,9 +80,9 @@ export async function fetchHaroEmails(opts?: {
 
     // If 401, force-refresh the token and retry once
     if (listRes.status === 401) {
-        const tokens = await getGmailTokens()
+        const tokens = await getGmailTokens(workspaceId)
         if (tokens) {
-            accessToken = await refreshAccessToken(tokens)
+            accessToken = await refreshAccessToken(workspaceId, tokens)
             listRes = await fetch(listUrl, {
                 headers: { Authorization: `Bearer ${accessToken}` },
             })

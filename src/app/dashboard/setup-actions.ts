@@ -1,6 +1,7 @@
 "use server"
 
 import { adminDb } from "@/lib/firebase-admin"
+import { tenantDb } from "@/lib/tenant-db"
 import { auth } from "@/auth"
 
 interface SetupItem {
@@ -19,22 +20,25 @@ export async function getSetupStatus(): Promise<{
         const session = await auth()
         if (!session?.user) return { success: false }
 
-        const userId = (session.user as any).id
+        const userId = session.user.id
         if (!userId) return { success: false }
 
-        // Check if user dismissed the checklist
+        const workspaceId = session.user.workspaceId
+        const db = tenantDb(workspaceId)
+
+        // Check if user dismissed the checklist (users collection is global)
         const userDoc = await adminDb.collection("users").doc(userId).get()
         if (userDoc.exists && userDoc.data()?.setupChecklistDismissed) {
             return { success: true, dismissed: true }
         }
 
-        // Check each setup task in parallel
-        const [contactsSnap, pipelinesSnap, templatesSnap, calendarSnap, usersSnap] = await Promise.all([
-            adminDb.collection("contacts").limit(1).get(),
-            adminDb.collection("pipelines").limit(1).get(),
-            adminDb.collection("email_templates").limit(1).get(),
-            adminDb.collection("calendar_integrations").limit(1).get(),
-            adminDb.collection("users").get(),
+        // Check each setup task in parallel — workspace-scoped collections use tenant db
+        const [contactsSnap, pipelinesSnap, templatesSnap, calendarSnap, membersSnap] = await Promise.all([
+            db.collection("contacts").limit(1).get(),
+            db.collection("pipelines").limit(1).get(),
+            db.collection("email_templates").limit(1).get(),
+            adminDb.collection("calendar_integrations").where("userId", "==", userId).limit(1).get(),
+            adminDb.collection("workspace_members").where("workspaceId", "==", workspaceId).where("status", "==", "active").get(),
         ])
 
         const hasProfile = userDoc.exists && !!(userDoc.data()?.name)
@@ -42,7 +46,7 @@ export async function getSetupStatus(): Promise<{
         const hasPipelines = !pipelinesSnap.empty
         const hasTemplates = !templatesSnap.empty
         const hasCalendar = !calendarSnap.empty
-        const hasTeamMembers = usersSnap.size > 1
+        const hasTeamMembers = membersSnap.size > 1
 
         const items: SetupItem[] = [
             { id: "profile", label: "Complete your profile", done: hasProfile, href: "/settings" },
@@ -64,7 +68,7 @@ export async function getOnboardingCompleted(): Promise<boolean> {
     try {
         const session = await auth()
         if (!session?.user) return false
-        const userId = (session.user as any).id
+        const userId = session.user.id
         if (!userId) return false
         const userDoc = await adminDb.collection("users").doc(userId).get()
         return !!(userDoc.exists && userDoc.data()?.onboardingCompleted)
@@ -77,7 +81,7 @@ export async function completeOnboarding() {
     try {
         const session = await auth()
         if (!session?.user) return { success: false }
-        const userId = (session.user as any).id
+        const userId = session.user.id
         if (!userId) return { success: false }
         await adminDb.collection("users").doc(userId).set(
             { onboardingCompleted: true },
@@ -94,7 +98,7 @@ export async function dismissSetupChecklist() {
         const session = await auth()
         if (!session?.user) return { success: false }
 
-        const userId = (session.user as any).id
+        const userId = session.user.id
         if (!userId) return { success: false }
 
         await adminDb.collection("users").doc(userId).update({

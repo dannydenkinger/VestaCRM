@@ -162,7 +162,7 @@ export default function AnalyticsDashboard() {
                 </DropdownMenu>
 
                 <Badge variant="outline" className="text-[10px] h-7 px-2">
-                    afcrashpad.com
+                    {process.env.NEXT_PUBLIC_SITE_DOMAIN || "your-domain.com"}
                 </Badge>
             </div>
 

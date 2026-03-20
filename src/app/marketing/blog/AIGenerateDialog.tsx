@@ -316,7 +316,7 @@ export default function AIGenerateDialog({
                         <Input
                             value={secondaryKeywords}
                             onChange={(e) => setSecondaryKeywords(e.target.value)}
-                            placeholder="Comma-separated: military housing, TDY lodging, crashpad"
+                            placeholder="Comma-separated: keyword one, keyword two, keyword three"
                             className="mt-1"
                         />
                     </div>

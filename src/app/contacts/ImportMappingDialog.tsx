@@ -16,7 +16,7 @@ import {
     Upload, FileText, CheckCircle2, AlertCircle, Loader2,
     ArrowRight, ChevronLeft, ChevronRight,
 } from "lucide-react"
-import Papa from "papaparse"
+// papaparse is dynamically imported in handlers to reduce initial bundle size
 import { importMappedContacts } from "./actions"
 import { toast } from "sonner"
 
@@ -26,7 +26,6 @@ const CRM_FIELDS = [
     { value: "email", label: "Email" },
     { value: "phone", label: "Phone" },
     { value: "businessName", label: "Business Name" },
-    { value: "militaryBase", label: "Military Base" },
     { value: "status", label: "Status" },
 ]
 
@@ -56,7 +55,7 @@ export function ImportMappingDialog({ isOpen, onClose, onImportComplete }: Impor
         setParseError(null)
     }, [])
 
-    const handleFilesSelected = useCallback((files: File[]) => {
+    const handleFilesSelected = useCallback(async (files: File[]) => {
         const selectedFile = files[0]
         if (!selectedFile) return
 
@@ -68,6 +67,7 @@ export function ImportMappingDialog({ isOpen, onClose, onImportComplete }: Impor
         setParseError(null)
         setFile(selectedFile)
 
+        const Papa = (await import("papaparse")).default
         Papa.parse(selectedFile, {
             header: true,
             skipEmptyLines: true,
@@ -90,7 +90,6 @@ export function ImportMappingDialog({ isOpen, onClose, onImportComplete }: Impor
                     else if (h.includes("email") || h.includes("e-mail")) autoMapping[header] = "email"
                     else if (h.includes("phone") || h.includes("mobile") || h.includes("cell")) autoMapping[header] = "phone"
                     else if (h.includes("business") || h.includes("company") || h.includes("organization")) autoMapping[header] = "businessName"
-                    else if (h.includes("base") || h.includes("military") || h.includes("installation")) autoMapping[header] = "militaryBase"
                     else if (h.includes("status")) autoMapping[header] = "status"
                     else autoMapping[header] = "skip"
                 }

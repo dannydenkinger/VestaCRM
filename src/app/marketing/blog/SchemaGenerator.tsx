@@ -25,18 +25,18 @@ export default function SchemaGenerator({ article, schema, onChange }: SchemaGen
             description: article.metaDescription || article.excerpt || "",
             author: {
                 "@type": "Person",
-                name: article.author || "AFCrashpad Team",
+                name: article.author || "Content Team",
             },
             publisher: {
                 "@type": "Organization",
-                name: "AFCrashpad",
-                url: "https://afcrashpad.com",
+                name: process.env.NEXT_PUBLIC_COMPANY_NAME || "Vesta CRM",
+                url: process.env.NEXT_PUBLIC_SITE_URL || "https://example.com",
             },
             datePublished: article.publishedAt || new Date().toISOString(),
             dateModified: article.updatedAt || new Date().toISOString(),
             mainEntityOfPage: {
                 "@type": "WebPage",
-                "@id": article.wpPublishedUrl || `https://afcrashpad.com/blog/${article.slug || ""}`,
+                "@id": article.wpPublishedUrl || `${process.env.NEXT_PUBLIC_SITE_URL || "https://example.com"}/blog/${article.slug || ""}`,
             },
         }
 

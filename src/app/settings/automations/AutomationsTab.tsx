@@ -592,7 +592,7 @@ export default function AutomationsContent() {
                                 onChange={(e) => setTemplateForm(prev => ({ ...prev, body: e.target.value }))}
                             />
                             <p className="text-xs text-muted-foreground mt-1.5">
-                                Tip: Use {"{{name}}"} for the contact&apos;s name and {"{{base}}"} for their military base.
+                                Tip: Use {"{{name}}"} for the contact&apos;s name, {"{{email}}"} for their email, and {"{{status}}"} for their status.
                             </p>
                         </div>
                     </div>

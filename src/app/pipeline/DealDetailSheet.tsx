@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
-    DollarSign, MapPin, Phone, Mail, FileText, CheckCircle2, MoreVertical, MessageSquare, Calculator, User, Trash2, FileDown, Ban, Plus, X, CreditCard, Banknote, Wallet
+    DollarSign, MapPin, Phone, Mail, FileText, CheckCircle2, MoreVertical, MessageSquare, User, Trash2, FileDown, Ban, Plus, X, CreditCard, Banknote, Wallet
 } from "lucide-react"
 import { exportToPDF } from "@/lib/export-pdf"
 import { buildDealProfileHtml } from "@/components/PrintableProfile"
@@ -43,72 +43,22 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { LeadSourceSelector } from "@/components/ui/LeadSourceSelector"
 import { TagPicker } from "@/components/ui/TagPicker"
-import { DocumentManager } from "@/app/contacts/documents/DocumentManager"
+const DocumentManager = dynamic(() => import("@/app/contacts/documents/DocumentManager").then(mod => mod.DocumentManager), {
+    loading: () => <div className="h-32 bg-muted animate-pulse rounded-md" />,
+    ssr: false,
+})
 import { createNote, deleteNote } from "@/app/contacts/actions"
 import type { TimelineItem } from "@/app/contacts/types"
-import { NotesEditor } from "@/components/NotesEditor"
+const NotesEditor = dynamic(() => import("@/components/NotesEditor").then(mod => mod.NotesEditor), {
+    loading: () => <div className="h-32 bg-muted animate-pulse rounded-md" />,
+    ssr: false,
+})
 import { CustomFieldsSection } from "@/components/CustomFieldsSection"
 import { updateRequiredDocs, moveToLeaseSigned, claimOpportunity, updateBlockers, addPayment, getPayments, updateDealExpenses, getDealExpenses, updateOpportunity } from "./actions"
 import type { DealStatus } from "@/types"
 import { DEAL_STATUS_LABELS, DEAL_STATUS_COLORS } from "@/types"
 import { toast } from "sonner"
 import dynamic from "next/dynamic"
-
-const OffBaseLodgingCalculator = dynamic(() => import("@/components/calculators/OffBaseLodgingCalculator"), {
-    ssr: false,
-    loading: () => <div className="h-[300px] flex items-center justify-center">Loading Off-Base Calculator...</div>
-})
-
-const OnBaseLodgingCalculator = dynamic(() => import("@/components/calculators/OnBaseLodgingCalculator").then(mod => mod.OnBaseLodgingCalculator), {
-    ssr: false,
-    loading: () => <div className="h-[300px] flex items-center justify-center">Loading On-Base Calculator...</div>
-})
-
-function BaseCombobox({ value, bases, onChange }: { value: string; bases: string[]; onChange: (val: string) => void }) {
-    const [open, setOpen] = useState(false)
-    const [search, setSearch] = useState(value)
-    const containerRef = useRef<HTMLDivElement>(null)
-
-    useEffect(() => { setSearch(value) }, [value])
-
-    useEffect(() => {
-        function handleClick(e: MouseEvent) {
-            if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
-        }
-        document.addEventListener("mousedown", handleClick)
-        return () => document.removeEventListener("mousedown", handleClick)
-    }, [])
-
-    const filtered = search
-        ? bases.filter(b => b.toLowerCase().includes(search.toLowerCase()))
-        : []
-
-    return (
-        <div className="relative" ref={containerRef}>
-            <MapPin className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground z-10" />
-            <Input
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setOpen(true); onChange(e.target.value) }}
-                onFocus={() => { if (search) setOpen(true) }}
-                className="h-8 pl-8 text-sm"
-                placeholder="Type to search bases..."
-            />
-            {open && filtered.length > 0 && (
-                <div className="absolute z-50 top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md">
-                    {filtered.map(base => (
-                        <div
-                            key={base}
-                            className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors ${base === value ? "bg-accent/50 font-medium" : ""}`}
-                            onMouseDown={(e) => { e.preventDefault(); setSearch(base); onChange(base); setOpen(false) }}
-                        >
-                            {base}
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-    )
-}
 
 interface DealDetailSheetProps {
     selectedDeal: any
@@ -117,16 +67,13 @@ interface DealDetailSheetProps {
     setActiveTab: (val: string) => void
     currentPipeline: any
     activePipelineKey: string
-    baseNames: string[]
     allUsers: any[]
-    specialAccommodations: { id: string; name: string }[]
     userRole: string
     session: any
     isSaving: boolean
     saveStatus: 'idle' | 'success' | 'error'
     onSave: () => void
     onDelete: (id: string) => void
-    onSyncCalculatorValue: (val: number, type: "BAH" | "VA" | "ON_BASE" | "OFF_BASE") => void
     contactTimeline: TimelineItem[] | null
     timelineLoading: boolean
     onRefetchTimeline: () => void
@@ -145,16 +92,13 @@ export function DealDetailSheet({
     setActiveTab,
     currentPipeline,
     activePipelineKey,
-    baseNames,
     allUsers,
-    specialAccommodations,
     userRole,
     session,
     isSaving,
     saveStatus,
     onSave,
     onDelete,
-    onSyncCalculatorValue,
     contactTimeline,
     timelineLoading,
     onRefetchTimeline,
@@ -166,7 +110,6 @@ export function DealDetailSheet({
     onLinkContact,
 }: DealDetailSheetProps) {
     // Internal state for the sheet
-    const [isCalculatorOpen, setIsCalculatorOpen] = useState(false)
     const [noteToDelete, setNoteToDelete] = useState<{ contactId: string; noteId: string } | null>(null)
     const [isDeletingNote, setIsDeletingNote] = useState(false)
     const [formErrors, setFormErrors] = useState<Record<string, string>>({})
@@ -183,6 +126,9 @@ export function DealDetailSheet({
             setSelectedDeal((prev: any) => prev ? { ...prev, blockers: newBlockers } : null)
             setBlockerInput("")
             fetchPipelines()
+            toast.success("Blocker added")
+        } else {
+            toast.error("Failed to add blocker")
         }
         setIsSavingBlockers(false)
     }
@@ -195,6 +141,9 @@ export function DealDetailSheet({
         if (res.success) {
             setSelectedDeal((prev: any) => prev ? { ...prev, blockers: newBlockers } : null)
             fetchPipelines()
+            toast.success("Blocker removed")
+        } else {
+            toast.error("Failed to remove blocker")
         }
         setIsSavingBlockers(false)
     }
@@ -346,7 +295,11 @@ export function DealDetailSheet({
     const handleValidatedSave = () => {
         const errors = validateDealForm()
         setFormErrors(errors)
-        if (Object.keys(errors).length > 0) return
+        if (Object.keys(errors).length > 0) {
+            const messages = Object.values(errors)
+            toast.error(messages.join(". "))
+            return
+        }
         onSave()
     }
 
@@ -354,7 +307,12 @@ export function DealDetailSheet({
         if (!noteToDelete) return;
         setIsDeletingNote(true);
         const res = await deleteNote(noteToDelete.contactId, noteToDelete.noteId);
-        if (res.success) onRefetchTimeline();
+        if (res.success) {
+            toast.success("Note deleted");
+            onRefetchTimeline();
+        } else {
+            toast.error("Failed to delete note");
+        }
         setNoteToDelete(null);
         setIsDeletingNote(false);
     };
@@ -410,6 +368,8 @@ export function DealDetailSheet({
                                                                             setSelectedDeal((prev: any) => prev ? { ...prev, status: s } : null)
                                                                             fetchPipelines()
                                                                             toast.success(`Deal marked as ${DEAL_STATUS_LABELS[s]}`)
+                                                                        } else {
+                                                                            toast.error("Failed to update deal status")
                                                                         }
                                                                     }}
                                                                 >
@@ -548,14 +508,6 @@ export function DealDetailSheet({
                                                         className="h-8 text-sm"
                                                     />
                                                 </div>
-                                                <div className="space-y-1 sm:col-span-2">
-                                                    <span className="text-muted-foreground text-xs">Military Base</span>
-                                                    <BaseCombobox
-                                                        value={selectedDeal.base || ""}
-                                                        bases={baseNames}
-                                                        onChange={(val) => setSelectedDeal((prev: any) => prev ? { ...prev, base: val } : null)}
-                                                    />
-                                                </div>
                                             </div>
                                         </div>
 
@@ -669,48 +621,6 @@ export function DealDetailSheet({
                                             </div>
                                         </div>
 
-                                        {/* Special Accommodations */}
-                                        <div className="space-y-4">
-                                            <div className="flex items-center justify-between">
-                                                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Special Accommodations</h3>
-                                            </div>
-                                            <div className="space-y-2">
-                                                {specialAccommodations.length === 0 ? (
-                                                    <p className="text-xs text-muted-foreground">Add options in Settings &rarr; Workspace Options &rarr; Special Accommodations</p>
-                                                ) : (
-                                                    <div className="flex flex-col gap-2">
-                                                        {specialAccommodations.map((acc) => (
-                                                            <label
-                                                                key={acc.id}
-                                                                className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/30 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5"
-                                                            >
-                                                                <input
-                                                                    type="radio"
-                                                                    name="specialAccommodation"
-                                                                    value={acc.id}
-                                                                    checked={(selectedDeal.specialAccommodationId || "") === acc.id}
-                                                                    onChange={() => setSelectedDeal((prev: any) => prev ? { ...prev, specialAccommodationId: acc.id } : null)}
-                                                                    className="h-4 w-4 text-primary border-input"
-                                                                />
-                                                                <span className="text-sm font-medium">{acc.name}</span>
-                                                            </label>
-                                                        ))}
-                                                        <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/30 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-                                                            <input
-                                                                type="radio"
-                                                                name="specialAccommodation"
-                                                                value=""
-                                                                checked={!selectedDeal.specialAccommodationId}
-                                                                onChange={() => setSelectedDeal((prev: any) => prev ? { ...prev, specialAccommodationId: null } : null)}
-                                                                className="h-4 w-4 text-primary border-input"
-                                                            />
-                                                            <span className="text-sm text-muted-foreground">None</span>
-                                                        </label>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
                                         {/* Blockers */}
                                         <div className="space-y-4">
                                             <div className="flex items-center justify-between">
@@ -806,50 +716,6 @@ export function DealDetailSheet({
                                         <div className="space-y-4">
                                             <div className="flex items-center justify-between">
                                                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Financial Calculation</h3>
-                                                <Dialog open={isCalculatorOpen} onOpenChange={setIsCalculatorOpen}>
-                                                    <DialogTrigger asChild>
-                                                        <Button variant="outline" size="sm" className="gap-2 border-primary/20 hover:border-primary/50 text-primary">
-                                                            <Calculator className="h-4 w-4" />
-                                                            Calculate Opportunity Cost
-                                                        </Button>
-                                                    </DialogTrigger>
-                                                    <DialogContent className="w-[95vw] max-w-2xl bg-card border-white/5 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
-                                                        <DialogHeader>
-                                                            <DialogTitle>Housing Allowance Calculator</DialogTitle>
-                                                        </DialogHeader>
-                                                        <Tabs defaultValue="on-base" className="w-full">
-                                                            <TabsList className="grid w-full grid-cols-2 mb-4">
-                                                                <TabsTrigger value="on-base">On-Base</TabsTrigger>
-                                                                <TabsTrigger value="off-base">Off-Base</TabsTrigger>
-                                                            </TabsList>
-                                                            <TabsContent value="on-base">
-                                                                <OnBaseLodgingCalculator
-                                                                    embedded
-                                                                    initialBase={selectedDeal.base}
-                                                                    initialStartDate={selectedDeal.startDate}
-                                                                    initialEndDate={selectedDeal.endDate}
-                                                                    onSyncValue={(val) => {
-                                                                        onSyncCalculatorValue(val, "ON_BASE");
-                                                                        setIsCalculatorOpen(false);
-                                                                    }}
-                                                                />
-                                                            </TabsContent>
-
-                                                            <TabsContent value="off-base">
-                                                                <OffBaseLodgingCalculator
-                                                                    embedded
-                                                                    initialBase={selectedDeal.base}
-                                                                    initialStartDate={selectedDeal.startDate}
-                                                                    initialEndDate={selectedDeal.endDate}
-                                                                    onSyncValue={(val) => {
-                                                                        onSyncCalculatorValue(val, "OFF_BASE");
-                                                                        setIsCalculatorOpen(false);
-                                                                    }}
-                                                                />
-                                                            </TabsContent>
-                                                        </Tabs>
-                                                    </DialogContent>
-                                                </Dialog>
                                             </div>
                                             <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 space-y-3">
                                                 <div className="flex items-center justify-between text-sm">
@@ -916,7 +782,12 @@ export function DealDetailSheet({
                                                         source: "deal",
                                                         mentions,
                                                     });
-                                                    if (res.success) onRefetchTimeline();
+                                                    if (res.success) {
+                                                        toast.success("Note added");
+                                                        onRefetchTimeline();
+                                                    } else {
+                                                        toast.error("Failed to add note");
+                                                    }
                                                 }}
                                                 onDeleteNote={(noteId) => setNoteToDelete({ contactId: selectedDeal.contactId, noteId })}
                                                 users={allUsers}
@@ -1029,7 +900,11 @@ export function DealDetailSheet({
                                                                         requiredDocs: { ...prev.requiredDocs, [doc.key]: val }
                                                                     } : null);
                                                                     if (selectedDeal.id !== "new") {
-                                                                        await updateRequiredDocs(selectedDeal.id, doc.key, val);
+                                                                        try {
+                                                                            await updateRequiredDocs(selectedDeal.id, doc.key, val);
+                                                                        } catch {
+                                                                            toast.error("Failed to update document status");
+                                                                        }
                                                                     }
                                                                 }}
                                                                 className="h-5 w-5 rounded border-2 border-muted-foreground/30 text-primary accent-primary cursor-pointer"

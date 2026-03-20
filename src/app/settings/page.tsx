@@ -1,18 +1,17 @@
 import { auth } from "@/auth"
 import { adminDb } from "@/lib/firebase-admin"
+import { tenantDb } from "@/lib/tenant-db"
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { ShieldAlert, Users, User, ShieldCheck, BriefcaseBusiness, Link, MapPin, Workflow, ScrollText, Layers, Key, Clock, GitBranch, UserPlus, Megaphone } from "lucide-react"
+import { ShieldAlert, Users, User, ShieldCheck, BriefcaseBusiness, Link, Workflow, ScrollText, Layers, Key, Clock, GitBranch, UserPlus, Megaphone, Wand2 } from "lucide-react"
 import { UserManagementTable } from "./users/UserManagementTable"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProfileForm } from "./ProfileForm"
 import { IntegrationsTab } from "./IntegrationsTab"
-import { BasesManager } from "./bases/BasesManager"
 import { LeadSourceManager } from "./leadsources/LeadSourceManager"
 import { TagManager } from "./tags/TagManager"
 import { StatusManager } from "./system-properties/StatusManager"
-import { SpecialAccommodationsManager } from "./system-properties/SpecialAccommodationsManager"
 import AutomationsContent from "./automations/AutomationsTab"
 import { PipelinePrioritySettings } from "./pipeline/PipelinePrioritySettings"
 import { NotificationPreferences } from "./NotificationPreferences"
@@ -32,6 +31,9 @@ export default async function SettingsPage() {
     const session = await auth()
 
     if (!session?.user?.email) redirect("/")
+
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
 
     const usersSnap = await adminDb.collection('users').where('email', '==', session.user.email).limit(1).get();
 
@@ -65,7 +67,7 @@ export default async function SettingsPage() {
     if (isOwnerOrAdmin) {
         const [allUsersSnap, pipelinesSnap] = await Promise.all([
             adminDb.collection('users').orderBy('createdAt', 'desc').get(),
-            adminDb.collection('pipelines').orderBy('createdAt', 'asc').get(),
+            db.collection('pipelines').orderBy('createdAt', 'asc').get(),
         ]);
         users = allUsersSnap.docs.map(doc => {
             const d = doc.data();
@@ -152,6 +154,10 @@ export default async function SettingsPage() {
                                         <Megaphone className="w-3.5 h-3.5" />
                                         Changelog
                                     </TabsTrigger>
+                                    <a href="/setup" className="flex items-center gap-1.5 px-3 shrink-0 text-xs min-h-[44px] touch-manipulation text-muted-foreground hover:text-foreground rounded-md hover:bg-muted/50">
+                                        <Wand2 className="w-3.5 h-3.5" />
+                                        Setup Wizard
+                                    </a>
                                 </>
                             )}
                         </TabsList>
@@ -245,6 +251,13 @@ export default async function SettingsPage() {
                                                     Changelog
                                                 </TabsTrigger>
                                             </TabsList>
+                                            <a
+                                                href="/setup"
+                                                className="flex items-center gap-2.5 px-3 py-2 w-full text-sm rounded-md hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors mt-0.5"
+                                            >
+                                                <Wand2 className="w-4 h-4 shrink-0" />
+                                                Setup Wizard
+                                            </a>
                                         </div>
                                     </>
                                 )}
@@ -292,7 +305,7 @@ export default async function SettingsPage() {
                                                         <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/20">
                                                             <div>
                                                                 <div className="font-semibold text-sm">Workspace Name</div>
-                                                                <div className="text-sm text-muted-foreground mt-1">AFCrashpad Main CRM</div>
+                                                                <div className="text-sm text-muted-foreground mt-1">Vesta CRM Workspace</div>
                                                             </div>
                                                             <div className="px-2 py-1 bg-muted rounded text-xs font-mono text-muted-foreground">Read-only</div>
                                                         </div>
@@ -320,26 +333,7 @@ export default async function SettingsPage() {
                                                 <LeadSourceManager />
                                                 <TagManager />
                                                 <StatusManager />
-                                                <SpecialAccommodationsManager />
                                             </div>
-                                        </section>
-
-                                        <Separator />
-
-                                        {/* Section: Military Bases */}
-                                        <section>
-                                            <Card>
-                                                <CardHeader>
-                                                    <CardTitle className="flex items-center gap-2">
-                                                        <MapPin className="h-4 w-4" />
-                                                        Military Bases & Lodging
-                                                    </CardTitle>
-                                                    <CardDescription>Configure supported bases and their seasonal lodging rates.</CardDescription>
-                                                </CardHeader>
-                                                <CardContent>
-                                                    <BasesManager />
-                                                </CardContent>
-                                            </Card>
                                         </section>
 
                                         <Separator />

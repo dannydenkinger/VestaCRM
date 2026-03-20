@@ -1,14 +1,15 @@
 "use server"
 
-import { adminDb } from "@/lib/firebase-admin"
-import { auth } from "@/auth"
+import { tenantDb } from "@/lib/tenant-db"
+import { requireAuth } from "@/lib/auth-guard"
 
 export async function getSequences() {
-    const session = await auth()
-    if (!session?.user) return { success: false, error: "Unauthorized" }
+    const session = await requireAuth()
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
 
     try {
-        const snap = await adminDb.collection("email_sequences").orderBy("createdAt", "desc").get()
+        const snap = await db.collection("email_sequences").orderBy("createdAt", "desc").get()
         const sequences = snap.docs.map(doc => {
             const d = doc.data()
             return {
@@ -31,11 +32,12 @@ export async function createSequence(data: {
     trigger: string
     steps: { delayDays: number; templateId: string; templateName: string }[]
 }) {
-    const session = await auth()
-    if (!session?.user) return { success: false, error: "Unauthorized" }
+    const session = await requireAuth()
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
 
     try {
-        const ref = await adminDb.collection("email_sequences").add({
+        const ref = await db.add("email_sequences", {
             name: data.name,
             trigger: data.trigger,
             enabled: true,
@@ -55,11 +57,12 @@ export async function updateSequence(id: string, data: Partial<{
     enabled: boolean
     steps: { delayDays: number; templateId: string; templateName: string }[]
 }>) {
-    const session = await auth()
-    if (!session?.user) return { success: false, error: "Unauthorized" }
+    const session = await requireAuth()
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
 
     try {
-        await adminDb.collection("email_sequences").doc(id).update(data)
+        await db.doc("email_sequences", id).update(data)
         return { success: true }
     } catch (error) {
         console.error("Failed to update sequence:", error)
@@ -68,11 +71,12 @@ export async function updateSequence(id: string, data: Partial<{
 }
 
 export async function deleteSequence(id: string) {
-    const session = await auth()
-    if (!session?.user) return { success: false, error: "Unauthorized" }
+    const session = await requireAuth()
+    const workspaceId = session.user.workspaceId
+    const db = tenantDb(workspaceId)
 
     try {
-        await adminDb.collection("email_sequences").doc(id).delete()
+        await db.doc("email_sequences", id).delete()
         return { success: true }
     } catch (error) {
         console.error("Failed to delete sequence:", error)

@@ -1,7 +1,7 @@
 "use server"
 
 import { z } from "zod";
-import { adminDb } from "@/lib/firebase-admin";
+import { tenantDb } from "@/lib/tenant-db";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { createNotification } from "@/app/notifications/actions";
@@ -10,6 +10,65 @@ import { triggerSequence } from "@/lib/email-sequences";
 import { softDelete, restoreItem, permanentlyDelete } from "@/lib/soft-delete";
 import { captureError } from "@/lib/error-tracking";
 import type { TimelineItem, DuplicateContact, DuplicateGroup } from "./types";
+import { getCachedStageNames } from "@/lib/cached-queries";
+
+/**
+ * Consolidated page-data fetch: returns contacts + statuses + tags + users
+ * in a single server action call (saves 3-4 HTTP round trips on page load).
+ */
+export async function getContactsPageData(options?: { limit?: number; lastDocId?: string }) {
+    try {
+        const session = await auth();
+        if (!session?.user) return { success: false, contacts: [], lastDocId: null, hasMore: false, contactStatuses: [], tags: [], users: [] };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
+
+        const [contactsResult, statusesResult, tagsResult, usersResult] = await Promise.all([
+            getContactsPaginated(options),
+            (async () => {
+                const snap = await db.collection('contact_statuses').orderBy('order', 'asc').get();
+                return snap.docs.map(doc => ({ id: doc.id, name: doc.data().name }));
+            })(),
+            (async () => {
+                const snap = await db.collection('tags').orderBy('name', 'asc').get();
+                return snap.docs.map(doc => ({
+                    id: doc.id,
+                    name: doc.data().name || "",
+                    color: doc.data().color || "",
+                }));
+            })(),
+            (async () => {
+                const snap = await db.collection('users').orderBy('name', 'asc').get();
+                return snap.docs.map(doc => ({
+                    id: doc.id,
+                    name: doc.data().name,
+                    email: doc.data().email,
+                }));
+            })(),
+        ]);
+
+        return {
+            success: true,
+            contacts: contactsResult.success ? contactsResult.contacts : [],
+            lastDocId: contactsResult.success ? contactsResult.lastDocId : null,
+            hasMore: contactsResult.success ? contactsResult.hasMore : false,
+            contactStatuses: statusesResult,
+            tags: tagsResult,
+            users: usersResult,
+        };
+    } catch (error: any) {
+        console.error("Failed to fetch contacts page data:", error);
+        return {
+            success: false,
+            contacts: [],
+            lastDocId: null,
+            hasMore: false,
+            contactStatuses: [],
+            tags: [],
+            users: [],
+        };
+    }
+}
 
 // ── Zod Schemas ──────────────────────────────────────────────────────────────
 
@@ -41,7 +100,6 @@ const createContactSchema = z.object({
     name: z.string().max(200).optional(),
     email: z.string().email().optional().or(z.literal("")).nullable(),
     phone: z.string().max(50).optional().or(z.literal("")).nullable(),
-    militaryBase: z.string().max(200).optional().or(z.literal("")).nullable(),
     businessName: z.string().max(200).optional().or(z.literal("")).nullable(),
     status: z.string().max(50).optional(),
     stayStartDate: z.string().optional().or(z.literal("")).nullable(),
@@ -53,7 +111,6 @@ const updateContactSchema = z.object({
     name: z.string().max(200).optional(),
     email: z.string().email().optional().or(z.literal("")).nullable(),
     phone: z.string().max(50).optional().or(z.literal("")).nullable(),
-    militaryBase: z.string().max(200).optional().or(z.literal("")).nullable(),
     businessName: z.string().max(200).optional().or(z.literal("")).nullable(),
     status: z.string().max(50).optional(),
     stayStartDate: z.string().optional().or(z.literal("")).nullable(),
@@ -88,7 +145,6 @@ const bulkCreateContactsSchema = z.object({
         name: z.string().max(200).optional(),
         email: z.string().email().optional().or(z.literal("")).nullable(),
         phone: z.string().max(50).optional().or(z.literal("")).nullable(),
-        militaryBase: z.string().max(200).optional().or(z.literal("")).nullable(),
         businessName: z.string().max(200).optional().or(z.literal("")).nullable(),
         status: z.string().max(50).optional(),
     })).min(1).max(500),
@@ -117,12 +173,17 @@ export async function getContactsPaginated(options?: { limit?: number; lastDocId
     const lastDocId = options?.lastDocId;
 
     try {
+        const session = await auth();
+        if (!session?.user) return { success: false, error: "Not authenticated", contacts: [], hasMore: false, lastDocId: null };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
+
         // Fetch pipelines, opportunities, stages, and notes in parallel (avoid N+1)
-        let contactsQuery = adminDb.collection('contacts').orderBy('createdAt', 'desc');
+        let contactsQuery = db.collection('contacts').orderBy('createdAt', 'desc');
 
         // If resuming from a cursor, start after the last document
         if (lastDocId) {
-            const lastDoc = await adminDb.collection('contacts').doc(lastDocId).get();
+            const lastDoc = await db.doc('contacts', lastDocId).get();
             if (lastDoc.exists) {
                 contactsQuery = contactsQuery.startAfter(lastDoc);
             }
@@ -131,20 +192,12 @@ export async function getContactsPaginated(options?: { limit?: number; lastDocId
         // Fetch one extra to check if there are more
         contactsQuery = contactsQuery.limit(pageSize + 1);
 
-        const [pipelinesSnap, snapshot, oppsSnap] = await Promise.all([
-            adminDb.collection('pipelines').get(),
+        // Use cached stage names + parallel Firestore reads
+        const [stageNamesMap, snapshot, oppsSnap] = await Promise.all([
+            getCachedStageNames(workspaceId),
             contactsQuery.get(),
-            adminDb.collection('opportunities').get(),
+            db.collection('opportunities').get(),
         ]);
-
-        // Build stageId -> name map
-        const stageNamesMap: Record<string, string> = {};
-        for (const pDoc of pipelinesSnap.docs) {
-            const stagesSnap = await pDoc.ref.collection('stages').get();
-            stagesSnap.docs.forEach(sDoc => {
-                stageNamesMap[sDoc.id] = sDoc.data().name || 'Unknown';
-            });
-        }
 
         // Group opportunities by contactId (in-memory join), excluding soft-deleted
         const oppsByContact: Record<string, any[]> = {};
@@ -176,49 +229,29 @@ export async function getContactsPaginated(options?: { limit?: number; lastDocId
         // Check if there are more results
         const allDocs = snapshot.docs.filter(doc => !doc.data().deletedAt);
 
-        // Pre-fetch latest note per contact using collectionGroup (1 query instead of N)
+        // Pre-fetch latest note per visible contact in parallel (avoid fetching ALL notes)
         const latestNoteByContact: Record<string, any> = {};
+        const hasMore = allDocs.length > pageSize;
+        const pageDocs = hasMore ? allDocs.slice(0, pageSize) : allDocs;
         try {
-            const allNotesSnap = await adminDb.collectionGroup('notes').orderBy('createdAt', 'desc').get();
-            for (const nDoc of allNotesSnap.docs) {
-                const contactId = nDoc.ref.parent.parent?.id;
-                if (contactId && !latestNoteByContact[contactId]) {
-                    const nd = nDoc.data();
-                    latestNoteByContact[contactId] = {
-                        id: nDoc.id,
-                        content: nd.content,
-                        contactId: nd.contactId,
-                        createdAt: toISO(nd.createdAt),
-                        updatedAt: toISO(nd.updatedAt),
-                    };
-                }
-            }
-        } catch (notesError) {
-            console.error("Failed to fetch notes via collectionGroup (may need Firestore index):", notesError);
-            // Fallback: fetch notes individually for the current page of contacts
-            try {
-                const contactIds = allDocs.slice(0, pageSize).map(doc => doc.id);
-                await Promise.all(contactIds.map(async (cid) => {
-                    const notesSnap = await adminDb.collection('contacts').doc(cid).collection('notes')
+            const noteResults = await Promise.all(
+                pageDocs.map(async (doc) => {
+                    const notesSnap = await db.subcollection('contacts', doc.id, 'notes')
                         .orderBy('createdAt', 'desc').limit(1).get();
                     if (!notesSnap.empty) {
                         const nDoc = notesSnap.docs[0];
                         const nd = nDoc.data();
-                        latestNoteByContact[cid] = {
-                            id: nDoc.id,
-                            content: nd.content,
-                            contactId: nd.contactId || cid,
-                            createdAt: toISO(nd.createdAt),
-                            updatedAt: toISO(nd.updatedAt),
-                        };
+                        return { cid: doc.id, note: { id: nDoc.id, content: nd.content, contactId: nd.contactId || doc.id, createdAt: toISO(nd.createdAt), updatedAt: toISO(nd.updatedAt) } };
                     }
-                }));
-            } catch (fallbackError) {
-                console.error("Fallback notes fetch also failed:", fallbackError);
+                    return { cid: doc.id, note: null };
+                })
+            );
+            for (const { cid, note } of noteResults) {
+                if (note) latestNoteByContact[cid] = note;
             }
+        } catch (notesError) {
+            console.error("Failed to fetch notes for page:", notesError);
         }
-        const hasMore = allDocs.length > pageSize;
-        const pageDocs = hasMore ? allDocs.slice(0, pageSize) : allDocs;
         const nextLastDocId = pageDocs.length > 0 ? pageDocs[pageDocs.length - 1].id : null;
 
         const contacts = pageDocs.map(doc => {
@@ -257,21 +290,17 @@ export async function getContactsPaginated(options?: { limit?: number; lastDocId
 
 export async function getContacts() {
     try {
-        // Fetch contacts, opportunities, stages, and notes in parallel (avoid N+1)
-        const [pipelinesSnap, snapshot, oppsSnap] = await Promise.all([
-            adminDb.collection('pipelines').get(),
-            adminDb.collection('contacts').orderBy('createdAt', 'desc').get(),
-            adminDb.collection('opportunities').get(),
-        ]);
+        const session = await auth();
+        if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
 
-        // Build stageId -> name map
-        const stageNamesMap: Record<string, string> = {};
-        for (const pDoc of pipelinesSnap.docs) {
-            const stagesSnap = await pDoc.ref.collection('stages').get();
-            stagesSnap.docs.forEach(sDoc => {
-                stageNamesMap[sDoc.id] = sDoc.data().name || 'Unknown';
-            });
-        }
+        // Use cached stage names + parallel Firestore reads
+        const [stageNamesMap, snapshot, oppsSnap] = await Promise.all([
+            getCachedStageNames(workspaceId),
+            db.collection('contacts').orderBy('createdAt', 'desc').get(),
+            db.collection('opportunities').get(),
+        ]);
 
         // Group opportunities by contactId (in-memory join), excluding soft-deleted
         const oppsByContact: Record<string, any[]> = {};
@@ -300,46 +329,27 @@ export async function getContacts() {
             oppsByContact[contactId].push(o);
         }
 
-        // Pre-fetch latest note per contact using collectionGroup (1 query instead of N)
+        // Pre-fetch latest note per contact in parallel (avoid fetching ALL notes)
         const allDocs = snapshot.docs.filter(doc => !doc.data().deletedAt);
         const latestNoteByContact: Record<string, any> = {};
         try {
-            const allNotesSnap = await adminDb.collectionGroup('notes').orderBy('createdAt', 'desc').get();
-            for (const nDoc of allNotesSnap.docs) {
-                const contactId = nDoc.ref.parent.parent?.id;
-                if (contactId && !latestNoteByContact[contactId]) {
-                    const nd = nDoc.data();
-                    latestNoteByContact[contactId] = {
-                        id: nDoc.id,
-                        content: nd.content,
-                        contactId: nd.contactId,
-                        createdAt: toISO(nd.createdAt),
-                        updatedAt: toISO(nd.updatedAt),
-                    };
-                }
-            }
-        } catch (notesError) {
-            console.error("Failed to fetch notes via collectionGroup (may need Firestore index):", notesError);
-            try {
-                const contactIds = allDocs.map(doc => doc.id);
-                await Promise.all(contactIds.map(async (cid) => {
-                    const notesSnap = await adminDb.collection('contacts').doc(cid).collection('notes')
+            const noteResults = await Promise.all(
+                allDocs.map(async (doc) => {
+                    const notesSnap = await db.subcollection('contacts', doc.id, 'notes')
                         .orderBy('createdAt', 'desc').limit(1).get();
                     if (!notesSnap.empty) {
                         const nDoc = notesSnap.docs[0];
                         const nd = nDoc.data();
-                        latestNoteByContact[cid] = {
-                            id: nDoc.id,
-                            content: nd.content,
-                            contactId: nd.contactId || cid,
-                            createdAt: toISO(nd.createdAt),
-                            updatedAt: toISO(nd.updatedAt),
-                        };
+                        return { cid: doc.id, note: { id: nDoc.id, content: nd.content, contactId: nd.contactId || doc.id, createdAt: toISO(nd.createdAt), updatedAt: toISO(nd.updatedAt) } };
                     }
-                }));
-            } catch (fallbackError) {
-                console.error("Fallback notes fetch also failed:", fallbackError);
+                    return { cid: doc.id, note: null };
+                })
+            );
+            for (const { cid, note } of noteResults) {
+                if (note) latestNoteByContact[cid] = note;
             }
+        } catch (notesError) {
+            console.error("Failed to fetch notes:", notesError);
         }
 
         const contacts = allDocs.map(doc => {
@@ -388,6 +398,10 @@ export async function createNote(contactId: string, content: string, options?: {
 
     try {
         const session = await auth();
+        if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
+
         const authorName = session?.user?.name ?? session?.user?.email ?? "Unknown";
         const authorId = (session?.user as any)?.id ?? null;
 
@@ -402,11 +416,11 @@ export async function createNote(contactId: string, content: string, options?: {
         };
         if (options?.opportunityId) data.opportunityId = options.opportunityId;
         if (options?.source) data.source = options.source;
-        await adminDb.collection('contacts').doc(contactId).collection('notes').add(data);
+        await db.addToSubcollection('contacts', contactId, 'notes', data);
 
         // Send notification for each mentioned user
         if (options?.mentions?.length) {
-            const contactDoc = await adminDb.collection('contacts').doc(contactId).get();
+            const contactDoc = await db.doc('contacts', contactId).get();
             const contactName = contactDoc.data()?.name ?? "a contact";
             for (const mention of options.mentions) {
                 createNotification({
@@ -438,7 +452,12 @@ export async function getNotes(contactId: string) {
     contactId = parsed.data.contactId;
 
     try {
-        const notesSnapshot = await adminDb.collection('contacts').doc(contactId).collection('notes')
+        const session = await auth();
+        if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
+
+        const notesSnapshot = await db.subcollection('contacts', contactId, 'notes')
             .orderBy('createdAt', 'desc')
             .get();
             
@@ -469,10 +488,14 @@ export async function updateNote(contactId: string, noteId: string, content: str
 
     try {
         const session = await auth();
+        if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
+
         const editorName = session?.user?.name ?? session?.user?.email ?? "Unknown user";
         const editorId = (session?.user as any)?.id ?? null;
 
-        const noteRef = adminDb.collection('contacts').doc(contactId).collection('notes').doc(noteId);
+        const noteRef = db.subcollection('contacts', contactId, 'notes').doc(noteId);
         const noteSnap = await noteRef.get();
         if (!noteSnap.exists) return { success: false, error: "Note not found" };
 
@@ -483,7 +506,7 @@ export async function updateNote(contactId: string, noteId: string, content: str
         });
 
         // Record edit in timeline
-        await adminDb.collection('contacts').doc(contactId).collection('timeline').add({
+        await db.addToSubcollection('contacts', contactId, 'timeline', {
             type: "note_edited",
             noteId,
             contentPreview: content.trim().slice(0, 120) + (content.trim().length > 120 ? "…" : ""),
@@ -510,10 +533,14 @@ export async function deleteNote(contactId: string, noteId: string) {
 
     try {
         const session = await auth();
+        if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
+
         const deletedByName = session?.user?.name ?? session?.user?.email ?? "Unknown user";
         const deletedById = (session?.user as any)?.id ?? null;
 
-        const noteRef = adminDb.collection('contacts').doc(contactId).collection('notes').doc(noteId);
+        const noteRef = db.subcollection('contacts', contactId, 'notes').doc(noteId);
         const noteSnap = await noteRef.get();
         if (!noteSnap.exists) return { success: false, error: "Note not found" };
 
@@ -521,7 +548,7 @@ export async function deleteNote(contactId: string, noteId: string) {
         const contentPreview = content.slice(0, 120) + (content.length > 120 ? "…" : "");
 
         await noteRef.delete();
-        await adminDb.collection('contacts').doc(contactId).collection('timeline').add({
+        await db.addToSubcollection('contacts', contactId, 'timeline', {
             type: "note_deleted",
             noteId,
             contentPreview: contentPreview || null,
@@ -546,11 +573,19 @@ export async function getContactTimeline(contactId: string): Promise<{ success: 
     contactId = parsed.data.contactId;
 
     try {
-        const contactRef = adminDb.collection('contacts').doc(contactId);
+        const session = await auth();
+        if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
+
+        const notesCol = db.subcollection('contacts', contactId, 'notes');
+        const messagesCol = db.subcollection('contacts', contactId, 'messages');
+        const timelineCol = db.subcollection('contacts', contactId, 'timeline');
+
         const [notesSnap, messagesSnap, timelineSnap] = await Promise.all([
-            contactRef.collection('notes').orderBy('createdAt', 'desc').get(),
-            contactRef.collection('messages').orderBy('createdAt', 'desc').get(),
-            contactRef.collection('timeline').orderBy('createdAt', 'desc').get(),
+            notesCol.orderBy('createdAt', 'desc').get(),
+            messagesCol.orderBy('createdAt', 'desc').get(),
+            timelineCol.orderBy('createdAt', 'desc').get(),
         ]);
 
         const items: TimelineItem[] = [];
@@ -606,14 +641,17 @@ export async function createContact(data: any) {
     data = parsed.data;
 
     try {
+        const session = await auth();
+        if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
+
         const { tags, ...otherData } = data;
-        const newContactRef = adminDb.collection('contacts').doc();
 
         const contactData: any = {
             name: otherData.name ?? '',
             email: otherData.email ?? null,
             phone: otherData.phone ?? null,
-            militaryBase: otherData.militaryBase ?? null,
             businessName: otherData.businessName ?? null,
             status: otherData.status || 'Lead',
             createdAt: new Date(),
@@ -624,12 +662,12 @@ export async function createContact(data: any) {
 
         if (tags !== undefined) {
             contactData.tags = await Promise.all(tags.map(async (tagId: string) => {
-                const tagDoc = await adminDb.collection('tags').doc(tagId).get();
+                const tagDoc = await db.doc('tags', tagId).get();
                 return { tagId, name: tagDoc.data()?.name, color: tagDoc.data()?.color };
             }));
         }
 
-        await newContactRef.set(contactData);
+        const newContactRef = await db.add('contacts', contactData);
         revalidatePath("/contacts");
 
         // Fire a notification for the team
@@ -640,22 +678,19 @@ export async function createContact(data: any) {
             linkUrl: "/contacts"
         });
 
-        const session = await auth();
-        if (session?.user) {
-            logAudit({
-                userId: (session.user as any).id || "",
-                userEmail: session.user.email || "",
-                userName: session.user.name || "",
-                action: "create",
-                entity: "contact",
-                entityId: newContactRef.id,
-                entityName: contactData.name || contactData.email || "",
-            }).catch(() => {});
-        }
+        logAudit(workspaceId, {
+            userId: (session.user as any).id || "",
+            userEmail: session.user.email || "",
+            userName: session.user.name || "",
+            action: "create",
+            entity: "contact",
+            entityId: newContactRef.id,
+            entityName: contactData.name || contactData.email || "",
+        }).catch(() => {});
 
         // Trigger new_contact email sequence
         if (contactData.email) {
-            triggerSequence("new_contact", newContactRef.id, contactData.email, contactData.name).catch(() => {});
+            triggerSequence(workspaceId, "new_contact", newContactRef.id, contactData.email, contactData.name).catch(() => {});
         }
 
         return { success: true, id: newContactRef.id };
@@ -673,11 +708,16 @@ export async function updateContact(id: string, data: any) {
     data = dataParsed.data;
 
     try {
+        const session = await auth();
+        if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
+
         const { tags, ...otherData } = data;
         const updateData: any = { updatedAt: new Date() };
 
         // Only include defined, non-undefined fields (Firestore rejects undefined)
-        const allowedKeys = ['name', 'email', 'phone', 'militaryBase', 'businessName', 'status', 'stayStartDate', 'stayEndDate'];
+        const allowedKeys = ['name', 'email', 'phone', 'businessName', 'status', 'stayStartDate', 'stayEndDate'];
         for (const k of allowedKeys) {
             if (otherData[k] !== undefined) {
                 let val = otherData[k];
@@ -695,25 +735,22 @@ export async function updateContact(id: string, data: any) {
 
         if (tags !== undefined && Array.isArray(tags)) {
             updateData.tags = await Promise.all(tags.map(async (tagId: string) => {
-                const tagDoc = await adminDb.collection('tags').doc(tagId).get();
+                const tagDoc = await db.doc('tags', tagId).get();
                 return { tagId, name: tagDoc.data()?.name, color: tagDoc.data()?.color };
             }));
         }
 
-        await adminDb.collection('contacts').doc(id).update(updateData);
+        await db.doc('contacts', id).update(updateData);
 
-        const session = await auth();
-        if (session?.user) {
-            logAudit({
-                userId: (session.user as any).id || "",
-                userEmail: session.user.email || "",
-                userName: session.user.name || "",
-                action: "update",
-                entity: "contact",
-                entityId: id,
-                entityName: updateData.name || "",
-            }).catch(() => {});
-        }
+        logAudit(workspaceId, {
+            userId: (session.user as any).id || "",
+            userEmail: session.user.email || "",
+            userName: session.user.name || "",
+            action: "update",
+            entity: "contact",
+            entityId: id,
+            entityName: updateData.name || "",
+        }).catch(() => {});
 
         revalidatePath("/contacts");
         return { success: true };
@@ -726,7 +763,12 @@ export async function updateContact(id: string, data: any) {
 /** Lightweight list for contact picker (e.g. pipeline "Add opportunity → Select existing contact"). */
 export async function getContactsList() {
     try {
-        const snapshot = await adminDb.collection('contacts').orderBy('createdAt', 'desc').limit(500).get();
+        const session = await auth();
+        if (!session?.user) return { success: false, contacts: [] };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
+
+        const snapshot = await db.collection('contacts').orderBy('createdAt', 'desc').limit(500).get();
         const contacts = snapshot.docs.filter(doc => !doc.data().deletedAt).map(doc => {
             const d = doc.data();
             return {
@@ -734,7 +776,6 @@ export async function getContactsList() {
                 name: d.name ?? "",
                 email: d.email ?? "",
                 phone: d.phone ?? "",
-                militaryBase: d.militaryBase ?? ""
             };
         });
         return { success: true, contacts };
@@ -750,19 +791,24 @@ export async function getContactDetail(id: string) {
     id = parsed.data.id;
 
     try {
-        const doc = await adminDb.collection('contacts').doc(id).get();
+        const session = await auth();
+        if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
+
+        const doc = await db.doc('contacts', id).get();
         if (!doc.exists) throw new Error("Contact not found");
 
         const data = doc.data() || {};
         
         // Fetch subcollections (timeline = events like note_deleted)
         const [notesSnap, tasksSnap, messagesSnap, docsSnap, oppsSnap, timelineSnap] = await Promise.all([
-            doc.ref.collection('notes').orderBy('createdAt', 'desc').limit(50).get(),
-            doc.ref.collection('tasks').orderBy('dueDate', 'asc').get(),
-            doc.ref.collection('messages').orderBy('createdAt', 'desc').limit(100).get(),
-            doc.ref.collection('documents').orderBy('createdAt', 'desc').limit(50).get(),
-            adminDb.collection('opportunities').where('contactId', '==', id).get(),
-            doc.ref.collection('timeline').orderBy('createdAt', 'desc').limit(50).get(),
+            db.subcollection('contacts', id, 'notes').orderBy('createdAt', 'desc').limit(50).get(),
+            db.subcollection('contacts', id, 'tasks').orderBy('dueDate', 'asc').get(),
+            db.subcollection('contacts', id, 'messages').orderBy('createdAt', 'desc').limit(100).get(),
+            db.subcollection('contacts', id, 'documents').orderBy('createdAt', 'desc').limit(50).get(),
+            db.collection('opportunities').where('contactId', '==', id).get(),
+            db.subcollection('contacts', id, 'timeline').orderBy('createdAt', 'desc').limit(50).get(),
         ]);
 
         const contact: any = {
@@ -770,7 +816,6 @@ export async function getContactDetail(id: string) {
             name: data.name ?? null,
             email: data.email ?? null,
             phone: data.phone ?? null,
-            militaryBase: data.militaryBase ?? null,
             businessName: data.businessName ?? null,
             status: data.status ?? null,
             stayStartDate: tsToISO(data.stayStartDate),
@@ -804,11 +849,8 @@ export async function getContactDetail(id: string) {
                     opportunityValue: od.opportunityValue ?? null,
                     estimatedProfit: od.estimatedProfit ?? null,
                     source: od.source ?? null,
-                    militaryBase: od.militaryBase ?? null,
                     notes: od.notes ?? null,
                     reasonForStay: od.reasonForStay ?? null,
-                    specialAccommodationId: od.specialAccommodationId ?? null,
-                    specialAccommodationLabels: Array.isArray(od.specialAccommodationLabels) ? od.specialAccommodationLabels : [],
                     unread: od.unread ?? false,
                     unreadAt: tsToISO(od.unreadAt),
                     lastSeenBy: od.lastSeenBy ?? null,
@@ -851,7 +893,12 @@ export async function updateFormTracking(contactId: string, data: any) {
     contactId = parsed.data.contactId;
 
     try {
-        await adminDb.collection('contacts').doc(contactId).update({
+        const session = await auth();
+        if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
+
+        await db.doc('contacts', contactId).update({
             formTracking: data,
             updatedAt: new Date()
         });
@@ -869,40 +916,42 @@ export async function deleteContact(id: string) {
     id = parsed.data.id;
 
     try {
-        const contactRef = adminDb.collection('contacts').doc(id);
+        const session = await auth();
+        if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
+
+        const contactRef = db.doc('contacts', id);
         const doc = await contactRef.get();
         if (!doc.exists) return { success: false, error: "Contact not found" };
 
         const contactName = doc.data()?.name || doc.data()?.email || "";
-        const session = await auth();
 
-        const batch = adminDb.batch();
+        const batch = db.batch();
 
         // Delete subcollections
         const subcollections = ['notes', 'tasks', 'messages', 'documents', 'timeline'];
         for (const col of subcollections) {
-            const snap = await contactRef.collection(col).get();
+            const snap = await db.subcollection('contacts', id, col).get();
             snap.docs.forEach(d => batch.delete(d.ref));
         }
 
         // Delete related opportunities
-        const oppsSnap = await adminDb.collection('opportunities').where('contactId', '==', id).get();
+        const oppsSnap = await db.collection('opportunities').where('contactId', '==', id).get();
         oppsSnap.docs.forEach(d => batch.delete(d.ref));
 
         batch.delete(contactRef);
         await batch.commit();
 
-        if (session?.user) {
-            logAudit({
-                userId: (session.user as any).id || "",
-                userEmail: session.user.email || "",
-                userName: session.user.name || "",
-                action: "delete",
-                entity: "contact",
-                entityId: id,
-                entityName: contactName,
-            }).catch(() => {});
-        }
+        logAudit(workspaceId, {
+            userId: (session.user as any).id || "",
+            userEmail: session.user.email || "",
+            userName: session.user.name || "",
+            action: "delete",
+            entity: "contact",
+            entityId: id,
+            entityName: contactName,
+        }).catch(() => {});
 
         revalidatePath("/contacts");
         revalidatePath("/pipeline");
@@ -920,14 +969,18 @@ export async function softDeleteContact(id: string) {
 
     try {
         const session = await auth();
+        if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
+
         const userId = (session?.user as any)?.id || "";
-        const res = await softDelete('contacts', id, userId);
+        const res = await softDelete(workspaceId, 'contacts', id, userId);
         if (!res.success) return res;
 
         // Also soft-delete related opportunities
-        const oppsSnap = await adminDb.collection('opportunities').where('contactId', '==', id).get();
+        const oppsSnap = await db.collection('opportunities').where('contactId', '==', id).get();
         for (const doc of oppsSnap.docs) {
-            await softDelete('opportunities', doc.id, userId);
+            await softDelete(workspaceId, 'opportunities', doc.id, userId);
         }
 
         revalidatePath("/contacts");
@@ -945,14 +998,19 @@ export async function restoreContact(id: string) {
     id = parsed.data.id;
 
     try {
-        const res = await restoreItem('contacts', id);
+        const session = await auth();
+        if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
+
+        const res = await restoreItem(workspaceId, 'contacts', id);
         if (!res.success) return res;
 
         // Also restore related opportunities that were soft-deleted
-        const oppsSnap = await adminDb.collection('opportunities').where('contactId', '==', id).get();
+        const oppsSnap = await db.collection('opportunities').where('contactId', '==', id).get();
         for (const doc of oppsSnap.docs) {
             if (doc.data().deletedAt) {
-                await restoreItem('opportunities', doc.id);
+                await restoreItem(workspaceId, 'opportunities', doc.id);
             }
         }
 
@@ -1055,27 +1113,29 @@ export async function bulkUpdateContactStatus(ids: string[], status: string) {
 
     try {
         const session = await auth();
-        const batch = adminDb.batch();
+        if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
+
+        const batch = db.batch();
 
         for (const id of ids) {
-            const ref = adminDb.collection('contacts').doc(id);
+            const ref = db.doc('contacts', id);
             batch.update(ref, { status, updatedAt: new Date() });
         }
 
         await batch.commit();
 
-        if (session?.user) {
-            logAudit({
-                userId: (session.user as any).id || "",
-                userEmail: session.user.email || "",
-                userName: session.user.name || "",
-                action: "update",
-                entity: "contact",
-                entityId: "bulk_status_update",
-                entityName: `Bulk status update to "${status}" for ${ids.length} contacts`,
-                metadata: { count: ids.length, status },
-            }).catch(() => {});
-        }
+        logAudit(workspaceId, {
+            userId: (session.user as any).id || "",
+            userEmail: session.user.email || "",
+            userName: session.user.name || "",
+            action: "update",
+            entity: "contact",
+            entityId: "bulk_status_update",
+            entityName: `Bulk status update to "${status}" for ${ids.length} contacts`,
+            metadata: { count: ids.length, status },
+        }).catch(() => {});
 
         revalidatePath("/contacts");
         return { success: true };
@@ -1093,17 +1153,20 @@ export async function bulkAddTag(ids: string[], tagId: string) {
 
     try {
         const session = await auth();
+        if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
 
         // Fetch the tag details
-        const tagDoc = await adminDb.collection('tags').doc(tagId).get();
+        const tagDoc = await db.doc('tags', tagId).get();
         if (!tagDoc.exists) return { success: false, error: "Tag not found" };
         const tagData = { tagId, name: tagDoc.data()?.name, color: tagDoc.data()?.color };
 
-        const batch = adminDb.batch();
+        const batch = db.batch();
 
         // For each contact, add the tag if not already present
         for (const id of ids) {
-            const contactRef = adminDb.collection('contacts').doc(id);
+            const contactRef = db.doc('contacts', id);
             const contactSnap = await contactRef.get();
             if (!contactSnap.exists) continue;
 
@@ -1119,18 +1182,16 @@ export async function bulkAddTag(ids: string[], tagId: string) {
 
         await batch.commit();
 
-        if (session?.user) {
-            logAudit({
-                userId: (session.user as any).id || "",
-                userEmail: session.user.email || "",
-                userName: session.user.name || "",
-                action: "update",
-                entity: "contact",
-                entityId: "bulk_add_tag",
-                entityName: `Bulk add tag "${tagData.name}" to ${ids.length} contacts`,
-                metadata: { count: ids.length, tagId, tagName: tagData.name },
-            }).catch(() => {});
-        }
+        logAudit(workspaceId, {
+            userId: (session.user as any).id || "",
+            userEmail: session.user.email || "",
+            userName: session.user.name || "",
+            action: "update",
+            entity: "contact",
+            entityId: "bulk_add_tag",
+            entityName: `Bulk add tag "${tagData.name}" to ${ids.length} contacts`,
+            metadata: { count: ids.length, tagId, tagName: tagData.name },
+        }).catch(() => {});
 
         revalidatePath("/contacts");
         return { success: true };
@@ -1146,17 +1207,22 @@ export async function bulkCreateContacts(contacts: any[]) {
     contacts = parsed.data.contacts;
 
     try {
-        const batch = adminDb.batch();
+        const session = await auth();
+        if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
+
+        const batch = db.batch();
         
         for (const contact of contacts) {
-            const ref = adminDb.collection('contacts').doc();
+            const ref = db.collectionRef('contacts').doc();
             batch.set(ref, {
                 name: contact.name || 'Unknown',
                 email: contact.email || null,
                 phone: contact.phone || null,
-                militaryBase: contact.militaryBase || null,
                 businessName: contact.businessName || null,
                 status: contact.status || 'Lead',
+                workspaceId,
                 createdAt: new Date(),
                 updatedAt: new Date()
             });
@@ -1172,19 +1238,16 @@ export async function bulkCreateContacts(contacts: any[]) {
             linkUrl: "/contacts"
         });
 
-        const session = await auth();
-        if (session?.user) {
-            logAudit({
-                userId: (session.user as any).id || "",
-                userEmail: session.user.email || "",
-                userName: session.user.name || "",
-                action: "create",
-                entity: "contact",
-                entityId: "bulk_import",
-                entityName: `Bulk import of ${contacts.length} contacts`,
-                metadata: { count: contacts.length },
-            }).catch(() => {});
-        }
+        logAudit(workspaceId, {
+            userId: (session.user as any).id || "",
+            userEmail: session.user.email || "",
+            userName: session.user.name || "",
+            action: "create",
+            entity: "contact",
+            entityId: "bulk_import",
+            entityName: `Bulk import of ${contacts.length} contacts`,
+            metadata: { count: contacts.length },
+        }).catch(() => {});
 
         return { success: true, count: contacts.length };
     } catch (error) {
@@ -1199,7 +1262,12 @@ export async function bulkCreateContacts(contacts: any[]) {
  */
 export async function findDuplicateContacts(): Promise<{ success: boolean; duplicates?: DuplicateGroup[]; error?: string }> {
     try {
-        const snapshot = await adminDb.collection('contacts').get();
+        const session = await auth();
+        if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
+
+        const snapshot = await db.collection('contacts').get();
         const contacts: DuplicateContact[] = snapshot.docs.map(doc => {
             const d = doc.data();
             return {
@@ -1207,7 +1275,6 @@ export async function findDuplicateContacts(): Promise<{ success: boolean; dupli
                 name: d.name || "",
                 email: (d.email || "").toLowerCase().trim(),
                 phone: d.phone || "",
-                militaryBase: d.militaryBase || "",
                 businessName: d.businessName || "",
                 status: d.status || "",
                 tags: d.tags || [],
@@ -1326,13 +1393,15 @@ export async function mergeMultipleContacts(primaryId: string, duplicateIds: str
     try {
         const session = await auth();
         if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
 
-        const primaryRef = adminDb.collection('contacts').doc(primaryId);
+        const primaryRef = db.doc('contacts', primaryId);
         const primarySnap = await primaryRef.get();
         if (!primarySnap.exists) return { success: false, error: "Primary contact not found" };
 
         const primary = primarySnap.data()!;
-        const mergeFields = ['name', 'email', 'phone', 'militaryBase', 'businessName', 'status', 'stayStartDate', 'stayEndDate'];
+        const mergeFields = ['name', 'email', 'phone', 'businessName', 'status', 'stayStartDate', 'stayEndDate'];
         const merged: Record<string, unknown> = { updatedAt: new Date() };
 
         // Start with primary values
@@ -1349,7 +1418,7 @@ export async function mergeMultipleContacts(primaryId: string, duplicateIds: str
         const subcollections = ['notes', 'tasks', 'messages', 'documents', 'timeline'];
 
         for (const dupId of duplicateIds) {
-            const dupRef = adminDb.collection('contacts').doc(dupId);
+            const dupRef = db.doc('contacts', dupId);
             const dupSnap = await dupRef.get();
             if (!dupSnap.exists) continue;
 
@@ -1382,22 +1451,22 @@ export async function mergeMultipleContacts(primaryId: string, duplicateIds: str
 
             // Move subcollections from duplicate to primary
             for (const col of subcollections) {
-                const snap = await dupRef.collection(col).get();
+                const snap = await db.subcollection('contacts', dupId, col).get();
                 for (const doc of snap.docs) {
                     const data = doc.data();
                     data.contactId = primaryId;
-                    await primaryRef.collection(col).add(data);
+                    await db.addToSubcollection('contacts', primaryId, col, data);
                 }
             }
 
             // Reassign opportunities from duplicate to primary
-            const oppsSnap = await adminDb.collection('opportunities').where('contactId', '==', dupId).get();
+            const oppsSnap = await db.collection('opportunities').where('contactId', '==', dupId).get();
             for (const doc of oppsSnap.docs) {
                 await doc.ref.update({ contactId: primaryId, updatedAt: new Date() });
             }
 
             // Record merge in timeline
-            await primaryRef.collection('timeline').add({
+            await db.addToSubcollection('contacts', primaryId, 'timeline', {
                 type: 'contact_merged',
                 mergedContactId: dupId,
                 mergedContactName: dup.name || dup.email || 'Unknown',
@@ -1405,9 +1474,9 @@ export async function mergeMultipleContacts(primaryId: string, duplicateIds: str
             });
 
             // Delete duplicate contact and its subcollections
-            const batch = adminDb.batch();
+            const batch = db.batch();
             for (const col of subcollections) {
-                const snap = await dupRef.collection(col).get();
+                const snap = await db.subcollection('contacts', dupId, col).get();
                 snap.docs.forEach(d => batch.delete(d.ref));
             }
             batch.delete(dupRef);
@@ -1421,7 +1490,7 @@ export async function mergeMultipleContacts(primaryId: string, duplicateIds: str
         await primaryRef.update(merged);
 
         // Audit log
-        logAudit({
+        logAudit(workspaceId, {
             userId: (session.user as any).id || "",
             userEmail: session.user.email || "",
             userName: session.user.name || "",
@@ -1472,19 +1541,21 @@ export async function addRelatedContact(contactId: string, relatedId: string, re
     try {
         const session = await auth();
         if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
 
         // Get related contact's name for display
-        const relatedDoc = await adminDb.collection('contacts').doc(relatedId).get();
+        const relatedDoc = await db.doc('contacts', relatedId).get();
         if (!relatedDoc.exists) return { success: false, error: "Related contact not found" };
         const relatedName = relatedDoc.data()?.name || relatedDoc.data()?.email || "Unknown";
 
-        const contactDoc = await adminDb.collection('contacts').doc(contactId).get();
+        const contactDoc = await db.doc('contacts', contactId).get();
         if (!contactDoc.exists) return { success: false, error: "Contact not found" };
         const contactName = contactDoc.data()?.name || contactDoc.data()?.email || "Unknown";
 
         // Add relation to both contacts (bidirectional)
-        const contactRef = adminDb.collection('contacts').doc(contactId);
-        const relatedRef = adminDb.collection('contacts').doc(relatedId);
+        const contactRef = db.doc('contacts', contactId);
+        const relatedRef = db.doc('contacts', relatedId);
 
         const existingRelated: any[] = contactDoc.data()?.relatedContacts || [];
         const alreadyLinked = existingRelated.some((r: any) => r.contactId === relatedId);
@@ -1521,10 +1592,12 @@ export async function removeRelatedContact(contactId: string, relatedId: string)
     try {
         const session = await auth();
         if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
 
         // Remove from both contacts (bidirectional)
-        const contactRef = adminDb.collection('contacts').doc(contactId);
-        const relatedRef = adminDb.collection('contacts').doc(relatedId);
+        const contactRef = db.doc('contacts', contactId);
+        const relatedRef = db.doc('contacts', relatedId);
 
         const contactDoc = await contactRef.get();
         const relatedDoc = await relatedRef.get();
@@ -1571,6 +1644,8 @@ export async function sendBulkEmail(contactIds: string[], subject: string, body:
     try {
         const session = await auth();
         if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
 
         // Dynamically import sendTrackedEmail to avoid circular deps
         const { sendTrackedEmail } = await import("@/lib/email");
@@ -1580,7 +1655,7 @@ export async function sendBulkEmail(contactIds: string[], subject: string, body:
         const errors: string[] = [];
 
         for (const contactId of contactIds) {
-            const contactDoc = await adminDb.collection('contacts').doc(contactId).get();
+            const contactDoc = await db.doc('contacts', contactId).get();
             if (!contactDoc.exists) { skipped++; continue; }
 
             const contact = contactDoc.data()!;
@@ -1593,7 +1668,6 @@ export async function sendBulkEmail(contactIds: string[], subject: string, body:
                 .replace(/\{\{email\}\}/gi, contact.email || "")
                 .replace(/\{\{phone\}\}/gi, contact.phone || "")
                 .replace(/\{\{businessName\}\}/gi, contact.businessName || "")
-                .replace(/\{\{militaryBase\}\}/gi, contact.militaryBase || "")
                 .replace(/\{\{status\}\}/gi, contact.status || "");
 
             const personalizedSubject = subject
@@ -1606,10 +1680,11 @@ export async function sendBulkEmail(contactIds: string[], subject: string, body:
                     subject: personalizedSubject,
                     html: personalizedBody,
                     contactId,
+                    workspaceId,
                 });
 
                 // Log to contact's message history
-                await adminDb.collection('contacts').doc(contactId).collection('messages').add({
+                await db.addToSubcollection('contacts', contactId, 'messages', {
                     type: "EMAIL",
                     direction: "OUTBOUND",
                     content: personalizedBody,
@@ -1625,7 +1700,7 @@ export async function sendBulkEmail(contactIds: string[], subject: string, body:
         }
 
         // Audit log
-        logAudit({
+        logAudit(workspaceId, {
             userId: (session.user as any).id || "",
             userEmail: session.user.email || "",
             userName: session.user.name || "",
@@ -1665,6 +1740,8 @@ export async function importMappedContacts(rows: Record<string, any>[], mapping:
     try {
         const session = await auth();
         if (!session?.user) return { success: false, error: "Not authenticated", imported: 0, skipped: 0 };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
 
         let imported = 0;
         let skipped = 0;
@@ -1674,7 +1751,7 @@ export async function importMappedContacts(rows: Record<string, any>[], mapping:
         const batchSize = 400;
         for (let i = 0; i < validRows.length; i += batchSize) {
             const chunk = validRows.slice(i, i + batchSize);
-            const batch = adminDb.batch();
+            const batch = db.batch();
 
             for (const row of chunk) {
                 // Map CSV columns to CRM fields using the user's mapping
@@ -1698,14 +1775,14 @@ export async function importMappedContacts(rows: Record<string, any>[], mapping:
                     continue;
                 }
 
-                const ref = adminDb.collection('contacts').doc();
+                const ref = db.collectionRef('contacts').doc();
                 batch.set(ref, {
                     name: contact.name || "",
                     email: contact.email || null,
                     phone: contact.phone || null,
-                    militaryBase: contact.militaryBase || null,
                     businessName: contact.businessName || null,
                     status: contact.status || "Lead",
+                    workspaceId,
                     createdAt: new Date(),
                     updatedAt: new Date(),
                 });
@@ -1726,7 +1803,7 @@ export async function importMappedContacts(rows: Record<string, any>[], mapping:
             });
         }
 
-        logAudit({
+        logAudit(workspaceId, {
             userId: (session.user as any).id || "",
             userEmail: session.user.email || "",
             userName: session.user.name || "",
@@ -1754,9 +1831,11 @@ export async function mergeContacts(primaryId: string, secondaryId: string, fiel
     try {
         const session = await auth();
         if (!session?.user) return { success: false, error: "Not authenticated" };
+        const workspaceId = (session.user as any).workspaceId;
+        const db = tenantDb(workspaceId);
 
-        const primaryRef = adminDb.collection('contacts').doc(primaryId);
-        const secondaryRef = adminDb.collection('contacts').doc(secondaryId);
+        const primaryRef = db.doc('contacts', primaryId);
+        const secondaryRef = db.doc('contacts', secondaryId);
 
         const [primarySnap, secondarySnap] = await Promise.all([primaryRef.get(), secondaryRef.get()]);
         if (!primarySnap.exists) return { success: false, error: "Primary contact not found" };
@@ -1766,7 +1845,7 @@ export async function mergeContacts(primaryId: string, secondaryId: string, fiel
         const secondary = secondarySnap.data()!;
 
         // Merge fields: use override selections, else primary wins, else secondary
-        const mergeFields = ['name', 'email', 'phone', 'militaryBase', 'businessName', 'status', 'stayStartDate', 'stayEndDate'];
+        const mergeFields = ['name', 'email', 'phone', 'businessName', 'status', 'stayStartDate', 'stayEndDate'];
         const merged: Record<string, unknown> = { updatedAt: new Date() };
 
         for (const field of mergeFields) {
@@ -1802,22 +1881,22 @@ export async function mergeContacts(primaryId: string, secondaryId: string, fiel
         // Move subcollections from secondary to primary
         const subcollections = ['notes', 'tasks', 'messages', 'documents', 'timeline'];
         for (const col of subcollections) {
-            const snap = await secondaryRef.collection(col).get();
+            const snap = await db.subcollection('contacts', secondaryId, col).get();
             for (const doc of snap.docs) {
                 const data = doc.data();
                 data.contactId = primaryId;
-                await primaryRef.collection(col).add(data);
+                await db.addToSubcollection('contacts', primaryId, col, data);
             }
         }
 
         // Reassign opportunities from secondary to primary
-        const oppsSnap = await adminDb.collection('opportunities').where('contactId', '==', secondaryId).get();
+        const oppsSnap = await db.collection('opportunities').where('contactId', '==', secondaryId).get();
         for (const doc of oppsSnap.docs) {
             await doc.ref.update({ contactId: primaryId, updatedAt: new Date() });
         }
 
         // Record merge in timeline
-        await primaryRef.collection('timeline').add({
+        await db.addToSubcollection('contacts', primaryId, 'timeline', {
             type: 'contact_merged',
             mergedContactId: secondaryId,
             mergedContactName: secondary.name || secondary.email || 'Unknown',
@@ -1825,16 +1904,16 @@ export async function mergeContacts(primaryId: string, secondaryId: string, fiel
         });
 
         // Delete secondary contact and its subcollections
-        const batch = adminDb.batch();
+        const batch = db.batch();
         for (const col of subcollections) {
-            const snap = await secondaryRef.collection(col).get();
+            const snap = await db.subcollection('contacts', secondaryId, col).get();
             snap.docs.forEach(d => batch.delete(d.ref));
         }
         batch.delete(secondaryRef);
         await batch.commit();
 
         // Audit log
-        logAudit({
+        logAudit(workspaceId, {
             userId: (session.user as any).id || "",
             userEmail: session.user.email || "",
             userName: session.user.name || "",
