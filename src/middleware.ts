@@ -2,6 +2,8 @@ import { auth } from "@/auth"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
+export const runtime = "nodejs"
+
 // Routes that don't require authentication
 const publicRoutes = [
     "/",

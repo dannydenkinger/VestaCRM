@@ -213,12 +213,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                             createdAt: new Date().toISOString(),
                         }, { merge: true })
 
-                        // Set up Gmail push notifications (non-blocking)
-                        import("@/lib/gmail-watch").then(({ setupGmailWatch }) => {
-                            setupGmailWatch(token.workspaceId as string, token.dbUserId as string).catch((err: any) =>
-                                console.error("[AUTH] Gmail watch setup failed:", err)
-                            )
-                        }).catch(() => {})
+                        // Gmail watch setup is triggered by the auth-guard on first authenticated request
+                        // (cannot import firebase-dependent modules in the JWT callback edge context)
                     }
                 } catch (err) {
                     console.error("[AUTH] Failed to persist Gmail integration:", err)

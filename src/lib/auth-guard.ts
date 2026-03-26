@@ -110,6 +110,27 @@ export async function getAuthSession() {
         }
     }
 
+    // Set up Gmail watch if user signed in with Google and watch isn't active
+    if ((session as any).authProvider === "google" && session.user.workspaceId && session.user.id) {
+        try {
+            const gmailDocId = `${session.user.workspaceId}_${session.user.id}`
+            const gmailDoc = await adminDb.collection("gmail_integrations").doc(gmailDocId).get()
+            if (gmailDoc.exists) {
+                const data = gmailDoc.data()
+                const watchExpiration = data?.watchExpiration || 0
+                // Set up watch if not active or expiring within 1 hour
+                if (!watchExpiration || watchExpiration < Date.now() + 60 * 60 * 1000) {
+                    const { setupGmailWatch } = await import("@/lib/gmail-watch")
+                    setupGmailWatch(session.user.workspaceId, session.user.id).catch((err) =>
+                        console.error("[AUTH-GUARD] Gmail watch setup failed:", err)
+                    )
+                }
+            }
+        } catch {
+            // Non-critical — don't block auth
+        }
+    }
+
     return session
 }
 
