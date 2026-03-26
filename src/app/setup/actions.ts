@@ -1,6 +1,6 @@
 "use server"
 
-import { auth } from "@/auth"
+import { getAuthSession } from "@/lib/auth-guard"
 import { adminDb } from "@/lib/firebase-admin"
 import { tenantDb } from "@/lib/tenant-db"
 import { google } from "googleapis"
@@ -9,7 +9,7 @@ import { cookies } from "next/headers"
 // ── Read Setup Status ──
 
 export async function getSetupStatus() {
-    const session = await auth()
+    const session = await getAuthSession()
     if (!session?.user?.email) throw new Error("Unauthorized")
 
     const workspaceId = session.user.workspaceId
@@ -47,7 +47,7 @@ export async function getSetupStatus() {
 // ── Save API Keys ──
 
 export async function saveApiKey(service: string, config: Record<string, string>) {
-    const session = await auth()
+    const session = await getAuthSession()
     if (!session?.user?.email) throw new Error("Unauthorized")
 
     const workspaceId = session.user.workspaceId
@@ -131,7 +131,7 @@ export async function testWordPressConnection(url: string, username: string, app
 // ── Google Service Helpers ──
 
 async function getGoogleOAuth2Client() {
-    const session = await auth()
+    const session = await getAuthSession()
     if (!session?.user?.workspaceId) return null
 
     const db = tenantDb(session.user.workspaceId)
@@ -152,7 +152,7 @@ async function getGoogleOAuth2Client() {
 }
 
 export async function listGA4Properties() {
-    const session = await auth()
+    const session = await getAuthSession()
     if (!session?.user?.email) throw new Error("Unauthorized")
 
     const oauth2Client = await getGoogleOAuth2Client()
@@ -178,7 +178,7 @@ export async function listGA4Properties() {
 }
 
 export async function listGSCSites() {
-    const session = await auth()
+    const session = await getAuthSession()
     if (!session?.user?.email) throw new Error("Unauthorized")
 
     const oauth2Client = await getGoogleOAuth2Client()
@@ -201,7 +201,7 @@ export async function listGSCSites() {
 }
 
 export async function selectGA4Property(propertyId: string) {
-    const session = await auth()
+    const session = await getAuthSession()
     if (!session?.user?.email) throw new Error("Unauthorized")
 
     const workspaceId = session.user.workspaceId
@@ -217,7 +217,7 @@ export async function selectGA4Property(propertyId: string) {
 }
 
 export async function selectGSCSite(siteUrl: string) {
-    const session = await auth()
+    const session = await getAuthSession()
     if (!session?.user?.email) throw new Error("Unauthorized")
 
     const workspaceId = session.user.workspaceId
@@ -235,7 +235,7 @@ export async function selectGSCSite(siteUrl: string) {
 // ── Complete Setup ──
 
 export async function completeSetup() {
-    const session = await auth()
+    const session = await getAuthSession()
     if (!session?.user?.email) throw new Error("Unauthorized")
 
     const workspaceId = session.user.workspaceId

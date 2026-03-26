@@ -5,7 +5,7 @@ import { tenantDb } from "@/lib/tenant-db";
 import { createNotification } from "@/app/notifications/actions";
 import type { CalendarEvent } from "@/lib/calendar-sync";
 import { getGoogleCalendarClient } from "@/lib/google-calendar";
-import { auth } from "@/auth";
+import { getAuthSession } from "@/lib/auth-guard";
 import { revalidatePath } from "next/cache";
 
 // ── Zod Schemas ──────────────────────────────────────────────────────────────
@@ -100,7 +100,7 @@ export async function getUnifiedEvents(days: number = 30): Promise<CalendarEvent
     days = parsed.data.days ?? 30;
     const events: CalendarEvent[] = [];
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return [];
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -271,7 +271,7 @@ export async function createTask(data: {
     if (!parsed.success) return { id: null, error: "Invalid input" };
     data = parsed.data;
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { id: null, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -304,7 +304,7 @@ export async function createTask(data: {
 }
 
 export async function getTaskById(taskId: string) {
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return null;
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -333,7 +333,7 @@ export async function toggleTaskComplete(taskId: string, completed: boolean) {
     taskId = parsed.data.taskId;
     completed = parsed.data.completed;
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -346,7 +346,7 @@ export async function toggleTaskComplete(taskId: string, completed: boolean) {
 }
 
 export async function getTasks() {
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return [];
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -475,7 +475,7 @@ export async function updateTask(taskId: string, data: {
     taskId = idParsed.data;
     data = dataParsed.data;
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -510,7 +510,7 @@ export async function addSubtask(taskId: string, title: string) {
     if (!idParsed.success || !title?.trim()) return { success: false, error: "Invalid input" };
     taskId = idParsed.data;
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -529,7 +529,7 @@ export async function toggleSubtask(taskId: string, subtaskId: string) {
     if (!idParsed.success || !subtaskId) return { success: false, error: "Invalid input" };
     taskId = idParsed.data;
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -548,7 +548,7 @@ export async function deleteSubtask(taskId: string, subtaskId: string) {
     if (!idParsed.success || !subtaskId) return { success: false, error: "Invalid input" };
     taskId = idParsed.data;
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -582,7 +582,7 @@ export async function completeRecurringTask(taskId: string) {
     if (!parsed.success) return { success: false, error: "Invalid task ID", nextTaskId: null };
     taskId = parsed.data;
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, error: "Not authenticated", nextTaskId: null };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -641,7 +641,7 @@ export async function deleteTask(taskId: string) {
     if (!parsed.success) return { success: false, error: "Invalid input" };
     taskId = parsed.data.taskId;
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -653,7 +653,7 @@ export async function deleteTask(taskId: string) {
 // ── Overdue Task Count (lightweight) ────────────────────────────────────────
 
 export async function getOverdueTaskCount(): Promise<number> {
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return 0;
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -686,7 +686,7 @@ export async function getOverdueTaskCount(): Promise<number> {
 // ── Task Templates ──────────────────────────────────────────────────────────
 
 export async function getTaskTemplates() {
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return [];
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -707,7 +707,7 @@ export async function createTaskTemplate(data: {
     const parsed = createTaskTemplateSchema.safeParse(data);
     if (!parsed.success) return { id: null, error: "Invalid input" };
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { id: null, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -728,7 +728,7 @@ export async function updateTaskTemplate(templateId: string, data: {
     const parsed = updateTaskTemplateSchema.safeParse({ templateId, ...data });
     if (!parsed.success) return { success: false, error: "Invalid input" };
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -745,7 +745,7 @@ export async function deleteTaskTemplate(templateId: string) {
     const parsed = firestoreIdSchema.safeParse(templateId);
     if (!parsed.success) return { success: false, error: "Invalid input" };
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -758,7 +758,7 @@ export async function applyTaskTemplate(templateId: string) {
     const parsed = firestoreIdSchema.safeParse(templateId);
     if (!parsed.success) return { success: false, error: "Invalid template ID" };
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -800,7 +800,7 @@ export async function getTaskComments(taskId: string) {
     const parsed = firestoreIdSchema.safeParse(taskId);
     if (!parsed.success) return [];
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return [];
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -821,7 +821,7 @@ export async function addTaskComment(taskId: string, text: string) {
     const parsed = addTaskCommentSchema.safeParse({ taskId, text });
     if (!parsed.success) return { id: null, error: "Invalid input" };
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { id: null, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -856,7 +856,7 @@ export async function addRecurrenceException(taskId: string, exception: {
     const exParsed = recurrenceExceptionSchema.safeParse(exception);
     if (!exParsed.success) return { success: false, error: "Invalid exception data" };
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -896,7 +896,7 @@ export async function updateFutureOccurrences(taskId: string, fromDate: Date, mo
     const idParsed = firestoreIdSchema.safeParse(taskId);
     if (!idParsed.success) return { success: false, error: "Invalid task ID" };
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);

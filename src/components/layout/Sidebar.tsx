@@ -141,8 +141,8 @@ function SidebarInner({ onNavigate, className, mobileCollapsed }: SidebarProps) 
                 {branding?.logoUrl ? (
                     <img src={branding.logoUrl} alt={branding.companyName || "Logo"} className="h-10 w-10 shrink-0 rounded-lg object-cover shadow" />
                 ) : (
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow" style={branding?.primaryColor ? { backgroundColor: branding.primaryColor } : undefined}>
-                        <Hexagon className="h-6 w-6" />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 shadow" style={branding?.primaryColor ? { backgroundColor: branding.primaryColor } : undefined}>
+                        <Hexagon className="h-6 w-6 text-violet-500" />
                     </div>
                 )}
                 {!showCollapsed && (
@@ -245,7 +245,7 @@ function SidebarInner({ onNavigate, className, mobileCollapsed }: SidebarProps) 
                     </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent side="top" align="start" className="w-48">
-                    <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/" })} className="text-destructive focus:text-destructive">
+                    <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })} className="text-destructive focus:text-destructive">
                         <LogOut className="h-4 w-4 mr-2" />
                         Sign Out
                     </DropdownMenuItem>

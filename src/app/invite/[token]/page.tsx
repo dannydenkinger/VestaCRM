@@ -122,7 +122,7 @@ export default function InvitePage() {
                         <CardDescription>{error}</CardDescription>
                     </CardHeader>
                     <CardContent className="text-center">
-                        <Button variant="outline" onClick={() => router.push("/")}>
+                        <Button variant="outline" onClick={() => router.push("/login")}>
                             Go to Sign In
                         </Button>
                     </CardContent>
@@ -146,7 +146,7 @@ export default function InvitePage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="text-center">
-                        <Button onClick={() => router.push("/")}>
+                        <Button onClick={() => router.push("/login")}>
                             Sign In
                         </Button>
                     </CardContent>
@@ -244,7 +244,7 @@ export default function InvitePage() {
 
                     <p className="text-xs text-center text-muted-foreground">
                         Already have an account?{" "}
-                        <a href="/" className="text-primary hover:underline">
+                        <a href="/login" className="text-primary hover:underline">
                             Sign in
                         </a>
                     </p>

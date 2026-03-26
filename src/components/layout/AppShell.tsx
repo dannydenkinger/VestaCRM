@@ -24,7 +24,7 @@ import { useIsMobile } from "@/hooks/useIsMobile"
 import { getNotifications } from "@/app/notifications/actions"
 
 // Routes that render without the app shell (sidebar, topnav, etc.)
-const STANDALONE_ROUTES = ["/"]
+const STANDALONE_ROUTES = ["/", "/login", "/register", "/setup", "/privacy", "/terms", "/pricing", "/verify-email"]
 const STANDALONE_ROUTE_PREFIXES = ["/sign/", "/invite/"]
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -57,7 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     // Standalone pages render without the shell
     const isStandalone = STANDALONE_ROUTES.includes(pathname) || STANDALONE_ROUTE_PREFIXES.some(prefix => pathname.startsWith(prefix))
     if (isStandalone) {
-        return <div className="w-full h-full">{children}</div>
+        return <div className="w-full min-h-screen">{children}</div>
     }
 
     // ─── Mobile Layout ──────────────────────────────────────────────
@@ -83,7 +83,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     // ─── Desktop Layout ─────────────────────────────────────────────
     return (
-        <>
+        <div className="flex h-screen overflow-hidden">
             {/* Mobile sidebar backdrop */}
             <div
                 className={cn(
@@ -128,6 +128,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <SessionTimeoutWarning />
             <QuickAddFAB />
             <OnboardingWizard />
-        </>
+        </div>
     )
 }

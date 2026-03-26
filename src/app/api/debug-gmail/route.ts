@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { getAuthSession } from "@/lib/auth-guard"
 import { tenantDb } from "@/lib/tenant-db"
 
 export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {
-    const session = await auth()
+    const session = await getAuthSession()
     if (!session?.user) {
         return NextResponse.json({ error: "Not signed in" })
     }

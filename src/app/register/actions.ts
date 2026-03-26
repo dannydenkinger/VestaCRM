@@ -2,6 +2,7 @@
 
 import bcrypt from "bcryptjs"
 import { z } from "zod"
+import { adminDb } from "@/lib/firebase-admin"
 
 const registerSchema = z.object({
     name: z.string().min(1, "Name is required").max(100),
@@ -19,8 +20,6 @@ export async function registerUser(data: { name: string; email: string; password
     const { name, email, password, workspaceName } = parsed.data
 
     try {
-        const { adminDb } = await import(/* webpackIgnore: true */ "@/lib/firebase-admin")
-
         // Check if this email already has an account
         const existingSnap = await adminDb.collection("users")
             .where("email", "==", email)
@@ -90,7 +89,7 @@ export async function registerUser(data: { name: string; email: string; password
         })
 
         // Provision default workspace data (pipeline, stages, tags, etc.)
-        const { provisionWorkspace } = await import(/* webpackIgnore: true */ "@/lib/workspace-defaults")
+        const { provisionWorkspace } = await import("@/lib/workspace-defaults")
         await provisionWorkspace(workspaceRef.id, wsName)
 
         return { success: true }
@@ -102,7 +101,6 @@ export async function registerUser(data: { name: string; email: string; password
 
 export async function checkIsFirstUser(): Promise<boolean> {
     try {
-        const { adminDb } = await import(/* webpackIgnore: true */ "@/lib/firebase-admin")
         const snap = await adminDb.collection("users").limit(1).get()
         return snap.empty
     } catch {

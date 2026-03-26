@@ -2,7 +2,7 @@
 
 import { adminDb } from "@/lib/firebase-admin"
 import { tenantDb } from "@/lib/tenant-db"
-import { auth } from "@/auth"
+import { getAuthSession } from "@/lib/auth-guard"
 import { cached } from "@/lib/server-cache"
 
 export interface SidebarData {
@@ -20,26 +20,28 @@ export interface SidebarData {
  * This reduces HTTP round trips from 4 to 1.
  */
 export async function getSidebarData(): Promise<SidebarData> {
-    const session = await auth()
+    const session = await getAuthSession()
     const email = session?.user?.email
     const workspaceId = session?.user?.workspaceId
 
+    // Role comes from workspace_members via session (not from users collection)
+    const sessionRole = session?.user?.role || "AGENT"
+
     // Run all queries in parallel — single round trip
     const [userResult, brandingResult, overdueResult] = await Promise.all([
-        // User role + profile (single Firestore query instead of two separate ones)
+        // User profile (name + image from users collection, role from session)
         email
             ? adminDb.collection('users').where('email', '==', email).limit(1).get()
                 .then(snap => {
-                    if (snap.empty) return { role: "AGENT", name: null, imageUrl: null }
+                    if (snap.empty) return { name: null, imageUrl: null }
                     const data = snap.docs[0].data()
                     return {
-                        role: data?.role || "AGENT",
                         name: data?.name || null,
                         imageUrl: data?.profileImageUrl || null,
                     }
                 })
-                .catch(() => ({ role: "AGENT" as string, name: null as string | null, imageUrl: null as string | null }))
-            : Promise.resolve({ role: "AGENT" as string, name: null as string | null, imageUrl: null as string | null }),
+                .catch(() => ({ name: null as string | null, imageUrl: null as string | null }))
+            : Promise.resolve({ name: null as string | null, imageUrl: null as string | null }),
 
         // Branding settings (cached for 5 min — rarely changes)
         workspaceId
@@ -76,7 +78,7 @@ export async function getSidebarData(): Promise<SidebarData> {
     ])
 
     return {
-        role: userResult.role,
+        role: sessionRole,
         name: userResult.name,
         imageUrl: userResult.imageUrl,
         branding: brandingResult,

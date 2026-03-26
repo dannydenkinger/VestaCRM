@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { X, ChevronRight, ChevronLeft, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -70,11 +70,11 @@ export function OnboardingWizard() {
     const tooltipRef = useRef<HTMLDivElement>(null)
 
     // Filter steps based on device
-    const activeSteps = steps.filter(s => {
+    const activeSteps = useMemo(() => steps.filter(s => {
         if (isMobile && s.desktopOnly) return false
         if (!isMobile && s.mobileOnly) return false
         return true
-    })
+    }), [isMobile])
 
     // Check if onboarding should show — Firestore first, localStorage fallback
     useEffect(() => {

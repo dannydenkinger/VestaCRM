@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { tenantDb } from "@/lib/tenant-db";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/auth";
+import { getAuthSession } from "@/lib/auth-guard";
 import { createNotification } from "@/app/notifications/actions";
 import { logAudit } from "@/lib/audit";
 import { triggerSequence } from "@/lib/email-sequences";
@@ -18,7 +18,7 @@ import { getCachedStageNames } from "@/lib/cached-queries";
  */
 export async function getContactsPageData(options?: { limit?: number; lastDocId?: string }) {
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, contacts: [], lastDocId: null, hasMore: false, contactStatuses: [], tags: [], users: [] };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -173,7 +173,7 @@ export async function getContactsPaginated(options?: { limit?: number; lastDocId
     const lastDocId = options?.lastDocId;
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated", contacts: [], hasMore: false, lastDocId: null };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -290,7 +290,7 @@ export async function getContactsPaginated(options?: { limit?: number; lastDocId
 
 export async function getContacts() {
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -397,7 +397,7 @@ export async function createNote(contactId: string, content: string, options?: {
     options = parsed.data.options;
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -452,7 +452,7 @@ export async function getNotes(contactId: string) {
     contactId = parsed.data.contactId;
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -487,7 +487,7 @@ export async function updateNote(contactId: string, noteId: string, content: str
     if (!contactId || !noteId || !content?.trim()) return { success: false, error: "Invalid input" };
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -532,7 +532,7 @@ export async function deleteNote(contactId: string, noteId: string) {
     noteId = parsed.data.noteId;
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -573,7 +573,7 @@ export async function getContactTimeline(contactId: string): Promise<{ success: 
     contactId = parsed.data.contactId;
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -641,7 +641,7 @@ export async function createContact(data: any) {
     data = parsed.data;
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -708,7 +708,7 @@ export async function updateContact(id: string, data: any) {
     data = dataParsed.data;
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -763,7 +763,7 @@ export async function updateContact(id: string, data: any) {
 /** Lightweight list for contact picker (e.g. pipeline "Add opportunity → Select existing contact"). */
 export async function getContactsList() {
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, contacts: [] };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -791,7 +791,7 @@ export async function getContactDetail(id: string) {
     id = parsed.data.id;
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -893,7 +893,7 @@ export async function updateFormTracking(contactId: string, data: any) {
     contactId = parsed.data.contactId;
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -916,7 +916,7 @@ export async function deleteContact(id: string) {
     id = parsed.data.id;
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -968,7 +968,7 @@ export async function softDeleteContact(id: string) {
     id = parsed.data.id;
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -998,7 +998,7 @@ export async function restoreContact(id: string) {
     id = parsed.data.id;
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -1112,7 +1112,7 @@ export async function bulkUpdateContactStatus(ids: string[], status: string) {
     status = parsed.data.status;
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -1152,7 +1152,7 @@ export async function bulkAddTag(ids: string[], tagId: string) {
     tagId = parsed.data.tag;
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -1207,7 +1207,7 @@ export async function bulkCreateContacts(contacts: any[]) {
     contacts = parsed.data.contacts;
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -1262,7 +1262,7 @@ export async function bulkCreateContacts(contacts: any[]) {
  */
 export async function findDuplicateContacts(): Promise<{ success: boolean; duplicates?: DuplicateGroup[]; error?: string }> {
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -1391,7 +1391,7 @@ export async function mergeMultipleContacts(primaryId: string, duplicateIds: str
     if (duplicateIds.length === 0) return { success: false, error: "No duplicates to merge" };
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -1539,7 +1539,7 @@ export async function addRelatedContact(contactId: string, relatedId: string, re
     if (contactId === relatedId) return { success: false, error: "Cannot relate a contact to itself" };
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -1590,7 +1590,7 @@ export async function removeRelatedContact(contactId: string, relatedId: string)
     relatedId = parsed.data.relatedId;
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -1642,7 +1642,7 @@ export async function sendBulkEmail(contactIds: string[], subject: string, body:
     body = parsed.data.body;
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -1738,7 +1738,7 @@ export async function importMappedContacts(rows: Record<string, any>[], mapping:
     const fieldMapping = parsed.data.mapping;
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated", imported: 0, skipped: 0 };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);
@@ -1829,7 +1829,7 @@ export async function mergeContacts(primaryId: string, secondaryId: string, fiel
     fieldOverrides = parsed.data.fieldOverrides;
 
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) return { success: false, error: "Not authenticated" };
         const workspaceId = (session.user as any).workspaceId;
         const db = tenantDb(workspaceId);

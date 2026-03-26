@@ -1,5 +1,7 @@
 import { Resend } from "resend";
 import { createTrackedEmail, updateTrackingEmailId } from "@/lib/email-tracking";
+import { getGmailIntegration } from "@/lib/gmail-integration";
+import { sendGmailEmail } from "@/lib/gmail";
 
 let resend: Resend | null = null;
 
@@ -90,4 +92,105 @@ export async function sendTrackedEmail({
     }
 
     return { data, trackingId };
+}
+
+/**
+ * Unified email send — uses Gmail API if the user has a Gmail integration,
+ * otherwise falls back to Resend. Both paths inject open/click tracking.
+ */
+export async function sendEmailUnified({
+    to,
+    subject,
+    html,
+    contactId,
+    workspaceId,
+    userId,
+    inReplyTo,
+    references,
+    gmailThreadId,
+    attachments,
+}: {
+    to: string;
+    subject: string;
+    html: string;
+    contactId: string;
+    workspaceId: string;
+    userId: string;
+    inReplyTo?: string;
+    references?: string;
+    gmailThreadId?: string;
+    attachments?: { filename: string; url: string; contentType?: string }[];
+}): Promise<{
+    trackingId: string;
+    gmailMessageId?: string;
+    gmailThreadId?: string;
+    emailMessageId?: string;
+}> {
+    // Check if user has Gmail integration
+    const gmailIntegration = await getGmailIntegration(workspaceId, userId);
+
+    // Create tracking record with instrumented HTML
+    const { trackingId, trackedHtml } = await createTrackedEmail(workspaceId, {
+        contactId,
+        recipientEmail: to,
+        subject,
+        html,
+    });
+
+    if (gmailIntegration?.refreshToken) {
+        // Send via Gmail API
+        // Convert URL-based attachments to Buffers for Gmail MIME
+        let gmailAttachments: { filename: string; content: Buffer; contentType?: string }[] | undefined;
+        if (attachments?.length) {
+            gmailAttachments = await Promise.all(
+                attachments.map(async (att) => {
+                    const res = await fetch(att.url);
+                    const buffer = Buffer.from(await res.arrayBuffer());
+                    return { filename: att.filename, content: buffer, contentType: att.contentType };
+                })
+            );
+        }
+
+        const result = await sendGmailEmail({
+            workspaceId,
+            userId,
+            to,
+            subject,
+            html: trackedHtml,
+            inReplyTo,
+            references,
+            gmailThreadId,
+            attachments: gmailAttachments,
+        });
+
+        return {
+            trackingId,
+            gmailMessageId: result.gmailMessageId,
+            gmailThreadId: result.gmailThreadId,
+            emailMessageId: result.emailMessageId,
+        };
+    } else {
+        // Fallback to Resend
+        let resendAttachments: { filename: string; content: Buffer }[] | undefined;
+        if (attachments?.length) {
+            resendAttachments = await Promise.all(
+                attachments.map(async (att) => {
+                    const res = await fetch(att.url);
+                    const buffer = Buffer.from(await res.arrayBuffer());
+                    return { filename: att.filename, content: buffer };
+                })
+            );
+        }
+
+        const { data } = await sendTrackedEmail({
+            to,
+            subject,
+            html,
+            contactId,
+            workspaceId,
+            attachments: resendAttachments,
+        });
+
+        return { trackingId };
+    }
 }

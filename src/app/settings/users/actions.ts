@@ -3,10 +3,9 @@
 import { z } from "zod"
 import { tenantDb } from "@/lib/tenant-db"
 import { adminDb } from "@/lib/firebase-admin"
-import { auth } from "@/auth"
+import { getAuthSession, requireAdmin, requireAuth } from "@/lib/auth-guard"
 import { revalidatePath } from "next/cache"
 import { FieldValue } from "firebase-admin/firestore"
-import { requireAdmin, requireAuth } from "@/lib/auth-guard"
 import { logAudit } from "@/lib/audit"
 
 // ── Zod Schemas ──────────────────────────────────────────────────────────────
@@ -44,7 +43,7 @@ const createUserSchema = z.object({
 })
 
 export async function getCurrentUserRole() {
-    const session = await auth()
+    const session = await getAuthSession()
     if (!session?.user) return "AGENT"
     return session.user.role || "AGENT"
 }

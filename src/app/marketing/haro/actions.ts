@@ -610,7 +610,7 @@ export async function fetchNewHaroEmails() {
         ? twoDaysAgo.toISOString().split("T")[0]
         : undefined
 
-    const emails = await fetchHaroEmails(workspaceId, { maxResults: 10, afterDate })
+    const emails = await fetchHaroEmails(workspaceId, session.user.id!, { maxResults: 10, afterDate })
     if (emails.length === 0) return { emails: [], message: "No HARO emails found in Gmail" }
 
     // Filter out already-processed emails
@@ -641,7 +641,7 @@ export async function processSingleHaroEmail(gmailMessageId: string) {
     const { fetchHaroEmails } = await import("@/lib/gmail")
 
     // Fetch this specific email
-    const emails = await fetchHaroEmails(workspaceId, { maxResults: 10 })
+    const emails = await fetchHaroEmails(workspaceId, session.user.id!, { maxResults: 10 })
     const email = emails.find(e => e.id === gmailMessageId)
     if (!email) return { success: false, error: "Email not found in Gmail" }
 
@@ -666,7 +666,7 @@ export async function fetchAndProcessHaroEmails() {
         ? twoDaysAgo.toISOString().split("T")[0]
         : undefined
 
-    const emails = await fetchHaroEmails(workspaceId, { maxResults: 10, afterDate })
+    const emails = await fetchHaroEmails(workspaceId, session.user.id!, { maxResults: 10, afterDate })
     if (emails.length === 0) return { success: true, message: "No new HARO emails found", processed: 0 }
 
     const emailIds = emails.map(e => e.id).slice(0, 10)

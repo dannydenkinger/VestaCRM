@@ -2,8 +2,7 @@
 
 import { adminDb } from "@/lib/firebase-admin"
 import { tenantDb } from "@/lib/tenant-db"
-import { auth } from "@/auth"
-import { requireAuth } from "@/lib/auth-guard"
+import { getAuthSession, requireAuth } from "@/lib/auth-guard"
 import { revalidatePath } from "next/cache"
 import { logAudit } from "@/lib/audit"
 import { createNotification } from "@/app/notifications/actions"
@@ -282,7 +281,7 @@ export async function advanceReferralForStage(
 ) {
     try {
         // Get workspace context — this is called from pipeline actions which have session
-        const session = await auth()
+        const session = await getAuthSession()
         if (!session?.user?.workspaceId) return
         const workspaceId = session.user.workspaceId
         const db = tenantDb(workspaceId)

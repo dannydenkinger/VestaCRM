@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getAuthSession } from "@/lib/auth-guard";
 import { getAdminStorageBucket } from "@/lib/firebase-admin";
 import { tenantDb } from "@/lib/tenant-db";
 import { revalidatePath } from "next/cache";
@@ -29,7 +29,7 @@ export async function POST(
     { params }: { params: Promise<{ contactId: string }> }
 ) {
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user) {
             return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
         }

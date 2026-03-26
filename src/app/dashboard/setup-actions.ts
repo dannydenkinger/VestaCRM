@@ -2,7 +2,7 @@
 
 import { adminDb } from "@/lib/firebase-admin"
 import { tenantDb } from "@/lib/tenant-db"
-import { auth } from "@/auth"
+import { getAuthSession } from "@/lib/auth-guard"
 
 interface SetupItem {
     id: string
@@ -17,7 +17,7 @@ export async function getSetupStatus(): Promise<{
     items?: SetupItem[]
 }> {
     try {
-        const session = await auth()
+        const session = await getAuthSession()
         if (!session?.user) return { success: false }
 
         const userId = session.user.id
@@ -66,7 +66,7 @@ export async function getSetupStatus(): Promise<{
 
 export async function getOnboardingCompleted(): Promise<boolean> {
     try {
-        const session = await auth()
+        const session = await getAuthSession()
         if (!session?.user) return false
         const userId = session.user.id
         if (!userId) return false
@@ -79,7 +79,7 @@ export async function getOnboardingCompleted(): Promise<boolean> {
 
 export async function completeOnboarding() {
     try {
-        const session = await auth()
+        const session = await getAuthSession()
         if (!session?.user) return { success: false }
         const userId = session.user.id
         if (!userId) return { success: false }
@@ -95,7 +95,7 @@ export async function completeOnboarding() {
 
 export async function dismissSetupChecklist() {
     try {
-        const session = await auth()
+        const session = await getAuthSession()
         if (!session?.user) return { success: false }
 
         const userId = session.user.id

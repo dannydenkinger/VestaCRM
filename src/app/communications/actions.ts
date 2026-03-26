@@ -2,10 +2,10 @@
 
 import { z } from "zod";
 import { tenantDb } from "@/lib/tenant-db";
-import { auth } from "@/auth";
+import { getAuthSession } from "@/lib/auth-guard";
 import { revalidatePath } from "next/cache";
 import { getTrackingForContact } from "@/lib/email-tracking";
-import { sendTrackedEmail } from "@/lib/email";
+import { sendTrackedEmail, sendEmailUnified } from "@/lib/email";
 import { captureError } from "@/lib/error-tracking";
 
 // ── Zod Schemas ──────────────────────────────────────────────────────────────
@@ -40,7 +40,7 @@ const snippetSchema = z.object({
 // ── Conversations ────────────────────────────────────────────────────────────
 
 export async function getConversations(channel?: "all" | "email" | "sms") {
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, conversations: [] };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -100,7 +100,7 @@ export async function getMessages(contactId: string, channel?: "all" | "email" |
     if (!parsed.success) return { success: false, messages: [], contact: null };
     contactId = parsed.data.contactId;
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, messages: [], contact: null };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -178,7 +178,8 @@ export async function sendMessage(
     type: string,
     content: string,
     attachments?: { filename: string; url: string; contentType?: string }[],
-    parentMessageId?: string
+    parentMessageId?: string,
+    subject?: string
 ) {
     const parsed = sendMessageSchema.safeParse({ contactId, type, content });
     if (!parsed.success) return { success: false, error: "Invalid input" };
@@ -186,38 +187,62 @@ export async function sendMessage(
     type = parsed.data.type;
     content = parsed.data.content;
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
+    const userId = session.user.id;
     const db = tenantDb(workspaceId);
 
     try {
         let trackingId: string | null = null;
+        let gmailMessageId: string | undefined;
+        let gmailThreadId: string | undefined;
+        let emailMessageId: string | undefined;
 
-        // If sending an email, actually send it via Resend with tracking
         if (type === "email") {
             const contactDoc = await db.doc('contacts', contactId).get();
             const contactData = contactDoc.data();
             if (contactData?.email) {
-                // Convert plain text to HTML for the email
                 const html = `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
                     ${content.replace(/\n/g, "<br>")}
                 </div>`;
 
-                // Build Resend attachments from URLs
-                const resendAttachments = attachments?.length
-                    ? await buildResendAttachments(attachments)
-                    : undefined;
+                const emailSubject = subject || content.split("\n")[0].substring(0, 100);
 
-                const result = await sendTrackedEmail({
+                // Look up parent message for threading
+                let inReplyTo: string | undefined;
+                let references: string | undefined;
+                let parentGmailThreadId: string | undefined;
+                if (parentMessageId) {
+                    const parentMessages = await db.subcollection('contacts', contactId, 'messages')
+                        .where("__name__", "==", parentMessageId)
+                        .limit(1)
+                        .get();
+                    if (!parentMessages.empty) {
+                        const parentData = parentMessages.docs[0].data();
+                        inReplyTo = parentData.emailMessageId;
+                        references = parentData.emailMessageId;
+                        parentGmailThreadId = parentData.gmailThreadId;
+                    }
+                }
+
+                const result = await sendEmailUnified({
                     to: contactData.email,
-                    subject: content.split("\n")[0].substring(0, 100), // First line as subject
+                    subject: emailSubject,
                     html,
                     contactId,
                     workspaceId,
-                    attachments: resendAttachments,
+                    userId,
+                    inReplyTo,
+                    references,
+                    gmailThreadId: parentGmailThreadId,
+                    attachments,
                 });
+
                 trackingId = result.trackingId;
+                gmailMessageId = result.gmailMessageId;
+                gmailThreadId = result.gmailThreadId;
+                emailMessageId = result.emailMessageId;
             }
         }
 
@@ -227,9 +252,13 @@ export async function sendMessage(
             direction: "OUTBOUND",
             content,
             createdAt: new Date(),
+            ...(subject && { subject }),
             ...(trackingId && { trackingId }),
             ...(attachments?.length && { attachments }),
             ...(parentMessageId && { parentMessageId }),
+            ...(gmailMessageId && { gmailMessageId }),
+            ...(gmailThreadId && { gmailThreadId }),
+            ...(emailMessageId && { emailMessageId }),
         });
 
         revalidatePath("/communications");
@@ -253,7 +282,7 @@ export async function scheduleMessage(
     const parsed = scheduleMessageSchema.safeParse({ contactId, type, content, scheduledAt, attachments });
     if (!parsed.success) return { success: false, error: "Invalid input" };
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -288,7 +317,7 @@ export async function cancelScheduledMessage(contactId: string, messageId: strin
     const parsedMessage = firestoreIdSchema.safeParse(messageId);
     if (!parsedContact.success || !parsedMessage.success) return { success: false, error: "Invalid input" };
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -317,7 +346,7 @@ export async function cancelScheduledMessage(contactId: string, messageId: strin
 export async function processScheduledMessages(): Promise<{ sent: number; failed: number }> {
     const results = { sent: 0, failed: 0 };
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return results;
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -348,17 +377,17 @@ export async function processScheduledMessages(): Promise<{ sent: number; failed
                             ${msg.content.replace(/\n/g, "<br>")}
                         </div>`;
 
-                        const resendAttachments = msg.attachments?.length
-                            ? await buildResendAttachments(msg.attachments)
-                            : undefined;
+                        const userId = session.user.id;
+                        const emailSubject = msg.subject || msg.content.split("\n")[0].substring(0, 100);
 
-                        const result = await sendTrackedEmail({
+                        const result = await sendEmailUnified({
                             to: contactData.email,
-                            subject: msg.content.split("\n")[0].substring(0, 100),
+                            subject: emailSubject,
                             html,
                             contactId: msg.contactId,
                             workspaceId,
-                            attachments: resendAttachments,
+                            userId,
+                            attachments: msg.attachments,
                         });
                         trackingId = result.trackingId;
                     }
@@ -388,7 +417,7 @@ export async function processScheduledMessages(): Promise<{ sent: number; failed
 // ── Snippets (Canned Responses) ──────────────────────────────────────────────
 
 export async function getSnippets() {
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, snippets: [] };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -420,7 +449,7 @@ export async function createSnippet(title: string, content: string) {
     const parsed = snippetSchema.safeParse({ title, content });
     if (!parsed.success) return { success: false, error: "Invalid input" };
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -444,7 +473,7 @@ export async function updateSnippet(id: string, title: string, content: string) 
     const parsed = snippetSchema.safeParse({ title, content });
     if (!parsedId.success || !parsed.success) return { success: false, error: "Invalid input" };
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -467,7 +496,7 @@ export async function deleteSnippet(id: string) {
     const parsedId = firestoreIdSchema.safeParse(id);
     if (!parsedId.success) return { success: false, error: "Invalid input" };
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -487,7 +516,7 @@ export async function getContactDocuments(contactId: string) {
     const parsed = firestoreIdSchema.safeParse(contactId);
     if (!parsed.success) return { success: false, documents: [] };
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, documents: [] };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -518,7 +547,7 @@ export async function getContactDocuments(contactId: string) {
 // ── Communication Analytics ──────────────────────────────────────────────────
 
 export async function getCommunicationAnalytics() {
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, analytics: null };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -665,7 +694,7 @@ export async function threadIncomingReply({
     inReplyTo?: string;
     messageId?: string;
 }) {
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, error: "Not authenticated" };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -780,7 +809,7 @@ export async function threadIncomingReply({
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 export async function getAllContacts() {
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, contacts: [] };
     const workspaceId = (session.user as any).workspaceId;
     const db = tenantDb(workspaceId);
@@ -806,7 +835,7 @@ export async function getEmailTracking(contactId: string) {
     const parsed = z.string().min(1).max(128).safeParse(contactId);
     if (!parsed.success) return { success: false, tracking: [] };
 
-    const session = await auth();
+    const session = await getAuthSession();
     if (!session?.user?.id) return { success: false, tracking: [] };
 
     try {

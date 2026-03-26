@@ -3,7 +3,6 @@ import { redirect } from "next/navigation"
 import { SetupWizard } from "./SetupWizard"
 
 const DEFAULT_STATUS = {
-    firebaseConnected: false,
     google: { connected: false, calendarConnected: false, ga4PropertyId: null, gscSiteUrl: null },
     resend: { connected: false },
     anthropic: { connected: false },
@@ -14,14 +13,12 @@ const DEFAULT_STATUS = {
 
 export default async function SetupPage() {
     const session = await auth()
-    if (!session?.user?.email) redirect("/")
+    if (!session?.user?.email) redirect("/login")
 
     let status
     try {
-        // Dynamic import — firebase-admin throws at module level if env vars are missing.
-        // This lets the wizard render even before Firebase is configured.
         const { getSetupStatus } = await import("./actions")
-        status = { ...(await getSetupStatus()), firebaseConnected: true }
+        status = await getSetupStatus()
     } catch {
         status = DEFAULT_STATUS
     }

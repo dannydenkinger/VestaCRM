@@ -22,6 +22,10 @@ if (!dbId) throw new Error("FIREBASE_DATABASE_ID environment variable is not set
 export const adminDb = getFirestore(admin.app(), dbId);
 export const adminAuth = admin.auth();
 export const adminMessaging = admin.messaging();
+
+// Expose adminDb on globalThis so auth.ts JWT callback can access it
+// without dynamic imports (which fail in both edge and Node.js runtimes)
+(globalThis as any).__adminDb = adminDb;
 export function getAdminStorageBucket() {
     const bucketName = process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
     return getStorage().bucket(bucketName);

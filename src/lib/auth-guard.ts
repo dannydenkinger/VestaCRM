@@ -1,14 +1,125 @@
 "use server"
 
 import { auth } from "@/auth"
+import { redirect } from "next/navigation"
+import { adminDb } from "@/lib/firebase-admin"
+
+/**
+ * Auto-provision: if a user signs in (e.g. via Google OAuth) but doesn't have
+ * a Firestore user doc or workspace, create them here. This runs in Node.js
+ * server context where firebase-admin is available (unlike the JWT callback
+ * which sometimes runs in edge runtime where dynamic imports fail).
+ */
+async function ensureUserAndWorkspace(email: string, name: string | null | undefined) {
+    const userName = name || email.split("@")[0]
+
+    // Check if user doc exists
+    let userSnap = await adminDb.collection("users")
+        .where("email", "==", email)
+        .limit(1)
+        .get()
+
+    let userId: string
+
+    if (userSnap.empty) {
+        // Create user doc
+        const now = new Date()
+        const userRef = await adminDb.collection("users").add({
+            name: userName,
+            email,
+            createdAt: now,
+            updatedAt: now,
+        })
+        userId = userRef.id
+        console.log("[AUTH-GUARD] Created user doc:", userId)
+    } else {
+        userId = userSnap.docs[0].id
+    }
+
+    // Check if workspace membership exists
+    let memberSnap = await adminDb.collection("workspace_members")
+        .where("userId", "==", userId)
+        .where("status", "==", "active")
+        .limit(1)
+        .get()
+
+    if (memberSnap.empty) {
+        // Create workspace + membership
+        const now = new Date()
+        const wsName = `${userName}'s Workspace`
+        const slug = wsName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60)
+
+        const workspaceRef = await adminDb.collection("workspaces").add({
+            name: wsName,
+            slug,
+            ownerId: userId,
+            plan: "free",
+            status: "active",
+            memberCount: 1,
+            contactCount: 0,
+            createdAt: now,
+            updatedAt: now,
+        })
+
+        await adminDb.collection("workspace_members").add({
+            workspaceId: workspaceRef.id,
+            userId,
+            role: "OWNER",
+            status: "active",
+            joinedAt: now,
+            invitedBy: null,
+        })
+
+        // Provision default workspace data
+        try {
+            const { provisionWorkspace } = await import("@/lib/workspace-defaults")
+            await provisionWorkspace(workspaceRef.id, wsName)
+        } catch (err) {
+            console.error("[AUTH-GUARD] Failed to provision workspace defaults:", err)
+        }
+
+        console.log("[AUTH-GUARD] Created workspace:", workspaceRef.id, "for user:", userId)
+
+        return { userId, workspaceId: workspaceRef.id, role: "OWNER" }
+    }
+
+    const membership = memberSnap.docs[0].data()
+    return { userId, workspaceId: membership.workspaceId, role: membership.role || "AGENT" }
+}
+
+/**
+ * Get session with workspace recovery. Returns null if not authenticated.
+ * Use this instead of calling auth() directly when you need workspaceId.
+ */
+export async function getAuthSession() {
+    const session = await auth()
+    if (!session?.user?.id) return null
+
+    // If workspaceId is missing, recover or auto-provision
+    if (!session.user.workspaceId) {
+        try {
+            const result = await ensureUserAndWorkspace(
+                session.user.email!,
+                session.user.name
+            )
+            session.user.id = result.userId
+            session.user.workspaceId = result.workspaceId
+            session.user.role = result.role
+        } catch (err) {
+            console.error("[AUTH-GUARD] Workspace provisioning failed:", err)
+        }
+    }
+
+    return session
+}
 
 export async function requireAuth() {
-    const session = await auth()
+    const session = await getAuthSession()
     if (!session?.user?.id) {
-        throw new Error("Unauthorized")
+        redirect("/login")
     }
     if (!session.user.workspaceId) {
-        throw new Error("No workspace selected")
+        redirect("/login")
     }
     return session
 }

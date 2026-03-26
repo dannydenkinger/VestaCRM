@@ -69,6 +69,7 @@
     "@vitejs/plugin-react": "^5.1.4",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "firebase-tools": "^15.11.0",
     "jsdom": "^28.1.0",
     "netlify-cli": "^24.0.1",
     "postcss": "8.5.6",

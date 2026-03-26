@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getAuthSession } from "@/lib/auth-guard";
 import { getAdminStorageBucket } from "@/lib/firebase-admin";
 import { tenantDb } from "@/lib/tenant-db";
 import { revalidatePath } from "next/cache";
@@ -9,7 +9,7 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 export async function POST(req: NextRequest) {
     try {
-        const session = await auth();
+        const session = await getAuthSession();
         if (!session?.user?.email) {
             return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
         }

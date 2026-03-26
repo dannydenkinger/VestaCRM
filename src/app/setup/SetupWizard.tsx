@@ -8,13 +8,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import {
     CheckCircle2, Circle, ChevronRight, ChevronLeft, ExternalLink, Loader2,
-    Zap, Calendar, BarChart3, Search, Mail, Bot, Globe, Plug, Database,
-    ArrowRight, Sparkles, AlertCircle, Eye, EyeOff, AlertTriangle
+    Zap, Calendar, BarChart3, Search, Mail, Bot, Globe, Plug,
+    ArrowRight, Sparkles, AlertCircle, Eye, EyeOff
 } from "lucide-react"
 import { toast } from "sonner"
 
 interface SetupStatus {
-    firebaseConnected: boolean
     google: {
         connected: boolean
         calendarConnected: boolean
@@ -36,11 +35,6 @@ const STEPS = [
     { id: "complete", label: "Complete" },
 ]
 
-/**
- * Dynamically import server actions — they depend on firebase-admin which
- * throws at module level if FIREBASE_DATABASE_ID is not set.
- * By importing lazily we let the wizard render even before Firebase is configured.
- */
 async function importActions() {
     return await import("./actions")
 }
@@ -105,7 +99,7 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
         try {
             actions = await importActions()
         } catch {
-            toast.error("Firebase is not configured yet. Complete Firebase setup first.")
+            toast.error("Failed to save configuration")
             return
         }
 
@@ -171,7 +165,6 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                 await completeSetup()
                 router.push("/dashboard")
             } catch {
-                // If Firebase isn't configured, just set the cookie client-side and proceed
                 document.cookie = "setup_completed=true;path=/;max-age=31536000"
                 router.push("/dashboard")
             }
@@ -189,8 +182,6 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
         status.serper.connected,
         status.wordpress.connected,
     ].filter(Boolean).length
-
-    const firebaseReady = status.firebaseConnected
 
     return (
         <div className="max-w-2xl mx-auto px-4 py-8 sm:py-12">
@@ -233,59 +224,31 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                             <Sparkles className="w-8 h-8 text-primary" />
                         </div>
                         <div>
-                            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Welcome to your CRM</h1>
+                            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Connect Your Integrations</h1>
                             <p className="text-muted-foreground mt-2 max-w-md mx-auto">
-                                Let&apos;s connect your services to unlock the full power of your CRM. This takes about 5 minutes.
+                                Optionally connect third-party services to unlock additional CRM features. You can skip this and do it later from Settings.
                             </p>
                         </div>
 
-                        {/* Firebase status */}
-                        <Card className={`text-left ${!firebaseReady ? "border-amber-500/30" : ""}`}>
+                        <Card className="text-left">
                             <CardContent className="pt-6">
                                 <div className="space-y-3">
-                                    <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/20">
-                                        <div className="flex items-center justify-center w-8 h-8 rounded-md bg-background border">
-                                            <Database className="w-4 h-4" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="text-sm font-medium">Firebase Database</div>
-                                            <div className="text-xs text-muted-foreground">Core data storage</div>
-                                        </div>
-                                        {firebaseReady ? (
-                                            <Badge variant="outline" className="text-emerald-600 border-emerald-500/30 bg-emerald-500/10 gap-1">
-                                                <CheckCircle2 className="w-3 h-3" />
-                                                Connected
-                                            </Badge>
-                                        ) : (
-                                            <Badge variant="outline" className="text-amber-600 border-amber-500/30 bg-amber-500/10 gap-1">
-                                                <AlertTriangle className="w-3 h-3" />
-                                                Not configured
-                                            </Badge>
-                                        )}
-                                    </div>
-
-                                    {!firebaseReady && (
-                                        <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 text-sm space-y-2">
-                                            <p className="font-medium text-amber-700 dark:text-amber-400">Firebase setup required</p>
-                                            <p className="text-muted-foreground text-xs">
-                                                Your Firebase environment variables are not configured yet. Follow the
-                                                {" "}<a href="https://github.com" className="text-primary underline">SETUP.md</a>{" "}
-                                                guide to configure Firebase, then restart the server. You can still explore the wizard steps below.
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    <StepPreview icon={<Plug className="w-4 h-4" />} title="Google Services" description="Calendar, Analytics, and Search Console" />
+                                    <StepPreview icon={<Plug className="w-4 h-4" />} title="Google Services" description="Calendar sync, Analytics, and Search Console" />
                                     <StepPreview icon={<Mail className="w-4 h-4" />} title="Email" description="Send emails via Resend" />
                                     <StepPreview icon={<Bot className="w-4 h-4" />} title="AI & SEO Tools" description="AI writing, SERP tracking, and blog publishing" optional />
                                 </div>
                             </CardContent>
                         </Card>
 
-                        <Button size="lg" onClick={goNext} className="gap-2">
-                            Get Started
-                            <ArrowRight className="w-4 h-4" />
-                        </Button>
+                        <div className="flex flex-col items-center gap-3">
+                            <Button size="lg" onClick={goNext} className="gap-2">
+                                Get Started
+                                <ArrowRight className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={handleComplete} className="text-muted-foreground">
+                                Skip — I&apos;ll do this later
+                            </Button>
+                        </div>
                     </div>
                 )}
 
@@ -299,8 +262,6 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                             </p>
                         </div>
 
-                        {!firebaseReady && <FirebaseRequiredNotice />}
-
                         {!googleConnected ? (
                             <Card>
                                 <CardContent className="pt-6">
@@ -313,8 +274,8 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                                         <p className="text-sm text-muted-foreground">
                                             Sign in with the Google account that has access to your Analytics and Search Console properties.
                                         </p>
-                                        <Button asChild size="lg" disabled={!firebaseReady}>
-                                            <a href={firebaseReady ? "/api/auth/google-services" : undefined}>
+                                        <Button asChild size="lg">
+                                            <a href="/api/auth/google-services">
                                                 <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24"><path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
                                                 Sign in with Google
                                             </a>
@@ -452,8 +413,6 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                             </p>
                         </div>
 
-                        {!firebaseReady && <FirebaseRequiredNotice />}
-
                         <Card>
                             <CardHeader className="pb-3">
                                 <div className="flex items-center justify-between">
@@ -501,7 +460,7 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                                     <Button
                                         size="sm"
                                         className="h-10"
-                                        disabled={!resendKey || testing === "resend" || isPending || !firebaseReady}
+                                        disabled={!resendKey || testing === "resend" || isPending}
                                         onClick={() => handleSaveApiKey(
                                             "resend",
                                             { apiKey: resendKey },
@@ -546,8 +505,6 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                             </p>
                         </div>
 
-                        {!firebaseReady && <FirebaseRequiredNotice />}
-
                         <ApiKeyCard
                             icon={<Bot className="w-5 h-5" />}
                             title="Anthropic (Claude AI)"
@@ -558,7 +515,6 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                             connected={status.anthropic.connected}
                             testing={testing === "anthropic"}
                             isPending={isPending}
-                            disabled={!firebaseReady}
                             showKey={showKeys.anthropic}
                             onToggleShow={() => toggleShowKey("anthropic")}
                             onSave={(key) => handleSaveApiKey(
@@ -578,7 +534,6 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                             connected={status.serper.connected}
                             testing={testing === "serper"}
                             isPending={isPending}
-                            disabled={!firebaseReady}
                             showKey={showKeys.serper}
                             onToggleShow={() => toggleShowKey("serper")}
                             onSave={(key) => handleSaveApiKey(
@@ -646,7 +601,7 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                                 </div>
                                 <Button
                                     size="sm"
-                                    disabled={!wpUrl || !wpUser || !wpPass || testing === "wordpress" || isPending || !firebaseReady}
+                                    disabled={!wpUrl || !wpUser || !wpPass || testing === "wordpress" || isPending}
                                     onClick={() => handleSaveApiKey(
                                         "wordpress",
                                         { url: wpUrl, username: wpUser, appPassword: wpPass },
@@ -690,7 +645,6 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
 
                         <Card className="text-left">
                             <CardContent className="pt-6 space-y-2">
-                                <SummaryRow label="Firebase Database" connected={firebaseReady} />
                                 <SummaryRow label="Google Services" connected={status.google.connected} />
                                 <SummaryRow label="Email (Resend)" connected={status.resend.connected} />
                                 <SummaryRow label="AI (Anthropic)" connected={status.anthropic.connected} />
@@ -705,9 +659,6 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
                                 Go to Dashboard
                                 <ArrowRight className="w-4 h-4" />
                             </Button>
-                            <Button variant="link" size="sm" onClick={() => router.push("/settings?tab=integrations")} className="text-muted-foreground">
-                                Go to Settings instead
-                            </Button>
                         </div>
                     </div>
                 )}
@@ -717,15 +668,6 @@ export function SetupWizard({ initialStatus }: { initialStatus: SetupStatus }) {
 }
 
 // ── Helper Components ──
-
-function FirebaseRequiredNotice() {
-    return (
-        <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 text-xs text-muted-foreground flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-            <span>Firebase is not configured. Integration features require a connected database. See <strong>SETUP.md</strong> for instructions.</span>
-        </div>
-    )
-}
 
 function StepPreview({ icon, title, description, optional }: { icon: React.ReactNode; title: string; description: string; optional?: boolean }) {
     return (
@@ -775,7 +717,7 @@ function SummaryRow({ label, connected }: { label: string; connected: boolean })
 }
 
 function ApiKeyCard({
-    icon, title, description, linkUrl, linkText, placeholder, connected, testing, isPending, disabled, showKey, onToggleShow, onSave,
+    icon, title, description, linkUrl, linkText, placeholder, connected, testing, isPending, showKey, onToggleShow, onSave,
 }: {
     icon: React.ReactNode
     title: string
@@ -786,7 +728,6 @@ function ApiKeyCard({
     connected: boolean
     testing: boolean
     isPending: boolean
-    disabled?: boolean
     showKey: boolean
     onToggleShow: () => void
     onSave: (key: string) => void
@@ -813,12 +754,7 @@ function ApiKeyCard({
                 </div>
             </CardHeader>
             <CardContent className="space-y-3">
-                <a
-                    href={linkUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline flex items-center gap-1"
-                >
+                <a href={linkUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
                     {linkText} <ExternalLink className="w-3 h-3" />
                 </a>
                 <div className="flex gap-2">
@@ -841,7 +777,7 @@ function ApiKeyCard({
                     <Button
                         size="sm"
                         className="h-10"
-                        disabled={!key || testing || isPending || disabled}
+                        disabled={!key || testing || isPending}
                         onClick={() => onSave(key)}
                     >
                         {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Test & Save"}

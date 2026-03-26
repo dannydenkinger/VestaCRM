@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { google } from "googleapis"
-import { auth } from "@/auth"
+import { getAuthSession } from "@/lib/auth-guard"
 import { tenantDb } from "@/lib/tenant-db"
 
 const oauth2Client = new google.auth.OAuth2(
@@ -11,7 +11,7 @@ const oauth2Client = new google.auth.OAuth2(
 
 export async function GET(request: Request) {
     try {
-        const session = await auth()
+        const session = await getAuthSession()
         if (!session?.user) return new NextResponse("Unauthorized", { status: 401 })
         const workspaceId = (session.user as any).workspaceId
         if (!workspaceId) return new NextResponse("No workspace found", { status: 403 })

@@ -12,6 +12,9 @@
  * IMPORTANT: Run against a staging environment first!
  */
 
+import { config } from "dotenv"
+config({ path: ".env.local" })
+
 import * as admin from "firebase-admin"
 
 // ── Firebase Admin Init ──

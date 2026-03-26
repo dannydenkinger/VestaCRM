@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { getAuthSession } from "@/lib/auth-guard"
 import { getAdminStorageBucket } from "@/lib/firebase-admin"
 import { tenantDb } from "@/lib/tenant-db"
 import { PDFDocument } from "pdf-lib"
 
 export async function POST(req: NextRequest) {
     try {
-        const session = await auth()
+        const session = await getAuthSession()
         if (!session?.user) {
             return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
         }

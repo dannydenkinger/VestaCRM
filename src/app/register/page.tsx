@@ -48,7 +48,9 @@ export default function RegisterPage() {
                 return
             }
 
-            router.push("/setup")
+            // Set setup cookie so middleware doesn't redirect
+            document.cookie = "setup_completed=true;path=/;max-age=31536000"
+            router.push("/dashboard")
         })
     }
 
@@ -64,7 +66,7 @@ export default function RegisterPage() {
                 {/* Logo */}
                 <div className="flex flex-col items-center space-y-4 text-center mb-8">
                     <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 shadow-lg shadow-indigo-500/10">
-                        <Hexagon className="h-9 w-9 text-white" />
+                        <Hexagon className="h-9 w-9 text-violet-500" />
                     </div>
                     <div>
                         <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
@@ -162,11 +164,18 @@ export default function RegisterPage() {
                             ) : null}
                             Create Account
                         </Button>
+
+                        <p className="text-xs text-center text-zinc-500">
+                            By creating an account, you agree to our{" "}
+                            <a href="/terms" className="text-violet-400 hover:underline">Terms of Service</a>
+                            {" "}and{" "}
+                            <a href="/privacy" className="text-violet-400 hover:underline">Privacy Policy</a>.
+                        </p>
                     </form>
 
                     <div className="text-center">
                         <button
-                            onClick={() => router.push("/")}
+                            onClick={() => router.push("/login")}
                             className="text-sm text-zinc-400 hover:text-white transition-colors inline-flex items-center gap-1.5"
                         >
                             <ArrowLeft className="w-3.5 h-3.5" />

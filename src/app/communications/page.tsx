@@ -49,6 +49,7 @@ export default function CommunicationsPage() {
     const [showAnalytics, setShowAnalytics] = useState(false)
     const [threadSearch, setThreadSearch] = useState("")
     const [replyToMessage, setReplyToMessage] = useState<any>(null)
+    const [emailSubject, setEmailSubject] = useState("")
 
     // Draft auto-save
     const draftKey = selectedContactId ? `comms-draft-${selectedContactId}` : null
@@ -69,6 +70,19 @@ export default function CommunicationsPage() {
     }
 
     useEffect(() => { fetchConversations() }, [])
+
+    // Poll for new messages every 30 seconds
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchConversations()
+            if (selectedContactId) {
+                getMessages(selectedContactId).then(res => {
+                    if (res.success) setMessages(res.messages || [])
+                })
+            }
+        }, 30000)
+        return () => clearInterval(interval)
+    }, [selectedContactId])
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -104,11 +118,13 @@ export default function CommunicationsPage() {
             messageType,
             newMessage.trim(),
             attachments.length > 0 ? attachments.map(a => ({ filename: a.filename, url: a.url, contentType: a.contentType })) : undefined,
-            replyToMessage?.id || undefined
+            replyToMessage?.id || undefined,
+            messageType === "email" ? emailSubject.trim() || undefined : undefined
         )
         if (res.success) {
             toast.success("Message sent")
             setNewMessage("")
+            setEmailSubject("")
             if (draftKey) localStorage.removeItem(draftKey)
             setAttachments([])
             setReplyToMessage(null)
@@ -304,6 +320,11 @@ export default function CommunicationsPage() {
                                                 </Badge>
                                             )}
                                         </div>
+                                        {msg.subject && msg.type === "email" && (
+                                            <p className={`text-xs font-semibold mb-0.5 ${isOutbound && !isScheduled && !isCancelled ? "text-primary-foreground/80" : "text-foreground"}`}>
+                                                {msg.subject}
+                                            </p>
+                                        )}
                                         <p className={`text-sm leading-relaxed ${isCancelled ? "line-through" : ""}`}>{msg.content}</p>
                                         <div className="flex items-center justify-between">
                                             <p className={`text-xs ${isOutbound && !isScheduled && !isCancelled ? "text-primary-foreground/50" : "text-muted-foreground"}`}>
@@ -340,6 +361,14 @@ export default function CommunicationsPage() {
                                 </button>
                             ))}
                         </div>
+                        {messageType === "email" && (
+                            <Input
+                                value={emailSubject}
+                                onChange={(e) => setEmailSubject(e.target.value)}
+                                placeholder="Subject"
+                                className="mb-2 h-9 text-sm bg-muted border-border"
+                            />
+                        )}
                         <div className="flex items-end gap-2">
                             <textarea
                                 ref={textareaRef}
@@ -842,6 +871,11 @@ export default function CommunicationsPage() {
                                                     })()}
                                                 </div>
 
+                                                {msg.subject && msg.type === "email" && (
+                                                    <p className={`text-xs font-semibold mb-0.5 ${isOutbound && !isScheduled && !isCancelled ? "text-primary-foreground/80" : "text-foreground"}`}>
+                                                        {msg.subject}
+                                                    </p>
+                                                )}
                                                 <p className={`text-sm leading-relaxed ${isCancelled ? "line-through" : ""}`}>{msg.content}</p>
 
                                                 {/* Attachment chips in messages */}
@@ -889,6 +923,9 @@ export default function CommunicationsPage() {
                                                         <button
                                                             onClick={() => {
                                                                 setReplyToMessage(msg)
+                                                                if (msg.subject) {
+                                                                    setEmailSubject(msg.subject.startsWith("Re:") ? msg.subject : `Re: ${msg.subject}`)
+                                                                }
                                                                 textareaRef.current?.focus()
                                                             }}
                                                             className={`text-xs font-medium transition-colors flex items-center gap-0.5 opacity-0 group-hover:opacity-100 ${
@@ -975,6 +1012,16 @@ export default function CommunicationsPage() {
                                             </div>
                                         ))}
                                     </div>
+                                )}
+
+                                {/* Email subject field */}
+                                {messageType === "email" && (
+                                    <Input
+                                        value={emailSubject}
+                                        onChange={(e) => setEmailSubject(e.target.value)}
+                                        placeholder="Subject"
+                                        className="mb-2 h-9 text-sm bg-background"
+                                    />
                                 )}
 
                                 {/* Rich text formatting toolbar */}

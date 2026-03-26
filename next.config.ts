@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ["lucide-react", "date-fns", "recharts", "framer-motion"],
     // Cache client-side navigations so going back to a visited page is instant
     staleTimes: {
-      dynamic: 30,  // seconds — revisiting a dynamic page within 30s uses cached data
+      dynamic: 0,  // always fetch fresh data on client-side navigation
     },
   },
   images: {

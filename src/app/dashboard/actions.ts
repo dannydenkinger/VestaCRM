@@ -1,7 +1,7 @@
 "use server"
 
 import { tenantDb } from "@/lib/tenant-db"
-import { auth } from "@/auth"
+import { getAuthSession } from "@/lib/auth-guard"
 import { revalidatePath } from "next/cache"
 import type { LeaderboardAgent, LeaderboardData, DashboardData, ActivityItem } from "./types"
 import { getCachedPipelines, getCachedStageMap, getCachedUsers } from "@/lib/cached-queries"
@@ -12,8 +12,9 @@ function formatShortDate(d: Date): string {
 }
 
 export async function getDashboardData(startDate?: string, endDate?: string): Promise<{ success: boolean; data?: DashboardData; error?: string }> {
-    const session = await auth()
+    const session = await getAuthSession()
     if (!session?.user) return { success: false, error: "Not authenticated" }
+    if (!session.user.workspaceId) return { success: false, error: "No workspace selected" }
 
     const workspaceId = session.user.workspaceId
     const db = tenantDb(workspaceId)
@@ -327,8 +328,9 @@ export async function invalidateDashboardCache() {
 // ── Activity Feed ─────────────────────────────────────────────────────────────
 
 export async function getRecentActivity(): Promise<{ success: boolean; data?: ActivityItem[]; error?: string }> {
-    const session = await auth()
+    const session = await getAuthSession()
     if (!session?.user) return { success: false, error: "Not authenticated" }
+    if (!session.user.workspaceId) return { success: false, error: "No workspace selected" }
 
     const workspaceId = session.user.workspaceId
     const db = tenantDb(workspaceId)
@@ -457,8 +459,9 @@ export async function getRecentActivity(): Promise<{ success: boolean; data?: Ac
 }
 
 export async function getLeaderboardData(): Promise<{ success: boolean; data?: LeaderboardData; error?: string }> {
-    const session = await auth()
+    const session = await getAuthSession()
     if (!session?.user) return { success: false, error: "Not authenticated" }
+    if (!session.user.workspaceId) return { success: false, error: "No workspace selected" }
 
     const workspaceId = session.user.workspaceId
     const db = tenantDb(workspaceId)

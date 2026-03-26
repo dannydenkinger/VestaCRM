@@ -38,8 +38,8 @@ export function MobileTopNav({ onNotificationsClick, unreadCount = 0 }: MobileTo
     return (
         <header className="shrink-0 z-30 bg-background/95 backdrop-blur-md border-b border-border/30 flex items-center justify-between px-4 safe-top" style={{ minHeight: 'calc(3rem + env(safe-area-inset-top, 0px))' }}>
             <div className="flex items-center gap-2.5">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
-                    <Hexagon className="h-3.5 w-3.5 text-primary" />
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/10">
+                    <Hexagon className="h-3.5 w-3.5 text-violet-500" />
                 </div>
                 <span className="text-sm font-semibold text-foreground">{pageTitle}</span>
             </div>

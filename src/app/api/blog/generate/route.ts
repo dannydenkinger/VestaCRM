@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { getAuthSession } from "@/lib/auth-guard"
 import Anthropic from "@anthropic-ai/sdk"
 import type { AIGenerateRequest } from "@/app/marketing/blog/types"
 import { rateLimit, getRateLimitKey } from "@/lib/rate-limit"
 
 export async function POST(request: NextRequest) {
     try {
-        const session = await auth()
+        const session = await getAuthSession()
         if (!session?.user) {
             return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
         }

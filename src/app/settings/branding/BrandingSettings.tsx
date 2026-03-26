@@ -97,8 +97,8 @@ export function BrandingSettings() {
                             {branding.logoUrl ? (
                                 <img src={branding.logoUrl} alt="Logo" className="h-full w-full object-cover" />
                             ) : (
-                                <div className="flex h-full w-full items-center justify-center bg-primary text-primary-foreground" style={branding.primaryColor ? { backgroundColor: branding.primaryColor } : undefined}>
-                                    <Hexagon className="h-8 w-8" />
+                                <div className="flex h-full w-full items-center justify-center bg-violet-500/10" style={branding.primaryColor ? { backgroundColor: branding.primaryColor } : undefined}>
+                                    <Hexagon className="h-8 w-8 text-violet-500" />
                                 </div>
                             )}
                         </div>
@@ -175,8 +175,8 @@ export function BrandingSettings() {
                             {branding.logoUrl ? (
                                 <img src={branding.logoUrl} alt="Preview" className="h-10 w-10 rounded-lg object-cover shadow" />
                             ) : (
-                                <div className="flex h-10 w-10 items-center justify-center rounded-lg text-white shadow" style={{ backgroundColor: branding.primaryColor || "#1a1a2e" }}>
-                                    <Hexagon className="h-6 w-6" />
+                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-500/10 shadow" style={branding.primaryColor ? { backgroundColor: branding.primaryColor } : undefined}>
+                                    <Hexagon className="h-6 w-6 text-violet-500" />
                                 </div>
                             )}
                             <div>

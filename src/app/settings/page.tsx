@@ -1,4 +1,4 @@
-import { auth } from "@/auth"
+import { getAuthSession } from "@/lib/auth-guard"
 import { adminDb } from "@/lib/firebase-admin"
 import { tenantDb } from "@/lib/tenant-db"
 import { redirect } from "next/navigation"
@@ -28,16 +28,16 @@ import { SettingsSearch } from "./SettingsSearch"
 import { Changelog } from "./changelog/Changelog"
 
 export default async function SettingsPage() {
-    const session = await auth()
+    const session = await getAuthSession()
 
-    if (!session?.user?.email) redirect("/")
+    if (!session?.user?.email) redirect("/login")
 
     const workspaceId = session.user.workspaceId
     const db = tenantDb(workspaceId)
 
     const usersSnap = await adminDb.collection('users').where('email', '==', session.user.email).limit(1).get();
 
-    if (usersSnap.empty) redirect("/")
+    if (usersSnap.empty) redirect("/login")
 
     const dbUser: any = { id: usersSnap.docs[0].id, ...usersSnap.docs[0].data() };
 
@@ -56,32 +56,64 @@ export default async function SettingsPage() {
         dbUser.calendarFeedId = newFeedId;
     }
 
-    const { role } = dbUser
+    const role = session.user.role || "AGENT"
     const isOwnerOrAdmin = role === "OWNER" || role === "ADMIN"
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
     const icsFeedUrl = `${baseUrl}/api/calendar/feed/${dbUser.calendarFeedId}`
+
+    // Fetch integration status
+    const integrationsDoc = await db.settingsDoc('integrations').get()
+    const intData = integrationsDoc.exists ? integrationsDoc.data() : null
+
+    // Check Gmail integration for current user
+    const gmailDocId = `${workspaceId}_${dbUser.id}`
+    const gmailDoc = await adminDb.collection('gmail_integrations').doc(gmailDocId).get()
+    const gmailConnected = gmailDoc.exists && !!gmailDoc.data()?.refreshToken
+
+    const integrationStatus = {
+        google: {
+            connected: !!intData?.google?.refreshToken,
+            ga4PropertyId: intData?.google?.ga4PropertyId || null,
+            gscSiteUrl: intData?.google?.gscSiteUrl || null,
+        },
+        gmail: { connected: gmailConnected, email: gmailDoc.data()?.email || null },
+        resend: { connected: !!intData?.resend?.apiKey },
+        anthropic: { connected: !!intData?.anthropic?.apiKey },
+        serper: { connected: !!intData?.serper?.apiKey },
+        wordpress: { connected: !!intData?.wordpress?.url && !!intData?.wordpress?.appPassword },
+    }
 
     let users: any[] = [];
     let pipelinesList: { id: string; name: string }[] = [];
     let pendingInvitations: any[] = [];
     let workspaceName = "Workspace";
     if (isOwnerOrAdmin) {
-        const [allUsersSnap, pipelinesSnap, invitationsSnap, workspaceDoc] = await Promise.all([
-            adminDb.collection('users').orderBy('createdAt', 'desc').get(),
+        const [membersSnap, pipelinesSnap, invitationsSnap, workspaceDoc] = await Promise.all([
+            adminDb.collection('workspace_members').where('workspaceId', '==', workspaceId).where('status', '==', 'active').get(),
             db.collection('pipelines').orderBy('createdAt', 'asc').get(),
             db.collection('workspace_invitations').where('status', '==', 'pending').get(),
             adminDb.collection('workspaces').doc(workspaceId).get(),
         ]);
-        users = allUsersSnap.docs.map(doc => {
+        // Build role map from workspace_members, then fetch user docs
+        const memberRoles = new Map<string, string>();
+        membersSnap.docs.forEach(doc => {
             const d = doc.data();
+            memberRoles.set(d.userId, d.role || 'AGENT');
+        });
+        const userIds = Array.from(memberRoles.keys());
+        const userDocs = userIds.length > 0
+            ? await Promise.all(userIds.map(id => adminDb.collection('users').doc(id).get()))
+            : [];
+        users = userDocs.filter(doc => doc.exists).map(doc => {
+            const d = doc.data()!;
             const ts = d.createdAt;
             const createdAt = ts?.toDate ? ts.toDate().toISOString() : (ts instanceof Date ? ts.toISOString() : ts || null);
             return {
                 id: doc.id,
                 name: d.name || null,
                 email: d.email || '',
-                role: d.role || 'AGENT',
+                role: memberRoles.get(doc.id) || 'AGENT',
                 createdAt,
             };
         });
@@ -385,8 +417,9 @@ export default async function SettingsPage() {
                                             </CardHeader>
                                             <CardContent>
                                                 <IntegrationsTab
-                                                    isConnected={!!(dbUser as any).calendarIntegration}
+                                                    calendarConnected={!!(dbUser as any).calendarIntegration}
                                                     icsFeedUrl={icsFeedUrl}
+                                                    integrationStatus={integrationStatus}
                                                 />
                                             </CardContent>
                                         </Card>
