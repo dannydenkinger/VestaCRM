@@ -815,7 +815,7 @@ export async function getAllContacts() {
     const db = tenantDb(workspaceId);
 
     try {
-        const snapshot = await db.collection('contacts').orderBy('name', 'asc').get();
+        const snapshot = await db.collection('contacts').orderBy('createdAt', 'desc').get();
         const contacts = snapshot.docs.map(doc => {
             const c = doc.data();
             return {
@@ -827,6 +827,7 @@ export async function getAllContacts() {
         });
         return { success: true, contacts };
     } catch (error) {
+        console.error("Failed to fetch contacts:", error);
         return { success: false, contacts: [] };
     }
 }
