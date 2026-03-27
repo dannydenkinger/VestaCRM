@@ -27,9 +27,9 @@ export default function CommunicationsPage() {
     const [search, setSearch] = useState("")
     const debouncedSearch = useDebounce(search, 300)
     const [newMessage, setNewMessage] = useState("")
-    const [messageType] = useState("email")
+    const [messageType, setMessageType] = useState("email")
     const [isSending, setIsSending] = useState(false)
-    const [typeFilter] = useState<string>("all")
+    const [typeFilter, setTypeFilter] = useState<string>("all")
     const [showNewConvo, setShowNewConvo] = useState(false)
     const [allContacts, setAllContacts] = useState<any[]>([])
     const [contactSearch, setContactSearch] = useState("")
@@ -297,6 +297,26 @@ export default function CommunicationsPage() {
                         onChange={(e) => setSearch(e.target.value)}
                         className="pl-9 h-9 rounded-lg bg-muted border-0 text-sm"
                     />
+                </div>
+                {/* Filter tabs */}
+                <div className="flex items-center gap-1 mt-2 bg-muted rounded-lg p-0.5">
+                    {[
+                        { value: "all", label: "All" },
+                        { value: "email", label: "Email" },
+                        { value: "text", label: "Text" },
+                    ].map(f => (
+                        <button
+                            key={f.value}
+                            onClick={() => setTypeFilter(f.value)}
+                            className={`flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                typeFilter === f.value
+                                    ? "bg-background text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"
+                            }`}
+                        >
+                            {f.label}
+                        </button>
+                    ))}
                 </div>
             </div>
 
@@ -625,13 +645,35 @@ export default function CommunicationsPage() {
                         </div>
                     )}
 
-                    {/* Subject field */}
-                    <Input
-                        value={emailSubject}
-                        onChange={(e) => setEmailSubject(e.target.value)}
-                        placeholder="Subject"
-                        className="mb-2 h-8 text-sm bg-muted border-0 rounded-lg"
-                    />
+                    {/* Send as toggle */}
+                    <div className="flex items-center gap-1 mb-2 bg-muted rounded-lg p-0.5 w-fit">
+                        {[
+                            { value: "email", label: "Email" },
+                            { value: "text", label: "Text" },
+                        ].map(t => (
+                            <button
+                                key={t.value}
+                                onClick={() => setMessageType(t.value)}
+                                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                                    messageType === t.value
+                                        ? "bg-background text-foreground shadow-sm"
+                                        : "text-muted-foreground hover:text-foreground"
+                                }`}
+                            >
+                                {t.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Subject field (email only) */}
+                    {messageType === "email" && (
+                        <Input
+                            value={emailSubject}
+                            onChange={(e) => setEmailSubject(e.target.value)}
+                            placeholder="Subject"
+                            className="mb-2 h-8 text-sm bg-muted border-0 rounded-lg"
+                        />
+                    )}
 
                     {/* Compose bar */}
                     <div className="flex items-end gap-2">
