@@ -173,20 +173,16 @@ function generateTrackingSnippet(webhookUrl: string, apiKey: string): string {
   var VESTA_URL='${webhookUrl}';
   var VESTA_KEY='${apiKey}';
 
-  function findField(form,names){
-    for(var i=0;i<names.length;i++){
-      var f=form.querySelector('[name*="'+names[i]+'" i]')||
-            form.querySelector('[placeholder*="'+names[i]+'" i]')||
-            form.querySelector('[id*="'+names[i]+'" i]');
-      if(f&&f.value&&f.value.trim())return f.value.trim();
-    }
-    return null;
-  }
-
   function hasEmail(form){
     var inputs=form.querySelectorAll('input[type="email"],input[name*="email" i],input[placeholder*="email" i]');
     for(var i=0;i<inputs.length;i++){if(inputs[i].value&&inputs[i].value.includes('@'))return true;}
     return false;
+  }
+
+  function getLabel(el){
+    if(el.id){var l=document.querySelector('label[for="'+el.id+'"]');if(l)return l.textContent.trim();}
+    var p=el.closest('label');if(p)return p.textContent.replace(el.value,'').trim();
+    return null;
   }
 
   document.addEventListener('submit',function(e){
@@ -194,26 +190,29 @@ function generateTrackingSnippet(webhookUrl: string, apiKey: string): string {
     if(!form||form.tagName!=='FORM')return;
     if(!hasEmail(form))return;
 
-    var data={
-      email:findField(form,['email','e-mail','mail']),
-      name:findField(form,['name','full_name','fullname','your-name'])||
-           ((findField(form,['first_name','fname','first'])||'')+' '+(findField(form,['last_name','lname','last'])||'')).trim()||null,
-      first_name:findField(form,['first_name','fname','first']),
-      last_name:findField(form,['last_name','lname','last']),
-      phone:findField(form,['phone','tel','mobile','cell']),
-      notes:findField(form,['message','notes','comment','comments','description','inquiry','question','details']),
-      utm_source:new URLSearchParams(location.search).get('utm_source'),
-      utm_medium:new URLSearchParams(location.search).get('utm_medium'),
-      utm_campaign:new URLSearchParams(location.search).get('utm_campaign'),
-      page_url:location.href,
-      page_title:document.title
-    };
+    var fields={};
+    var els=form.querySelectorAll('input,select,textarea');
+    for(var i=0;i<els.length;i++){
+      var el=els[i];
+      if(el.type==='hidden'||el.type==='submit'||el.type==='button'||el.type==='password')continue;
+      if(el.type==='checkbox'&&!el.checked)continue;
+      if(el.type==='radio'&&!el.checked)continue;
+      var val=el.type==='checkbox'?'Yes':el.value;
+      if(!val||!val.trim())continue;
+      var key=el.name||el.id||getLabel(el)||el.placeholder||('field_'+i);
+      key=key.replace(/[^a-zA-Z0-9_-]/g,'_').toLowerCase();
+      fields[key]=val.trim();
+    }
 
-    if(!data.email)return;
+    fields.utm_source=new URLSearchParams(location.search).get('utm_source');
+    fields.utm_medium=new URLSearchParams(location.search).get('utm_medium');
+    fields.utm_campaign=new URLSearchParams(location.search).get('utm_campaign');
+    fields.page_url=location.href;
+    fields.page_title=document.title;
 
     navigator.sendBeacon?
-      navigator.sendBeacon(VESTA_URL,new Blob([JSON.stringify({...data,_auth:VESTA_KEY})],{type:'application/json'})):
-      fetch(VESTA_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+VESTA_KEY},body:JSON.stringify(data),keepalive:true});
+      navigator.sendBeacon(VESTA_URL,new Blob([JSON.stringify({...fields,_auth:VESTA_KEY})],{type:'application/json'})):
+      fetch(VESTA_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+VESTA_KEY},body:JSON.stringify(fields),keepalive:true});
   },true);
 })();
 </script>`

@@ -149,6 +149,25 @@ export async function POST(req: Request) {
         const data = parseResult.data;
         const finalName = data.name || `${data.first_name || ''} ${data.last_name || ''}`.trim() || 'Website Lead';
 
+        // Capture extra/custom fields not in the known set
+        const knownKeys = new Set([
+            'name', 'first_name', 'last_name', 'email', 'phone', 'notes', 'message', 'comment',
+            'firstName', 'lastName', 'FirstName', 'LastName', 'fname', 'lname', 'Email', 'Phone',
+            'phone_number', 'phoneNumber', 'startDate', 'start_date', 'arrival_date', 'arrivalDate',
+            'endDate', 'end_date', 'departure_date', 'departureDate', 'location', 'Location', 'base', 'Base',
+            'value', 'dealValue', 'deal_value', 'Message', 'Comment',
+            'utm_source', 'utmSource', 'UTM_Source', 'utm_medium', 'utmMedium', 'UTM_Medium',
+            'utm_campaign', 'utmCampaign', 'UTM_Campaign', 'utm_term', 'utmTerm', 'UTM_Term',
+            'utm_content', 'utmContent', 'UTM_Content',
+            '_auth', 'page_url', 'page_title',
+        ]);
+        const extraFields: Record<string, string> = {};
+        for (const [key, val] of Object.entries(raw)) {
+            if (!knownKeys.has(key) && val && String(val).trim()) {
+                extraFields[key] = String(val).trim();
+            }
+        }
+
         // Format dates if provided
         const startYmd = normalizeDateToYmd(data.startDate);
         const endYmd = normalizeDateToYmd(data.endDate);
@@ -175,6 +194,7 @@ export async function POST(req: Request) {
                 ...(utmCampaign && { utmCampaign }),
                 ...(utmTerm && { utmTerm }),
                 ...(utmContent && { utmContent }),
+                ...(Object.keys(extraFields).length > 0 && { customFormFields: extraFields }),
                 createdAt: new Date(),
                 updatedAt: new Date()
             });
@@ -229,9 +249,19 @@ export async function POST(req: Request) {
         // 5. Set opportunity value
         const opportunityValue = data.value || 0;
 
-        // Build notes
+        // Build notes — include known notes field plus any extra/custom fields
         const noteParts: string[] = [];
         if (data.notes && data.notes.trim().length > 0) noteParts.push(`Notes: ${data.notes}`);
+
+        // Add extra fields to notes with readable labels
+        for (const [key, val] of Object.entries(extraFields)) {
+            const label = key.replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            noteParts.push(`${label}: ${val}`);
+        }
+
+        // Include page info if present
+        if (raw.page_url) noteParts.push(`Page: ${raw.page_url}`);
+
         const sharedNotes = noteParts.length > 0 ? `Website Inquiry:\n${noteParts.join('\n')}` : null;
 
         // 6. Create the Opportunity
