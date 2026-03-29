@@ -107,19 +107,42 @@ export function WebsiteFormEmbed() {
                         </div>
 
                         <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-                            <p className="text-sm font-medium">How it works:</p>
+                            <p className="text-sm font-medium">How to add to your website:</p>
                             <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
                                 <li>Copy the script below</li>
                                 <li>Paste it into your website — in the footer, before <code className="bg-muted px-1 py-0.5 rounded text-[11px]">&lt;/body&gt;</code>, or in your site&apos;s custom code settings</li>
                                 <li>That&apos;s it — any form submission on your site will sync to your CRM</li>
                             </ol>
-                            <div className="text-xs text-muted-foreground pt-1 border-t border-border/50">
-                                <p className="font-medium text-foreground mb-1">Works with:</p>
-                                <p>WordPress, Wix, Squarespace, Webflow, Shopify, Contact Form 7, Gravity Forms, WPForms, Typeform embeds, or any HTML form.</p>
+
+                            <div className="text-xs text-muted-foreground pt-2 border-t border-border/50">
+                                <p className="font-medium text-foreground mb-1.5">Where to paste it:</p>
+                                <ul className="space-y-1">
+                                    <li><span className="font-medium text-foreground">WordPress</span> — Appearance &gt; Theme File Editor &gt; footer.php, or use a plugin like &quot;Insert Headers and Footers&quot;</li>
+                                    <li><span className="font-medium text-foreground">Wix</span> — Settings &gt; Custom Code &gt; Add Code &gt; paste in Body (end)</li>
+                                    <li><span className="font-medium text-foreground">Squarespace</span> — Settings &gt; Advanced &gt; Code Injection &gt; Footer</li>
+                                    <li><span className="font-medium text-foreground">Webflow</span> — Project Settings &gt; Custom Code &gt; Footer Code</li>
+                                    <li><span className="font-medium text-foreground">Shopify</span> — Online Store &gt; Themes &gt; Edit Code &gt; theme.liquid (before &lt;/body&gt;)</li>
+                                </ul>
                             </div>
-                            <div className="text-xs text-muted-foreground pt-1 border-t border-border/50">
+
+                            <div className="text-xs text-muted-foreground pt-2 border-t border-border/50">
+                                <p className="font-medium text-foreground mb-1.5">Using an AI website builder? (Framer, Durable, B12, 10Web, etc.)</p>
+                                <p className="mb-1.5">Most AI builders don&apos;t have a &quot;custom code&quot; section. Instead, give your AI tool this prompt:</p>
+                                <div className="bg-background border rounded-lg p-2.5 mb-1.5 font-mono text-[11px] leading-relaxed select-all">
+                                    Add this tracking script to the footer of my website, right before the closing &lt;/body&gt; tag. It should load on every page. Do not modify the script — paste it exactly as-is: [PASTE YOUR SCRIPT HERE]
+                                </div>
+                                <p>If your AI builder has a &quot;Custom Code&quot;, &quot;Embed&quot;, or &quot;HTML block&quot; option, use that instead. Some builders to check:</p>
+                                <ul className="space-y-0.5 mt-1">
+                                    <li><span className="font-medium text-foreground">Framer</span> — Site Settings &gt; General &gt; Custom Code &gt; End of &lt;body&gt;</li>
+                                    <li><span className="font-medium text-foreground">Durable</span> — Ask the AI: &quot;Add this script to the footer of my site&quot;</li>
+                                    <li><span className="font-medium text-foreground">Hostinger Website Builder</span> — Settings &gt; Custom Code &gt; Body section</li>
+                                    <li><span className="font-medium text-foreground">Carrd</span> — Add an Embed element &gt; Type: Code &gt; Head/Body</li>
+                                </ul>
+                            </div>
+
+                            <div className="text-xs text-muted-foreground pt-2 border-t border-border/50">
                                 <p className="font-medium text-foreground mb-1">What gets captured:</p>
-                                <p>Name, email, phone, and any message/notes fields are automatically detected. Your form keeps working normally — visitors won&apos;t notice any change.</p>
+                                <p>Every field in your form — name, email, phone, company, budget, or any custom fields. Your form keeps working normally. Visitors won&apos;t notice any change.</p>
                             </div>
                         </div>
 
