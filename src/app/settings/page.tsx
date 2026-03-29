@@ -20,6 +20,7 @@ import { DataExport } from "./data/DataExport"
 import { CustomFieldsManager } from "./custom-fields/CustomFieldsManager"
 import { BrandingSettings } from "./branding/BrandingSettings"
 import { ApiKeyManager } from "./api-keys/ApiKeyManager"
+import { WebsiteFormEmbed } from "./api-keys/WebsiteFormEmbed"
 import { ScheduledReports } from "./reports/ScheduledReports"
 import { WorkflowBuilder } from "./workflows/WorkflowBuilder"
 import { AutoAssignRules } from "./assignment/AutoAssignRules"
@@ -406,6 +407,7 @@ export default async function SettingsPage() {
 
 
                                     <TabsContent value="api-keys" className="space-y-6 mt-0">
+                                        <WebsiteFormEmbed />
                                         <ApiKeyManager />
                                     </TabsContent>
 
