@@ -18,9 +18,20 @@ export async function getLeadForms(): Promise<LeadForm[]> {
     const workspaceId = session.user.workspaceId
     const db = tenantDb(workspaceId)
 
-    const snap = await db.collection("lead_forms").orderBy("createdAt", "desc").get()
+    let snap;
+    try {
+        snap = await db.collection("lead_forms").get()
+    } catch (err) {
+        console.error("Failed to fetch lead forms:", err)
+        return []
+    }
     return snap.docs
         .filter(doc => doc.data().status !== "deleted")
+        .sort((a, b) => {
+            const aTime = a.data().createdAt?.toDate?.()?.getTime?.() || 0
+            const bTime = b.data().createdAt?.toDate?.()?.getTime?.() || 0
+            return bTime - aTime
+        })
         .map(doc => {
             const d = doc.data()
             return {
