@@ -25,7 +25,7 @@ import { getNotifications } from "@/app/notifications/actions"
 
 // Routes that render without the app shell (sidebar, topnav, etc.)
 const STANDALONE_ROUTES = ["/", "/login", "/register", "/setup", "/privacy", "/terms", "/pricing", "/verify-email"]
-const STANDALONE_ROUTE_PREFIXES = ["/sign/", "/invite/"]
+const STANDALONE_ROUTE_PREFIXES = ["/sign/", "/invite/", "/form/"]
 
 export function AppShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname()

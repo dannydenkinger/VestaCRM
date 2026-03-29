@@ -288,20 +288,6 @@
     }
     ,
     {
-      "collectionGroup": "gmail_integrations",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "email", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "gmail_integrations",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "watchExpiration", "order": "ASCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "messages",
       "queryScope": "COLLECTION_GROUP",
       "fields": [

@@ -19,12 +19,14 @@ const publicRoutes = [
 const publicPrefixes = [
     "/sign/",    // E-signature signing pages are public by design
     "/invite/",  // Invitation acceptance pages are public
+    "/form/",    // Hosted lead forms are public
 ]
 
 // API route prefixes that skip CSRF checking (they use their own auth mechanisms)
 const csrfExemptPrefixes = [
     "/api/auth/",        // NextAuth handles its own CSRF
     "/api/webhooks/",    // Webhooks authenticate via Bearer token / shared secret
+    "/api/forms/",       // Form submissions come from external sites
     "/api/cron/",        // Cron jobs authenticate via secret query param
     "/api/calendar/",    // Calendar feed is GET-only, public by design
 ]

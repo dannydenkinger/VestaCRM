@@ -21,6 +21,7 @@ import { CustomFieldsManager } from "./custom-fields/CustomFieldsManager"
 import { BrandingSettings } from "./branding/BrandingSettings"
 import { ApiKeyManager } from "./api-keys/ApiKeyManager"
 import { WebsiteFormEmbed } from "./api-keys/WebsiteFormEmbed"
+import { LeadFormsTab } from "./lead-forms/LeadFormsTab"
 import { ScheduledReports } from "./reports/ScheduledReports"
 import { WorkflowBuilder } from "./workflows/WorkflowBuilder"
 import { AutoAssignRules } from "./assignment/AutoAssignRules"
@@ -186,6 +187,10 @@ export default async function SettingsPage() {
                                         <Layers className="w-3.5 h-3.5" />
                                         Custom Fields
                                     </TabsTrigger>
+                                    <TabsTrigger value="lead-forms" className="flex items-center gap-1.5 px-3 shrink-0 text-xs min-h-[44px] touch-manipulation">
+                                        <ScrollText className="w-3.5 h-3.5" />
+                                        Lead Forms
+                                    </TabsTrigger>
                                     <TabsTrigger value="api-keys" className="flex items-center gap-1.5 px-3 shrink-0 text-xs min-h-[44px] touch-manipulation">
                                         <Key className="w-3.5 h-3.5" />
                                         API Keys
@@ -267,6 +272,10 @@ export default async function SettingsPage() {
                                                 <TabsTrigger value="custom-fields" className="flex items-center gap-2.5 px-3 py-2 w-full justify-start text-sm rounded-md border-0 shadow-none data-[state=active]:bg-muted data-[state=active]:shadow-none data-[state=active]:border-0 dark:data-[state=active]:bg-muted dark:data-[state=active]:border-transparent dark:data-[state=inactive]:bg-transparent dark:data-[state=inactive]:border-transparent hover:bg-muted/50">
                                                     <Layers className="w-4 h-4 shrink-0" />
                                                     Custom Fields
+                                                </TabsTrigger>
+                                                <TabsTrigger value="lead-forms" className="flex items-center gap-2.5 px-3 py-2 w-full justify-start text-sm rounded-md border-0 shadow-none data-[state=active]:bg-muted data-[state=active]:shadow-none data-[state=active]:border-0 dark:data-[state=active]:bg-muted dark:data-[state=active]:border-transparent dark:data-[state=inactive]:bg-transparent dark:data-[state=inactive]:border-transparent hover:bg-muted/50">
+                                                    <ScrollText className="w-4 h-4 shrink-0" />
+                                                    Lead Forms
                                                 </TabsTrigger>
                                                 <TabsTrigger value="reports" className="flex items-center gap-2.5 px-3 py-2 w-full justify-start text-sm rounded-md border-0 shadow-none data-[state=active]:bg-muted data-[state=active]:shadow-none data-[state=active]:border-0 dark:data-[state=active]:bg-muted dark:data-[state=active]:border-transparent dark:data-[state=inactive]:bg-transparent dark:data-[state=inactive]:border-transparent hover:bg-muted/50">
                                                     <Clock className="w-4 h-4 shrink-0" />
@@ -404,7 +413,9 @@ export default async function SettingsPage() {
                                         <CustomFieldsManager />
                                     </TabsContent>
 
-
+                                    <TabsContent value="lead-forms" className="space-y-6 mt-0">
+                                        <LeadFormsTab />
+                                    </TabsContent>
 
                                     <TabsContent value="api-keys" className="space-y-6 mt-0">
                                         <WebsiteFormEmbed />
