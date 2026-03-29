@@ -68,7 +68,11 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 })
         }
 
-        // 1. Authenticate Request (support both env-based key and managed API keys)
+        // Parse body once upfront (needed for both auth and payload processing)
+        const rawBody = await req.json();
+
+        // 1. Authenticate Request
+        // Supports: Authorization header, x-api-key header, _auth field in body (for sendBeacon)
         const authHeader = req.headers.get('authorization');
         const expectedApiKey = process.env.WEBHOOK_API_KEY;
 
@@ -77,14 +81,24 @@ export async function POST(req: Request) {
 
         if (expectedApiKey && authHeader === `Bearer ${expectedApiKey}`) {
             authenticated = true;
-            // For env-based API key, use a default workspace lookup
-            // This is a legacy path; managed API keys are preferred
             workspaceId = process.env.DEFAULT_WORKSPACE_ID || null;
         }
 
-        // Fall back to managed API key authentication
+        // Fall back to managed API key authentication (header-based)
         if (!authenticated) {
             const apiKeyResult = await validateApiKey(req);
+            if (apiKeyResult) {
+                authenticated = true;
+                workspaceId = apiKeyResult.workspaceId;
+            }
+        }
+
+        // Fall back to _auth field in request body (for sendBeacon which can't set headers)
+        if (!authenticated && rawBody._auth) {
+            const fakeReq = new Request(req.url, {
+                headers: { "authorization": `Bearer ${rawBody._auth}` },
+            });
+            const apiKeyResult = await validateApiKey(fakeReq);
             if (apiKeyResult) {
                 authenticated = true;
                 workspaceId = apiKeyResult.workspaceId;
@@ -102,7 +116,7 @@ export async function POST(req: Request) {
         const db = tenantDb(workspaceId);
 
         // 2. Parse and Normalize Payload (support multiple form providers)
-        const raw = await req.json();
+        const { _auth, ...raw } = rawBody;
 
         // Normalize UTM params
         const utmSource = raw.utm_source ?? raw.utmSource ?? raw.UTM_Source ?? null;
