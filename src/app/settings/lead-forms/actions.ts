@@ -5,7 +5,7 @@ import { tenantDb } from "@/lib/tenant-db"
 import { adminDb } from "@/lib/firebase-admin"
 import { requireAdmin, getAuthSession } from "@/lib/auth-guard"
 import { revalidatePath } from "next/cache"
-import type { LeadForm, FormField, FormStyle } from "./types"
+import type { LeadForm, FormField, FormStyle, FormPage } from "./types"
 import { generateFormId, generateSlug, getDefaultFields, getDefaultStyle } from "@/lib/form-utils"
 
 function hashKey(key: string): string {
@@ -129,7 +129,16 @@ export async function createLeadForm(name: string): Promise<{ formId: string }> 
 
 export async function updateLeadForm(
     formId: string,
-    data: { name?: string; fields?: FormField[]; style?: FormStyle }
+    data: {
+        name?: string
+        fields?: FormField[]
+        style?: FormStyle
+        pages?: FormPage[]
+        isMultiStep?: boolean
+        showReviewPage?: boolean
+        spamProtection?: LeadForm["spamProtection"]
+        notifications?: LeadForm["notifications"]
+    }
 ): Promise<{ success: boolean }> {
     const session = await requireAdmin()
     const workspaceId = session.user.workspaceId
@@ -147,6 +156,11 @@ export async function updateLeadForm(
     }
     if (data.fields !== undefined) update.fields = data.fields
     if (data.style !== undefined) update.style = data.style
+    if (data.pages !== undefined) update.pages = data.pages
+    if (data.isMultiStep !== undefined) update.isMultiStep = data.isMultiStep
+    if (data.showReviewPage !== undefined) update.showReviewPage = data.showReviewPage
+    if (data.spamProtection !== undefined) update.spamProtection = data.spamProtection
+    if (data.notifications !== undefined) update.notifications = data.notifications
 
     await db.doc("lead_forms", formId).update(update)
     revalidatePath("/settings")
