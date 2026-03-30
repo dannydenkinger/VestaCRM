@@ -5,6 +5,7 @@ import type { LeadForm, FormField, FormPage } from "@/app/settings/lead-forms/ty
 import { BORDER_RADIUS_MAP } from "@/app/settings/lead-forms/types"
 import { FormFieldRenderer } from "./FormFieldRenderer"
 import { FormSuccess } from "./FormSuccess"
+import { getVisibleFields, getNextPageIndex } from "@/lib/form-conditions"
 
 interface Props {
     form: LeadForm
@@ -31,7 +32,8 @@ export function FormRenderer({ form, mode, selectedFieldId, onFieldSelect, submi
     const totalPages = pages.length
     const isMultiStep = form.isMultiStep && totalPages > 1
     const isLastPage = currentPage >= totalPages - 1
-    const currentFields = pages[currentPage]?.fields || []
+    const rawFields = pages[currentPage]?.fields || []
+    const currentFields = mode === "preview" ? rawFields : getVisibleFields(rawFields, values)
 
     // URL prefill
     useEffect(() => {
@@ -91,7 +93,10 @@ export function FormRenderer({ form, mode, selectedFieldId, onFieldSelect, submi
 
     const handleNext = () => {
         if (mode === "preview") { setCurrentPage(p => Math.min(p + 1, totalPages - 1)); return }
-        if (validatePage(currentFields)) setCurrentPage(p => p + 1)
+        if (validatePage(currentFields)) {
+            const nextIdx = getNextPageIndex(form, currentPage, values)
+            setCurrentPage(nextIdx)
+        }
     }
 
     const handlePrev = () => setCurrentPage(p => Math.max(p - 1, 0))

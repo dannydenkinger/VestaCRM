@@ -8,9 +8,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Trash2, Plus, ArrowUp, ArrowDown, ChevronDown, ChevronRight } from "lucide-react"
 import type { FormField, FieldValidation, FieldStyle } from "./types"
+import { ConditionalLogicEditor } from "@/components/forms/ConditionalLogicEditor"
 
 interface Props {
     field: FormField
+    allFields?: FormField[]
     onChange: (field: FormField) => void
     onDelete: () => void
     onMoveUp: () => void
@@ -32,7 +34,7 @@ function CollapsibleSection({ title, children, defaultOpen = false }: { title: s
     )
 }
 
-export function FieldPropertiesEditor({ field, onChange, onDelete, onMoveUp, onMoveDown, isFirst, isLast }: Props) {
+export function FieldPropertiesEditor({ field, allFields, onChange, onDelete, onMoveUp, onMoveDown, isFirst, isLast }: Props) {
     const update = (partial: Partial<FormField>) => onChange({ ...field, ...partial })
     const updateValidation = (partial: Partial<FieldValidation>) =>
         onChange({ ...field, validation: { ...field.validation, ...partial } })
@@ -322,6 +324,18 @@ export function FieldPropertiesEditor({ field, onChange, onDelete, onMoveUp, onM
                         <Label className="text-xs">Label Color</Label>
                         <input type="color" value={field.fieldStyle?.labelColor || "#1f2937"} onChange={e => updateStyle({ labelColor: e.target.value })} className="h-6 w-6 rounded border cursor-pointer" />
                     </div>
+                </CollapsibleSection>
+            )}
+
+            {/* ── Conditional Logic Section ── */}
+
+            {!isDisplayOnly && allFields && allFields.length > 1 && (
+                <CollapsibleSection title="Conditional Logic">
+                    <ConditionalLogicEditor
+                        field={field}
+                        allFields={allFields}
+                        onChange={logic => update({ conditionalLogic: logic })}
+                    />
                 </CollapsibleSection>
             )}
         </div>

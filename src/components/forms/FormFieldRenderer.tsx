@@ -3,6 +3,7 @@
 import { useState } from "react"
 import type { FormField, FormStyle } from "@/app/settings/lead-forms/types"
 import { BORDER_RADIUS_MAP, FONT_SIZE_MAP, INPUT_HEIGHT_MAP } from "@/app/settings/lead-forms/types"
+import { SignaturePad } from "./SignaturePad"
 
 interface Props {
     field: FormField
@@ -462,20 +463,11 @@ function FileUploadField({ field, style, inputStyle, value, onChange }: { field:
 
 function SignatureField({ field, style, value, onChange }: { field: FormField; style: FormStyle; value: any; onChange: (v: any) => void }) {
     return (
-        <div style={{
-            border: `1px solid #d1d5db`,
-            borderRadius: BORDER_RADIUS_MAP[style.borderRadius],
-            padding: "16px",
-            textAlign: "center",
-            minHeight: "120px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "#fafafa",
-        }}>
-            <p style={{ color: "#9ca3af", fontSize: "13px", fontFamily: style.fontFamily }}>
-                {value ? "Signature captured" : "Sign here (canvas coming in next update)"}
-            </p>
-        </div>
+        <SignaturePad
+            value={value}
+            onChange={onChange}
+            accentColor={style.accentColor}
+            borderRadius={BORDER_RADIUS_MAP[style.borderRadius]}
+        />
     )
 }

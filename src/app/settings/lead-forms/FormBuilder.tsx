@@ -297,6 +297,7 @@ export function FormBuilder({ formId, onBack }: Props) {
                     {selectedField ? (
                         <FieldPropertiesEditor
                             field={selectedField}
+                            allFields={currentFields}
                             onChange={updateField}
                             onDelete={() => deleteField(selectedField.id)}
                             onMoveUp={() => moveField(selectedField.id, "up")}
@@ -314,7 +315,7 @@ export function FormBuilder({ formId, onBack }: Props) {
             </div>
 
             <StyleSettings open={showStyleSettings} onClose={() => setShowStyleSettings(false)} style={form.style}
-                onChange={s => { setForm({ ...form, style: s }); markChanged() }} />
+                onChange={s => { setForm({ ...form, style: s }); markChanged() }} isMultiStep={form.isMultiStep} />
         </div>
     )
 }
