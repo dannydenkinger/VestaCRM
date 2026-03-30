@@ -23,6 +23,7 @@ export function FormRenderer({ form, mode, selectedFieldId, onFieldSelect, submi
     const [errors, setErrors] = useState<Record<string, string>>({})
     const [submitting, setSubmitting] = useState(false)
     const [submitted, setSubmitted] = useState(false)
+    const [submitError, setSubmitError] = useState<string | null>(null)
     const [currentPage, setCurrentPage] = useState(0)
 
     // Get pages
@@ -155,14 +156,15 @@ export function FormRenderer({ form, mode, selectedFieldId, onFieldSelect, submi
             })
 
             if (res.ok) {
+                setSubmitError(null)
                 if (style.redirectUrl) window.location.href = style.redirectUrl
                 else setSubmitted(true)
             } else {
                 const data = await res.json().catch(() => ({}))
-                alert(data.error || "Something went wrong. Please try again.")
+                setSubmitError(data.error || "Something went wrong. Please try again.")
             }
         } catch {
-            alert("Something went wrong. Please try again.")
+            setSubmitError("Something went wrong. Please try again.")
         }
         setSubmitting(false)
     }
@@ -306,6 +308,21 @@ export function FormRenderer({ form, mode, selectedFieldId, onFieldSelect, submi
                         }
                         return renderField(row as FormField)
                     })}
+
+                    {/* Submit error message */}
+                    {submitError && (
+                        <div style={{
+                            padding: "12px 16px",
+                            backgroundColor: "#fef2f2",
+                            border: "1px solid #fecaca",
+                            borderRadius: radius,
+                            color: "#dc2626",
+                            fontSize: "13px",
+                            fontFamily: style.fontFamily,
+                        }}>
+                            {submitError}
+                        </div>
+                    )}
 
                     {/* Navigation buttons */}
                     <div style={{

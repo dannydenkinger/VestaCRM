@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
-import { Trash2, Plus, ArrowUp, ArrowDown, ChevronDown, ChevronRight } from "lucide-react"
+import { Trash2, Plus, ArrowUp, ArrowDown, ChevronDown, ChevronRight, Copy } from "lucide-react"
 import type { FormField, FieldValidation, FieldStyle } from "./types"
 import { ConditionalLogicEditor } from "@/components/forms/ConditionalLogicEditor"
 
@@ -15,6 +15,7 @@ interface Props {
     allFields?: FormField[]
     onChange: (field: FormField) => void
     onDelete: () => void
+    onDuplicate?: () => void
     onMoveUp: () => void
     onMoveDown: () => void
     isFirst: boolean
@@ -34,7 +35,7 @@ function CollapsibleSection({ title, children, defaultOpen = false }: { title: s
     )
 }
 
-export function FieldPropertiesEditor({ field, allFields, onChange, onDelete, onMoveUp, onMoveDown, isFirst, isLast }: Props) {
+export function FieldPropertiesEditor({ field, allFields, onChange, onDelete, onDuplicate, onMoveUp, onMoveDown, isFirst, isLast }: Props) {
     const update = (partial: Partial<FormField>) => onChange({ ...field, ...partial })
     const updateValidation = (partial: Partial<FieldValidation>) =>
         onChange({ ...field, validation: { ...field.validation, ...partial } })
@@ -51,13 +52,18 @@ export function FieldPropertiesEditor({ field, allFields, onChange, onDelete, on
             <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold">{field.type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</p>
                 <div className="flex items-center gap-0.5">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onMoveUp} disabled={isFirst}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onMoveUp} disabled={isFirst} title="Move up">
                         <ArrowUp className="h-3.5 w-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onMoveDown} disabled={isLast}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onMoveDown} disabled={isLast} title="Move down">
                         <ArrowDown className="h-3.5 w-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={onDelete}>
+                    {onDuplicate && (
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onDuplicate} title="Duplicate">
+                            <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                    )}
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={onDelete} title="Delete">
                         <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                 </div>
