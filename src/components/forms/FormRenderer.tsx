@@ -35,6 +35,16 @@ export function FormRenderer({ form, mode, selectedFieldId, onFieldSelect, submi
     const rawFields = pages[currentPage]?.fields || []
     const currentFields = mode === "preview" ? rawFields : getVisibleFields(rawFields, values)
 
+    // View tracking
+    useEffect(() => {
+        if (mode !== "live") return
+        fetch(`/api/forms/${form.id}/track`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ event: "view" }),
+        }).catch(() => {})
+    }, [form.id, mode])
+
     // URL prefill
     useEffect(() => {
         if (mode !== "live" || typeof window === "undefined") return
@@ -278,6 +288,12 @@ export function FormRenderer({ form, mode, selectedFieldId, onFieldSelect, submi
 
                 {/* Fields */}
                 <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: `${spacing}px` }}>
+                    {/* Honeypot field for spam protection */}
+                    {mode === "live" && (
+                        <input name="website" tabIndex={-1} autoComplete="off"
+                            style={{ position: "absolute", left: "-9999px", opacity: 0, height: 0, width: 0 }}
+                            onChange={e => setValue("__honeypot", e.target.value)} />
+                    )}
                     {fieldRows.map((row, rowIdx) => {
                         if (Array.isArray(row)) {
                             return (

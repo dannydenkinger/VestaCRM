@@ -48,6 +48,29 @@ export async function POST(
         const db = tenantDb(workspaceId)
         const payload = await request.json()
 
+        // Honeypot spam check — if the hidden "website" field has a value, it's a bot
+        if (payload.website || payload.__honeypot) {
+            return NextResponse.json({ success: true, message: "Form submitted successfully" })
+        }
+
+        // Submission cooldown check
+        if (formData.spamProtection?.submissionCooldownMinutes && payload.email) {
+            const cooldownMs = formData.spamProtection.submissionCooldownMinutes * 60 * 1000
+            const recentSnap = await db.collection("contacts")
+                .where("email", "==", payload.email)
+                .limit(1)
+                .get()
+            if (!recentSnap.empty) {
+                const lastUpdate = recentSnap.docs[0].data().updatedAt
+                if (lastUpdate) {
+                    const lastTime = lastUpdate.toDate ? lastUpdate.toDate().getTime() : new Date(lastUpdate).getTime()
+                    if (Date.now() - lastTime < cooldownMs) {
+                        return NextResponse.json({ error: "Please wait before submitting again" }, { status: 429 })
+                    }
+                }
+            }
+        }
+
         // Validate required fields
         for (const field of formData.fields || []) {
             if (field.required && field.type !== "header" && field.type !== "hidden") {
@@ -200,6 +223,40 @@ export async function POST(
         await adminDb.collection("lead_forms").doc(formId).update({
             submissionCount: (formData.submissionCount || 0) + 1,
         })
+
+        // Admin email notification
+        if (formData.notifications?.adminEmailEnabled && formData.notifications.adminEmailAddresses?.length) {
+            try {
+                const { sendEmail } = await import("@/lib/email")
+                const fieldSummary = Object.entries(payload)
+                    .filter(([k]) => !["website", "__honeypot"].includes(k))
+                    .map(([k, v]) => `<tr><td style="padding:6px 12px;font-weight:600;vertical-align:top;white-space:nowrap;">${k.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</td><td style="padding:6px 12px;">${String(v)}</td></tr>`)
+                    .join("")
+                const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;"><h2 style="margin-bottom:16px;">New submission: ${formData.name}</h2><table style="width:100%;border-collapse:collapse;font-size:14px;">${fieldSummary}</table></div>`
+                for (const addr of formData.notifications.adminEmailAddresses) {
+                    sendEmail({ to: addr, subject: `New lead from ${formData.name}`, html }).catch(() => {})
+                }
+            } catch {}
+        }
+
+        // Autoresponder email
+        if (formData.notifications?.autoresponderEnabled && payload.email) {
+            try {
+                const { sendEmail } = await import("@/lib/email")
+                let subject = formData.notifications.autoresponderSubject || "Thank you for your submission"
+                let body = formData.notifications.autoresponderBody || "We've received your message and will be in touch soon."
+                // Replace merge tags
+                const replaceTags = (str: string) => str
+                    .replace(/\{\{name\}\}/g, name || "")
+                    .replace(/\{\{email\}\}/g, email || "")
+                    .replace(/\{\{phone\}\}/g, phone || "")
+                    .replace(/\{\{form_name\}\}/g, formData.name || "")
+                subject = replaceTags(subject)
+                body = replaceTags(body)
+                const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;">${body.replace(/\n/g, "<br>")}</div>`
+                sendEmail({ to: payload.email, subject, html }).catch(() => {})
+            } catch {}
+        }
 
         return NextResponse.json({
             success: true,

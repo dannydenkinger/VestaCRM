@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { ArrowLeft, Palette, Eye, Save, Loader2, Plus, Trash2, Layers } from "lucide-react"
+import { ArrowLeft, Palette, Eye, Save, Loader2, Plus, Trash2, Layers, Bell, BarChart3 } from "lucide-react"
 import { toast } from "sonner"
 import { getLeadForm, updateLeadForm } from "./actions"
 import { FieldPalette } from "./FieldPalette"
 import { FieldPropertiesEditor } from "./FieldPropertiesEditor"
 import { StyleSettings } from "./StyleSettings"
+import { NotificationSettings } from "./NotificationSettings"
+import { FormAnalytics } from "./FormAnalytics"
 import { FormRenderer } from "@/components/forms/FormRenderer"
 import { FIELD_TYPE_CONFIG } from "./types"
 import type { LeadForm, FormField, FormStyle, FormPage, FieldType } from "./types"
@@ -26,6 +28,8 @@ export function FormBuilder({ formId, onBack }: Props) {
     const [saving, setSaving] = useState(false)
     const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null)
     const [showStyleSettings, setShowStyleSettings] = useState(false)
+    const [showNotifications, setShowNotifications] = useState(false)
+    const [showAnalytics, setShowAnalytics] = useState(false)
     const [hasChanges, setHasChanges] = useState(false)
     const [currentPageIdx, setCurrentPageIdx] = useState(0)
 
@@ -159,6 +163,8 @@ export function FormBuilder({ formId, onBack }: Props) {
             pages: form.pages,
             isMultiStep: form.isMultiStep,
             showReviewPage: form.showReviewPage,
+            notifications: form.notifications,
+            spamProtection: form.spamProtection,
         })
         if (res.success) {
             toast.success("Form saved")
@@ -212,6 +218,12 @@ export function FormBuilder({ formId, onBack }: Props) {
                 <div className="flex-1" />
                 <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setShowStyleSettings(true)}>
                     <Palette className="h-3.5 w-3.5 mr-1.5" />Style
+                </Button>
+                <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setShowNotifications(true)}>
+                    <Bell className="h-3.5 w-3.5 mr-1.5" />Notify
+                </Button>
+                <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setShowAnalytics(true)}>
+                    <BarChart3 className="h-3.5 w-3.5 mr-1.5" />Analytics
                 </Button>
                 <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => window.open(`/form/${formId}`, "_blank")}>
                     <Eye className="h-3.5 w-3.5 mr-1.5" />Preview
@@ -316,6 +328,10 @@ export function FormBuilder({ formId, onBack }: Props) {
 
             <StyleSettings open={showStyleSettings} onClose={() => setShowStyleSettings(false)} style={form.style}
                 onChange={s => { setForm({ ...form, style: s }); markChanged() }} isMultiStep={form.isMultiStep} />
+            <NotificationSettings open={showNotifications} onClose={() => setShowNotifications(false)}
+                notifications={form.notifications}
+                onChange={n => { setForm({ ...form, notifications: n }); markChanged() }} />
+            <FormAnalytics open={showAnalytics} onClose={() => setShowAnalytics(false)} form={form} />
         </div>
     )
 }
