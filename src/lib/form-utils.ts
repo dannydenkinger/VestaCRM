@@ -38,40 +38,7 @@ export function getFormPages(form: LeadForm): FormPage[] {
 }
 
 export function getDefaultFields(): FormField[] {
-    return [
-        {
-            id: generateFieldId(),
-            type: "short_text",
-            label: "Full Name",
-            placeholder: "John Smith",
-            required: true,
-            width: "full",
-        },
-        {
-            id: generateFieldId(),
-            type: "email",
-            label: "Email Address",
-            placeholder: "john@example.com",
-            required: true,
-            width: "full",
-        },
-        {
-            id: generateFieldId(),
-            type: "phone",
-            label: "Phone Number",
-            placeholder: "(555) 123-4567",
-            required: false,
-            width: "full",
-        },
-        {
-            id: generateFieldId(),
-            type: "long_text",
-            label: "Message",
-            placeholder: "How can we help you?",
-            required: false,
-            width: "full",
-        },
-    ]
+    return []
 }
 
 export function getDefaultStyle(branding?: {

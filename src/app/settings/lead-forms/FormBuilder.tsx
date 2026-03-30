@@ -23,7 +23,7 @@ import { FieldPropertiesEditor } from "./FieldPropertiesEditor"
 import { StyleSettings } from "./StyleSettings"
 import { NotificationSettings } from "./NotificationSettings"
 import { FormAnalytics } from "./FormAnalytics"
-import { FormRenderer } from "@/components/forms/FormRenderer"
+import { FormFieldRenderer } from "@/components/forms/FormFieldRenderer"
 import { FIELD_TYPE_CONFIG } from "./types"
 import type { LeadForm, FormField, FormPage, FieldType } from "./types"
 
@@ -338,10 +338,6 @@ export function FormBuilder({ formId, onBack }: Props) {
     const selectedField = currentFields.find(f => f.id === selectedFieldId) || null
     const selectedFieldIdx = currentFields.findIndex(f => f.id === selectedFieldId)
 
-    const previewForm: LeadForm = form.isMultiStep
-        ? { ...form, fields: currentFields, isMultiStep: false }
-        : form
-
     return (
         <div className="flex flex-col h-full -mx-4 sm:-mx-6 lg:-mx-8 -mt-4 sm:-mt-6">
             {/* Top bar */}
@@ -473,42 +469,12 @@ export function FormBuilder({ formId, onBack }: Props) {
                         )}
 
                         {/* Form preview with drag-and-drop */}
-                        <div className="bg-white dark:bg-card rounded-xl shadow-sm border overflow-visible max-w-[600px] mx-auto pl-8">
-                            <div className="-ml-8">
-                                {/* Render form header (logo, title, description) via FormRenderer with no fields */}
-                                <div style={{
-                                    backgroundColor: form.style.backgroundColor,
-                                    fontFamily: form.style.fontFamily,
-                                    padding: `${form.style.formPadding ?? 40}px 24px`,
-                                    paddingBottom: currentFields.length > 0 ? "0" : undefined,
-                                }}>
-                                    {form.style.logoUrl && (
-                                        <div style={{ textAlign: "center", marginBottom: "24px" }}>
-                                            <img src={form.style.logoUrl} alt="" style={{ maxHeight: "48px", maxWidth: "200px", objectFit: "contain" }} />
-                                        </div>
-                                    )}
-                                    {form.style.title && (
-                                        <h1 style={{ fontSize: "28px", fontWeight: 700, color: form.style.textColor, textAlign: "center", margin: "0 0 8px 0" }}>
-                                            {form.style.title}
-                                        </h1>
-                                    )}
-                                    {form.style.description && (
-                                        <p style={{ fontSize: "15px", color: `${form.style.textColor}99`, textAlign: "center", margin: "0 0 24px 0", lineHeight: "1.5" }}>
-                                            {form.style.description}
-                                        </p>
-                                    )}
-                                </div>
-
-                                {/* Draggable fields */}
-                                <div style={{
-                                    padding: `0 24px ${form.style.formPadding ?? 40}px`,
-                                    backgroundColor: form.style.backgroundColor,
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    gap: `${form.style.fieldSpacing ?? 20}px`,
-                                }}>
-                                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                                        <SortableContext items={currentFields.map(f => f.id)} strategy={verticalListSortingStrategy}>
+                        <div className="bg-background rounded-xl border overflow-visible">
+                            {/* Draggable fields */}
+                            <div className="p-4 sm:p-6">
+                                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                                    <SortableContext items={currentFields.map(f => f.id)} strategy={verticalListSortingStrategy}>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: `${form.style.fieldSpacing ?? 16}px` }}>
                                             {currentFields.map(field => (
                                                 <SortableFieldWrapper
                                                     key={field.id}
@@ -518,40 +484,29 @@ export function FormBuilder({ formId, onBack }: Props) {
                                                     onDuplicate={() => duplicateField(field.id)}
                                                     onDelete={() => deleteField(field.id)}
                                                 >
-                                                    <div style={{ pointerEvents: "none" }}>
-                                                        <FormRenderer
-                                                            form={{ ...previewForm, fields: [field] }}
-                                                            mode="preview"
+                                                    <div className="p-3 rounded-lg bg-muted/20 border border-transparent hover:border-border transition-colors">
+                                                        <FormFieldRenderer
+                                                            field={field}
+                                                            style={form.style}
+                                                            value={field.type === "rating" ? 3 : field.type === "scale" ? 5 : ""}
+                                                            onChange={() => {}}
                                                         />
                                                     </div>
                                                 </SortableFieldWrapper>
                                             ))}
-                                        </SortableContext>
-                                    </DndContext>
-
-                                    {currentFields.length === 0 && (
-                                        <div className="py-12 text-center border-2 border-dashed rounded-lg">
-                                            <p className="text-sm text-muted-foreground">Drag fields here or click from the palette</p>
                                         </div>
-                                    )}
+                                    </SortableContext>
+                                </DndContext>
 
-                                    {/* Submit button preview */}
-                                    <button type="button" disabled style={{
-                                        width: form.style.buttonWidth === "full" ? "100%" : "auto",
-                                        padding: "14px 24px",
-                                        backgroundColor: form.style.buttonColor,
-                                        color: form.style.buttonTextColor,
-                                        border: "none",
-                                        borderRadius: form.style.borderRadius === "full" ? "9999px" : form.style.borderRadius === "lg" ? "12px" : form.style.borderRadius === "md" ? "8px" : form.style.borderRadius === "sm" ? "4px" : "0",
-                                        fontSize: "15px",
-                                        fontWeight: 600,
-                                        fontFamily: form.style.fontFamily,
-                                        cursor: "not-allowed",
-                                        opacity: 0.8,
-                                    }}>
-                                        {form.style.buttonText}
-                                    </button>
-                                </div>
+                                {currentFields.length === 0 && (
+                                    <div className="py-16 text-center border-2 border-dashed rounded-lg bg-muted/10">
+                                        <div className="h-12 w-12 mx-auto rounded-full bg-muted/50 flex items-center justify-center mb-3">
+                                            <Plus className="h-6 w-6 text-muted-foreground/50" />
+                                        </div>
+                                        <p className="text-sm font-medium text-muted-foreground mb-1">Start building your form</p>
+                                        <p className="text-xs text-muted-foreground">Click a field type from the left panel to add it here</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
