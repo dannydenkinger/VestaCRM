@@ -81,7 +81,7 @@ export function getDefaultStyle(branding?: {
 }): FormStyle {
     const accent = branding?.primaryColor || "#2563eb"
     return {
-        logoUrl: branding?.logoUrl || undefined,
+        logoUrl: branding?.logoUrl || null,
         title: branding?.companyName ? `Contact ${branding.companyName}` : "Contact Us",
         description: "Fill out the form below and we'll get back to you shortly.",
         backgroundColor: "#ffffff",
@@ -93,7 +93,7 @@ export function getDefaultStyle(branding?: {
         buttonTextColor: "#ffffff",
         borderRadius: "md",
         successMessage: "Thank you! We've received your submission and will be in touch soon.",
-        redirectUrl: undefined,
+        redirectUrl: null,
         layout: "single",
         fieldSpacing: 20,
         formPadding: 40,

@@ -8,6 +8,20 @@ import { revalidatePath } from "next/cache"
 import type { LeadForm, FormField, FormStyle, FormPage } from "./types"
 import { generateFormId, generateSlug, getDefaultFields, getDefaultStyle } from "@/lib/form-utils"
 
+/** Strip undefined values from an object (Firestore rejects undefined) */
+function stripUndefined(obj: any): any {
+    if (obj === null || obj === undefined) return null
+    if (Array.isArray(obj)) return obj.map(stripUndefined)
+    if (typeof obj === "object" && !(obj instanceof Date)) {
+        const result: any = {}
+        for (const [key, value] of Object.entries(obj)) {
+            if (value !== undefined) result[key] = stripUndefined(value)
+        }
+        return result
+    }
+    return obj
+}
+
 function hashKey(key: string): string {
     return crypto.createHash("sha256").update(key).digest("hex")
 }
@@ -109,7 +123,7 @@ export async function createLeadForm(name: string): Promise<{ formId: string }> 
     })
 
     const now = new Date()
-    await db.collectionRef("lead_forms").doc(formId).set({
+    await db.collectionRef("lead_forms").doc(formId).set(stripUndefined({
         workspaceId,
         name,
         slug,
@@ -121,7 +135,7 @@ export async function createLeadForm(name: string): Promise<{ formId: string }> 
         submissionCount: 0,
         createdAt: now,
         updatedAt: now,
-    })
+    }))
 
     revalidatePath("/settings")
     return { formId }
@@ -162,7 +176,7 @@ export async function updateLeadForm(
     if (data.spamProtection !== undefined) update.spamProtection = data.spamProtection
     if (data.notifications !== undefined) update.notifications = data.notifications
 
-    await db.doc("lead_forms", formId).update(update)
+    await db.doc("lead_forms", formId).update(stripUndefined(update))
     revalidatePath("/settings")
     return { success: true }
 }
