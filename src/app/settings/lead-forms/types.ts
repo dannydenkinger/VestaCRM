@@ -95,8 +95,8 @@ export interface FormPage {
 
 export interface FormStyle {
     // Header
-    logoUrl?: string
-    headerImageUrl?: string
+    logoUrl?: string | null
+    headerImageUrl?: string | null
     title: string
     description?: string
     // Colors
@@ -128,7 +128,7 @@ export interface FormStyle {
     borderRadius: "none" | "sm" | "md" | "lg" | "full"
     // After submission
     successMessage: string
-    redirectUrl?: string
+    redirectUrl?: string | null
     // Layout
     layout: "single" | "two-column"
     // Custom CSS
