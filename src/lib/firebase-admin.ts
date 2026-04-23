@@ -20,6 +20,15 @@ if (!admin.apps.length) {
 const dbId = process.env.FIREBASE_DATABASE_ID;
 if (!dbId) throw new Error("FIREBASE_DATABASE_ID environment variable is not set");
 export const adminDb = getFirestore(admin.app(), dbId);
+// Firestore rejects `undefined` by default, which causes cryptic errors when
+// we spread optional fields. Ask the SDK to silently drop them instead.
+try {
+    adminDb.settings({ ignoreUndefinedProperties: true });
+} catch {
+    // settings() throws if called after any other Firestore operation, which
+    // happens on hot-reload in dev. Safe to ignore — the setting is sticky
+    // once applied.
+}
 export const adminAuth = admin.auth();
 export const adminMessaging = admin.messaging();
 

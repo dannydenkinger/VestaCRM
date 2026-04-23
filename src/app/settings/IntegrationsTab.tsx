@@ -20,6 +20,8 @@ interface IntegrationStatus {
     }
     gmail: { connected: boolean; email: string | null }
     resend: { connected: boolean }
+    ses: { connected: boolean; status: string | null; identity: string | null }
+    zernio: { connected: boolean; accountCount: number }
     anthropic: { connected: boolean }
     serper: { connected: boolean }
     wordpress: { connected: boolean }
@@ -245,6 +247,44 @@ export function IntegrationsTab({
                         { apiKey: key },
                         (actions) => actions.testResendConnection(key)
                     )}
+                />
+
+                <IntegrationRow
+                    icon={<MessageSquare className="h-4.5 w-4.5 text-muted-foreground" />}
+                    name="Zernio (Social Planner)"
+                    description={
+                        status.zernio.connected
+                            ? `${status.zernio.accountCount} social ${status.zernio.accountCount === 1 ? "account" : "accounts"} linked via Zernio.`
+                            : "Schedule posts to Facebook, Instagram, X, LinkedIn, TikTok and more via Zernio."
+                    }
+                    connected={status.zernio.connected}
+                    action={
+                        <a href="/settings/integrations/zernio">
+                            <Button variant="outline" size="sm">
+                                {status.zernio.connected ? "Manage" : "Set up"}
+                                <ExternalLink className="h-3.5 w-3.5 ml-1.5" />
+                            </Button>
+                        </a>
+                    }
+                />
+
+                <IntegrationRow
+                    icon={<Mail className="h-4.5 w-4.5 text-muted-foreground" />}
+                    name="Amazon SES"
+                    description={
+                        status.ses.identity
+                            ? `Marketing email delivery via ${status.ses.identity} (${status.ses.status ?? "PENDING"}).`
+                            : "Marketing email delivery. Verify a sending domain to use email campaigns."
+                    }
+                    connected={status.ses.connected}
+                    action={
+                        <a href="/settings/integrations/ses">
+                            <Button variant="outline" size="sm">
+                                {status.ses.identity ? "Manage" : "Set up"}
+                                <ExternalLink className="h-3.5 w-3.5 ml-1.5" />
+                            </Button>
+                        </a>
+                    }
                 />
             </Section>
 

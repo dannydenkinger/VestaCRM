@@ -1,0 +1,169 @@
+"use server"
+
+import { z } from "zod"
+import { revalidatePath } from "next/cache"
+import { requireAuth } from "@/lib/auth-guard"
+import {
+    createTemplate,
+    deleteTemplate,
+    updateTemplate,
+} from "@/lib/campaigns/templates"
+import {
+    createCampaign,
+    deleteCampaign,
+    sendCampaign,
+    updateCampaign,
+} from "@/lib/campaigns/campaigns"
+
+async function resolveContext() {
+    const session = await requireAuth()
+    const user = session.user as { id: string; workspaceId: string }
+    return { workspaceId: user.workspaceId, userId: user.id }
+}
+
+const saveTemplateSchema = z.object({
+    id: z.string().optional(),
+    name: z.string().min(1).max(120),
+    subject: z.string().max(200).default(""),
+    description: z.string().max(500).optional(),
+    renderedHtml: z.string().max(500_000),
+    topolJson: z.record(z.string(), z.unknown()).nullable().optional(),
+})
+
+export async function saveTemplateAction(input: z.infer<typeof saveTemplateSchema>) {
+    const { workspaceId, userId } = await resolveContext()
+    const parsed = saveTemplateSchema.safeParse(input)
+    if (!parsed.success) {
+        return { success: false, error: parsed.error.issues[0].message }
+    }
+
+    try {
+        if (parsed.data.id) {
+            const updated = await updateTemplate(workspaceId, parsed.data.id, {
+                name: parsed.data.name,
+                subject: parsed.data.subject,
+                description: parsed.data.description,
+                renderedHtml: parsed.data.renderedHtml,
+                topolJson: parsed.data.topolJson ?? null,
+            })
+            revalidatePath("/email-marketing/templates")
+            return { success: true, template: updated }
+        }
+        const created = await createTemplate({
+            workspaceId,
+            name: parsed.data.name,
+            subject: parsed.data.subject,
+            description: parsed.data.description,
+            renderedHtml: parsed.data.renderedHtml,
+            topolJson: parsed.data.topolJson ?? null,
+            createdBy: userId,
+        })
+        revalidatePath("/email-marketing/templates")
+        return { success: true, template: created }
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to save template"
+        return { success: false, error: message }
+    }
+}
+
+export async function deleteTemplateAction(id: string) {
+    const { workspaceId } = await resolveContext()
+    try {
+        await deleteTemplate(workspaceId, id)
+        revalidatePath("/email-marketing/templates")
+        return { success: true }
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to delete template"
+        return { success: false, error: message }
+    }
+}
+
+const saveCampaignSchema = z.object({
+    id: z.string().optional(),
+    name: z.string().min(1).max(120),
+    subject: z.string().min(1).max(200),
+    templateId: z.string().nullable().optional(),
+    renderedHtml: z.string().min(1).max(500_000),
+    audienceType: z.enum(["all_contacts", "by_tag", "by_ids"]),
+    audienceValue: z.array(z.string()).nullable().optional(),
+})
+
+export async function saveCampaignAction(input: z.infer<typeof saveCampaignSchema>) {
+    const { workspaceId, userId } = await resolveContext()
+    const parsed = saveCampaignSchema.safeParse(input)
+    if (!parsed.success) {
+        return { success: false, error: parsed.error.issues[0].message }
+    }
+
+    try {
+        if (parsed.data.id) {
+            const updated = await updateCampaign(workspaceId, parsed.data.id, {
+                name: parsed.data.name,
+                subject: parsed.data.subject,
+                templateId: parsed.data.templateId ?? null,
+                renderedHtml: parsed.data.renderedHtml,
+                audienceType: parsed.data.audienceType,
+                audienceValue: parsed.data.audienceValue ?? null,
+            })
+            revalidatePath("/email-marketing")
+            revalidatePath(`/email-marketing/campaigns/${updated.id}`)
+            return { success: true, campaign: updated }
+        }
+        const created = await createCampaign({
+            workspaceId,
+            name: parsed.data.name,
+            subject: parsed.data.subject,
+            templateId: parsed.data.templateId ?? null,
+            renderedHtml: parsed.data.renderedHtml,
+            audienceType: parsed.data.audienceType,
+            audienceValue: parsed.data.audienceValue ?? null,
+            createdBy: userId,
+        })
+        revalidatePath("/email-marketing")
+        return { success: true, campaign: created }
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to save campaign"
+        return { success: false, error: message }
+    }
+}
+
+export async function deleteCampaignAction(id: string) {
+    const { workspaceId } = await resolveContext()
+    try {
+        await deleteCampaign(workspaceId, id)
+        revalidatePath("/email-marketing")
+        return { success: true }
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to delete campaign"
+        return { success: false, error: message }
+    }
+}
+
+export async function sendCampaignAction(id: string) {
+    const { workspaceId } = await resolveContext()
+    try {
+        const result = await sendCampaign(workspaceId, id)
+        revalidatePath("/email-marketing")
+        revalidatePath(`/email-marketing/campaigns/${id}`)
+        return {
+            success: result.ok,
+            campaignId: id,
+            targeted: result.targeted,
+            sent: result.sent,
+            failed: result.failed,
+            skipped: result.skipped,
+            error: result.error,
+        }
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to send campaign"
+        return {
+            success: false,
+            campaignId: id,
+            targeted: 0,
+            sent: 0,
+            failed: 0,
+            skipped: 0,
+            error: message,
+        }
+    }
+}

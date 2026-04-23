@@ -26,6 +26,8 @@ export const PAGE_PERMISSIONS: PagePermission[] = [
     // Finance & Marketing - hidden for agents
     { path: "/finance", allowedRoles: ["OWNER", "ADMIN"] },
     { path: "/marketing", allowedRoles: ["OWNER", "ADMIN"] },
+    { path: "/email-marketing", allowedRoles: ["OWNER", "ADMIN"] },
+    { path: "/social", allowedRoles: ["OWNER", "ADMIN"] },
 
     // Everything else is visible to all roles
     { path: "/dashboard", allowedRoles: ["OWNER", "ADMIN", "AGENT"] },

@@ -74,6 +74,8 @@ export async function registerUser(data: { name: string; email: string; password
             status: "active",
             memberCount: 1,
             contactCount: 0,
+            email_credit_balance: 0,
+            marketing_tier: "none",
             createdAt: now,
             updatedAt: now,
         })

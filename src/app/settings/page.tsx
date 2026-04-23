@@ -73,6 +73,11 @@ export default async function SettingsPage() {
     const gmailDoc = await adminDb.collection('gmail_integrations').doc(gmailDocId).get()
     const gmailConnected = gmailDoc.exists && !!gmailDoc.data()?.refreshToken
 
+    // Check Zernio (social) connection for this workspace
+    const zernioSnap = await adminDb.collection('social_connections').where('workspaceId', '==', workspaceId).limit(1).get()
+    const zernioConnected = !zernioSnap.empty && !!zernioSnap.docs[0].data()?.zernioAccountId
+    const zernioAccountCount = zernioSnap.empty ? 0 : (zernioSnap.docs[0].data()?.accounts?.length || 0)
+
     const integrationStatus = {
         google: {
             connected: !!intData?.google?.refreshToken,
@@ -81,6 +86,15 @@ export default async function SettingsPage() {
         },
         gmail: { connected: gmailConnected, email: gmailDoc.data()?.email || null },
         resend: { connected: !!intData?.resend?.apiKey },
+        ses: {
+            connected: intData?.ses?.status === "VERIFIED",
+            status: (intData?.ses?.status as string) || null,
+            identity: (intData?.ses?.identity as string) || null,
+        },
+        zernio: {
+            connected: zernioConnected,
+            accountCount: zernioAccountCount as number,
+        },
         anthropic: { connected: !!intData?.anthropic?.apiKey },
         serper: { connected: !!intData?.serper?.apiKey },
         wordpress: { connected: !!intData?.wordpress?.url && !!intData?.wordpress?.appPassword },

@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import NextImage from "next/image"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Users, Calendar, Settings, Hexagon, ChevronLeft, ChevronRight, Megaphone, LayoutGrid, MessageSquare, X, Wallet, LogOut, CheckSquare, FileText } from "lucide-react"
+import { LayoutDashboard, Users, Calendar, Settings, Hexagon, ChevronLeft, ChevronRight, Megaphone, LayoutGrid, MessageSquare, X, Wallet, LogOut, CheckSquare, FileText, Mail, Share2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useSession, signOut } from "next-auth/react"
@@ -30,6 +30,8 @@ const navItems: NavItem[] = [
     ...(FEATURES.FINANCE || FEATURES.MARKETING ? [{ separator: "Finance & Growth" } as NavItem] : []),
     ...(FEATURES.FINANCE ? [{ name: "Finance", href: "/finance", icon: Wallet }] : []),
     ...(FEATURES.MARKETING ? [{ name: "Marketing", href: "/marketing", icon: Megaphone }] : []),
+    { name: "Email Marketing", href: "/email-marketing", icon: Mail },
+    { name: "Social", href: "/social", icon: Share2 },
     { separator: "Admin" },
     { name: "Settings", href: "/settings", icon: Settings },
 ]
@@ -46,7 +48,10 @@ function SidebarInner({ onNavigate, className, mobileCollapsed }: SidebarProps) 
     const { data: session } = useSession()
     const [isCollapsed, setIsCollapsed] = useState(false)
     const [mounted, setMounted] = useState(false)
-    const [realRole, setRealRole] = useState<UserRole>("AGENT")
+    // Default to OWNER so SSR renders the full nav. The real role is fetched
+    // after mount below; role downgrades for non-owner users happen as a
+    // normal client-side re-render (no hydration mismatch).
+    const [realRole, setRealRole] = useState<UserRole>("OWNER")
     const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
     const [displayName, setDisplayName] = useState<string | null>(null)
     const [branding, setBranding] = useState<{ logoUrl?: string; primaryColor?: string; companyName?: string } | null>(null)
@@ -155,7 +160,11 @@ function SidebarInner({ onNavigate, className, mobileCollapsed }: SidebarProps) 
 
             <WorkspaceSwitcher collapsed={showCollapsed} />
 
-            <nav className="flex-1 space-y-1" aria-label="Primary navigation">
+            <nav
+                className="flex-1 space-y-1"
+                aria-label="Primary navigation"
+                suppressHydrationWarning
+            >
                 {getVisibleNavItems(realRole, navItems).map((item, idx) => {
                     if ("separator" in item) {
                         if (showCollapsed) {

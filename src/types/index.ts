@@ -96,3 +96,177 @@ export interface Notification {
     isRead: boolean
     createdAt: string | null
 }
+
+export type MarketingTier = "none" | "basic" | "pro"
+
+export interface WorkspaceDoc {
+    id: string
+    name: string
+    slug: string
+    ownerId: string
+    plan: string
+    status: string
+    memberCount: number
+    contactCount: number
+    email_credit_balance: number
+    marketing_tier: MarketingTier
+    createdAt: Date | string
+    updatedAt: Date | string
+}
+
+export type ActivitySource = "ses" | "zernio" | "system"
+
+export type ActivityType =
+    | "email_sent"
+    | "email_bounced"
+    | "email_opened"
+    | "email_clicked"
+    | "social_post_scheduled"
+    | "social_post_published"
+    | "social_post_failed"
+    | "social_post_canceled"
+
+export interface Activity {
+    id: string
+    workspaceId: string
+    type: ActivityType
+    source: ActivitySource
+    contactId?: string | null
+    subject: string
+    body?: string
+    metadata?: Record<string, unknown>
+    sourceRef?: string
+    createdAt: string
+}
+
+export type EmailLogStatus = "sent" | "bounced" | "complained" | "failed" | "delivered"
+
+export interface EmailLog {
+    id: string
+    workspaceId: string
+    campaignId?: string | null
+    contactId?: string | null
+    to: string
+    fromAddress: string
+    subject: string
+    messageId?: string
+    status: EmailLogStatus
+    errorMessage?: string
+    sentAt: string
+    deliveredAt?: string
+    bouncedAt?: string
+    openedAt?: string
+    clickedAt?: string
+}
+
+export interface EmailTemplate {
+    id: string
+    workspaceId: string
+    name: string
+    description?: string
+    subject: string
+    topolJson: Record<string, unknown> | null
+    renderedHtml: string
+    createdBy: string | null
+    createdAt: string
+    updatedAt: string
+}
+
+export type CampaignAudienceType = "all_contacts" | "by_tag" | "by_ids"
+
+export type CampaignStatus =
+    | "draft"
+    | "scheduled"
+    | "sending"
+    | "sent"
+    | "sent_with_errors"
+    | "failed"
+    | "canceled"
+
+export interface EmailCampaign {
+    id: string
+    workspaceId: string
+    name: string
+    subject: string
+    templateId: string | null
+    renderedHtml: string
+    audienceType: CampaignAudienceType
+    audienceValue: string[] | null
+    status: CampaignStatus
+    scheduledAt?: string
+    stats: {
+        targeted: number
+        sent: number
+        failed: number
+        skipped: number
+    }
+    createdBy: string | null
+    createdAt: string
+    updatedAt: string
+    sentAt?: string
+}
+
+export type SocialPlatform =
+    | "facebook"
+    | "instagram"
+    | "twitter"
+    | "linkedin"
+    | "tiktok"
+    | "pinterest"
+    | "youtube"
+    | "threads"
+
+export interface SocialAccount {
+    platform: SocialPlatform
+    handle: string
+    externalId: string
+    connectedAt: string
+}
+
+export interface SocialConnection {
+    id: string
+    workspaceId: string
+    zernioAccountId: string
+    accounts: SocialAccount[]
+    connectedAt: string
+    updatedAt: string
+}
+
+export type SocialPostStatus =
+    | "draft"
+    | "scheduled"
+    | "publishing"
+    | "published"
+    | "failed"
+    | "canceled"
+
+export interface SocialPost {
+    id: string
+    workspaceId: string
+    zernioPostId: string | null
+    platforms: SocialPlatform[]
+    content: string
+    mediaUrls: string[]
+    scheduledAt: string | null
+    publishedAt: string | null
+    status: SocialPostStatus
+    contactId: string | null
+    errorMessage: string | null
+    zernioAccountId: string | null
+    createdBy: string | null
+    createdAt: string
+    updatedAt: string
+}
+
+export type CreditLedgerReason = "send" | "reserve" | "refund" | "topup" | "grant" | "adjust"
+
+export interface CreditLedgerEntry {
+    id: string
+    workspaceId: string
+    delta: number
+    balanceAfter: number
+    reason: CreditLedgerReason
+    refId?: string
+    note?: string
+    createdAt: string
+}

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import {
     Phone, Mail, MoreVertical, Plus, FileText, MessageSquare,
     Trash2, ListTodo, Briefcase, ExternalLink, FileDown, Upload, Loader2, Pencil, Check,
+    Send, Share2, Eye, MousePointerClick,
 } from "lucide-react"
 import { exportToPDF } from "@/lib/export-pdf"
 import { buildContactProfileHtml } from "@/components/PrintableProfile"
@@ -779,10 +780,12 @@ export function ContactDetailSheet({
                                                 const messages = selectedContact.messages ?? []
                                                 const notes = selectedContact.notes ?? []
                                                 const timelineEvents = selectedContact.timelineEvents ?? []
-                                                const merged: { id: string; type: 'message' | 'note' | 'note_deleted'; createdAt: string; data: any }[] = [
+                                                const activities = (selectedContact as any).activities ?? []
+                                                const merged: { id: string; type: 'message' | 'note' | 'note_deleted' | 'activity'; createdAt: string; data: any }[] = [
                                                     ...messages.map((m: any) => ({ id: `msg-${m.id}`, type: 'message' as const, createdAt: m.createdAt ?? '', data: m })),
                                                     ...notes.map((n: any) => ({ id: `note-${n.id}`, type: 'note' as const, createdAt: n.createdAt ?? '', data: n })),
                                                     ...timelineEvents.filter((e: any) => e.type === 'note_deleted').map((e: any) => ({ id: `ev-${e.id}`, type: 'note_deleted' as const, createdAt: e.createdAt ?? '', data: e })),
+                                                    ...activities.map((a: any) => ({ id: `act-${a.id}`, type: 'activity' as const, createdAt: a.createdAt ?? '', data: a })),
                                                 ]
                                                 merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
@@ -833,6 +836,46 @@ export function ContactDetailSheet({
                                                                     </div>
                                                                     <div className="p-3 rounded-xl border bg-muted/30 text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
                                                                         {note.content}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )
+                                                    }
+                                                    if (item.type === 'activity') {
+                                                        const act = item.data
+                                                        const isEmailEvent = typeof act.type === 'string' && act.type.startsWith('email_')
+                                                        const isSocialEvent = typeof act.type === 'string' && act.type.startsWith('social_')
+                                                        const icon = act.type === 'email_bounced'
+                                                            ? <AlertTriangle className="h-4 w-4 text-red-500" />
+                                                            : act.type === 'email_opened'
+                                                            ? <Eye className="h-4 w-4 text-emerald-500" />
+                                                            : act.type === 'email_clicked'
+                                                            ? <MousePointerClick className="h-4 w-4 text-emerald-600" />
+                                                            : isEmailEvent
+                                                            ? <Send className="h-4 w-4 text-blue-500" />
+                                                            : isSocialEvent
+                                                            ? <Share2 className="h-4 w-4 text-purple-500" />
+                                                            : <FileText className="h-4 w-4 text-primary" />
+                                                        const typeLabel = String(act.type || 'activity').replace(/_/g, ' ')
+                                                        return (
+                                                            <div key={item.id} className="relative flex items-center gap-4">
+                                                                <div className="absolute left-0 mt-1 flex h-10 w-10 items-center justify-center rounded-full border bg-background shadow-sm z-10">
+                                                                    {icon}
+                                                                </div>
+                                                                <div className="ml-12 lg:ml-14 flex-1 space-y-1">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <span className="text-sm font-bold capitalize">
+                                                                            {typeLabel}
+                                                                        </span>
+                                                                        <span className="text-xs text-muted-foreground tabular-nums">
+                                                                            {act.createdAt ? new Date(act.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : ''}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="p-3 rounded-xl border bg-muted/30 text-sm text-muted-foreground leading-relaxed">
+                                                                        <div>{act.subject}</div>
+                                                                        {act.body && (
+                                                                            <div className="mt-1 text-xs opacity-80 whitespace-pre-line">{act.body}</div>
+                                                                        )}
                                                                     </div>
                                                                 </div>
                                                             </div>

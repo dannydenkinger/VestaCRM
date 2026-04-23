@@ -15,6 +15,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "@auth/firebase-adapter": "^2.11.1",
+    "@aws-sdk/client-sesv2": "^3.1033.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -52,7 +53,9 @@
     "recharts": "^3.7.0",
     "remark-gfm": "^4.0.1",
     "resend": "^6.9.3",
+    "sns-validator": "^0.3.5",
     "sonner": "^2.0.7",
+    "stripe": "^22.0.2",
     "tailwind-merge": "^3.5.0",
     "zod": "^4.3.6"
   },

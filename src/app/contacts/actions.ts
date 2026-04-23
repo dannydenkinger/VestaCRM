@@ -802,13 +802,14 @@ export async function getContactDetail(id: string) {
         const data = doc.data() || {};
         
         // Fetch subcollections (timeline = events like note_deleted)
-        const [notesSnap, tasksSnap, messagesSnap, docsSnap, oppsSnap, timelineSnap] = await Promise.all([
+        const [notesSnap, tasksSnap, messagesSnap, docsSnap, oppsSnap, timelineSnap, activitiesSnap] = await Promise.all([
             db.subcollection('contacts', id, 'notes').orderBy('createdAt', 'desc').limit(50).get(),
             db.subcollection('contacts', id, 'tasks').orderBy('dueDate', 'asc').get(),
             db.subcollection('contacts', id, 'messages').orderBy('createdAt', 'desc').limit(100).get(),
             db.subcollection('contacts', id, 'documents').orderBy('createdAt', 'desc').limit(50).get(),
             db.collection('opportunities').where('contactId', '==', id).get(),
             db.subcollection('contacts', id, 'timeline').orderBy('createdAt', 'desc').limit(50).get(),
+            db.collection('activities').where('contactId', '==', id).orderBy('createdAt', 'desc').limit(100).get(),
         ]);
 
         const contact: any = {
@@ -873,6 +874,19 @@ export async function getContactDetail(id: string) {
                     contentPreview: td.contentPreview ?? null,
                     deletedBy: td.deletedByName ?? td.deletedById ?? null,
                     createdAt: tsToISO(td.createdAt),
+                };
+            }),
+            activities: activitiesSnap.docs.map(d => {
+                const ad = d.data();
+                return {
+                    id: d.id,
+                    type: ad.type ?? null,
+                    source: ad.source ?? null,
+                    subject: ad.subject ?? null,
+                    body: ad.body ?? null,
+                    metadata: ad.metadata ?? null,
+                    sourceRef: ad.sourceRef ?? null,
+                    createdAt: tsToISO(ad.createdAt),
                 };
             }),
             tags: data.tags || [],
