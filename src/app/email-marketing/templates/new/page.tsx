@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic"
 
 export default async function NewTemplatePage() {
     const session = await requireAuth()
-    const user = session.user as { id: string; workspaceId: string }
+    const user = session.user as { workspaceId: string }
 
     const wsDoc = await adminDb.collection("workspaces").doc(user.workspaceId).get()
     const workspaceName = (wsDoc.data()?.name as string) || undefined
@@ -17,12 +17,11 @@ export default async function NewTemplatePage() {
             <div>
                 <h1 className="text-2xl font-semibold">New template</h1>
                 <p className="text-sm text-muted-foreground mt-1">
-                    Pick a starter, or design wherever (Claude, Figma, Stripo) and import the HTML.
+                    Pick a starter, or drag + drop blocks below. Prefer to design elsewhere? Click
+                    Import .html to seed the editor from a file.
                 </p>
             </div>
             <TemplateEditor
-                topolApiKey={process.env.NEXT_PUBLIC_TOPOL_API_KEY || null}
-                topolUserId={`ws-${user.id}`}
                 starterTemplates={STARTER_TEMPLATES}
                 workspaceName={workspaceName}
             />

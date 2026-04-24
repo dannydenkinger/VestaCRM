@@ -13,7 +13,7 @@ interface PageProps {
 export default async function EditTemplatePage({ params }: PageProps) {
     const { id } = await params
     const session = await requireAuth()
-    const user = session.user as { id: string; workspaceId: string }
+    const user = session.user as { workspaceId: string }
 
     const template = await getTemplate(user.workspaceId, id)
     if (!template) notFound()
@@ -36,8 +36,6 @@ export default async function EditTemplatePage({ params }: PageProps) {
                     renderedHtml: template.renderedHtml,
                     topolJson: template.topolJson,
                 }}
-                topolApiKey={process.env.NEXT_PUBLIC_TOPOL_API_KEY || null}
-                topolUserId={`ws-${user.id}`}
                 workspaceName={workspaceName}
             />
         </div>
