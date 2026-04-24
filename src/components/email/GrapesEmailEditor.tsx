@@ -7,6 +7,7 @@ import type { Editor, Plugin, ProjectData } from "grapesjs"
 import newsletterPreset from "grapesjs-preset-newsletter"
 import "grapesjs/dist/css/grapes.min.css"
 import "./grapes/grapes-theme.css"
+import { vestaBlocksPlugin } from "./grapes/blocks"
 
 import { TopBar } from "./grapes/TopBar"
 import { BlocksPanel } from "./grapes/BlocksPanel"
@@ -69,7 +70,7 @@ export function GrapesEmailEditor({
         <div className="grapes-editor-root border rounded-md overflow-hidden bg-background">
             <GjsEditor
                 grapesjs={grapesjs}
-                plugins={[newsletterPreset as Plugin]}
+                plugins={[newsletterPreset as Plugin, vestaBlocksPlugin]}
                 options={{
                     height: "760px",
                     storageManager: false,
