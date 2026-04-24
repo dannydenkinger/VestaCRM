@@ -1,11 +1,15 @@
 "use client"
 
 import { useRef } from "react"
-import GjsEditor from "@grapesjs/react"
+import GjsEditor, { Canvas } from "@grapesjs/react"
 import grapesjs from "grapesjs"
 import type { Editor, Plugin, ProjectData } from "grapesjs"
 import newsletterPreset from "grapesjs-preset-newsletter"
 import "grapesjs/dist/css/grapes.min.css"
+
+import { TopBar } from "./grapes/TopBar"
+import { BlocksPanel } from "./grapes/BlocksPanel"
+import { RightPanel } from "./grapes/RightPanel"
 
 export interface GrapesEmailEditorProps {
     /** Initial project JSON from a previously saved design (takes priority over initialHtml). */
@@ -22,11 +26,8 @@ export interface GrapesEmailEditorProps {
 }
 
 /**
- * GrapesJS-based drag-and-drop email editor. This is Phase 1 — default
- * UI from the newsletter preset. Phase 2 replaces the panels with our own.
- *
- * Heavy bundle (~300KB): the parent should lazy-import this component via
- * next/dynamic so /dashboard etc. don't pay the cost.
+ * GrapesJS-based drag-and-drop email editor with a shadcn-themed skin.
+ * Heavy bundle (~300 KB) — parent should lazy-import via next/dynamic.
  */
 export function GrapesEmailEditor({
     initialProject,
@@ -39,7 +40,6 @@ export function GrapesEmailEditor({
     const handleEditor = (editor: Editor) => {
         editorRef.current = editor
 
-        // Seed content: prefer stored project JSON; fall back to HTML.
         if (initialProject) {
             try {
                 editor.loadProjectData(initialProject)
@@ -65,20 +65,38 @@ export function GrapesEmailEditor({
     }
 
     return (
-        <div className="grapes-editor-root" style={{ minHeight: 760 }}>
+        <div className="grapes-editor-root border rounded-md overflow-hidden bg-background">
             <GjsEditor
                 grapesjs={grapesjs}
                 plugins={[newsletterPreset as Plugin]}
                 options={{
                     height: "760px",
-                    storageManager: false, // we handle persistence
-                    // Disable the default top panels & leave room for our custom ones later
+                    storageManager: false,
                     panels: { defaults: [] },
                 }}
                 onEditor={handleEditor}
                 onUpdate={handleUpdate}
-                waitReady={<div className="py-12 text-sm text-muted-foreground text-center">Loading editor…</div>}
-            />
+                waitReady={
+                    <div className="py-12 text-sm text-muted-foreground text-center">
+                        Loading editor…
+                    </div>
+                }
+            >
+                <div className="flex flex-col" style={{ height: "760px" }}>
+                    <TopBar />
+                    <div className="flex flex-1 min-h-0">
+                        <div className="w-56 shrink-0 border-r bg-card">
+                            <BlocksPanel />
+                        </div>
+                        <div className="flex-1 min-w-0 relative">
+                            <Canvas className="h-full" />
+                        </div>
+                        <div className="w-72 shrink-0 border-l bg-card">
+                            <RightPanel />
+                        </div>
+                    </div>
+                </div>
+            </GjsEditor>
         </div>
     )
 }
