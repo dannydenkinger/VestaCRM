@@ -70,7 +70,7 @@ export function injectOpenPixel({ html, emailLogId }: InjectArgs): string {
     if (!appUrl) return html
     if (!emailLogId) return html
 
-    const pixelUrl = `${appUrl}/api/track/open/${encodeURIComponent(emailLogId)}.png`
+    const pixelUrl = `${appUrl}/api/track/ses/open/${encodeURIComponent(emailLogId)}.png`
     if (html.includes(pixelUrl)) return html
 
     const pixel = `<img src="${pixelUrl}" alt="" width="1" height="1" style="display:block;width:1px;height:1px;border:0;outline:0;" />`
@@ -99,10 +99,10 @@ export function rewriteLinks({ html, emailLogId }: InjectArgs): string {
             const trimmed = url.trim()
             if (!trimmed) return full
             if (/^(mailto:|tel:|sms:|javascript:|#)/i.test(trimmed)) return full
-            if (trimmed.startsWith(`${appUrl}/api/track/click/`)) return full
+            if (trimmed.startsWith(`${appUrl}/api/track/ses/click/`)) return full
 
             const sig = signClickUrl(trimmed)
-            const wrapped = `${appUrl}/api/track/click/${encodeURIComponent(emailLogId)}?url=${encodeURIComponent(trimmed)}&t=${sig}`
+            const wrapped = `${appUrl}/api/track/ses/click/${encodeURIComponent(emailLogId)}?url=${encodeURIComponent(trimmed)}&t=${sig}`
             return `<a${before} href=${quote}${wrapped}${quote}`
         },
     )
