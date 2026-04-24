@@ -187,6 +187,21 @@ export async function deleteCampaignAction(id: string) {
     }
 }
 
+export async function cancelScheduledCampaignAction(id: string) {
+    const { workspaceId } = await resolveContext()
+    try {
+        const updated = await updateCampaign(workspaceId, id, {
+            scheduledAt: null,
+        })
+        revalidatePath("/email-marketing")
+        revalidatePath(`/email-marketing/campaigns/${id}`)
+        return { success: true, campaign: updated }
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to cancel schedule"
+        return { success: false, error: message }
+    }
+}
+
 export async function sendCampaignAction(id: string) {
     const { workspaceId } = await resolveContext()
     try {

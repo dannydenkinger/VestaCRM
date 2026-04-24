@@ -127,6 +127,11 @@ export default async function EmailMarketingPage() {
                                                         <div className="text-red-600">{c.stats.failed} failed</div>
                                                     )}
                                                 </>
+                                            ) : c.status === "scheduled" && c.scheduledAt ? (
+                                                <>
+                                                    <div className="text-blue-600">Fires at</div>
+                                                    <div>{new Date(c.scheduledAt).toLocaleString()}</div>
+                                                </>
                                             ) : (
                                                 <div>{new Date(c.createdAt).toLocaleDateString()}</div>
                                             )}

@@ -40,8 +40,8 @@ export default async function TemplatesListPage() {
                         <FileText className="w-10 h-10 mx-auto opacity-40" />
                         <div className="font-medium">No templates yet</div>
                         <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                            Build once, reuse across campaigns. The drag-and-drop editor is powered
-                            by Topol.io.
+                            Build once, reuse across campaigns. Drag blocks onto the canvas, or
+                            paste HTML from anywhere.
                         </p>
                         <Link href="/email-marketing/templates/new">
                             <Button>
