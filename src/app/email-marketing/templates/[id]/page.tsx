@@ -22,7 +22,7 @@ export default async function EditTemplatePage({ params }: PageProps) {
     const workspaceName = (wsDoc.data()?.name as string) || undefined
 
     return (
-        <div className="container mx-auto max-w-6xl py-10 px-4 space-y-6">
+        <div className="w-full py-10 px-6 space-y-6">
             <div>
                 <h1 className="text-2xl font-semibold">Edit template</h1>
                 <p className="text-sm text-muted-foreground mt-1 truncate">{template.name}</p>

@@ -65,12 +65,12 @@ export function GrapesEmailEditor({
     }
 
     return (
-        <div className="grapes-editor-root" style={{ minHeight: 640 }}>
+        <div className="grapes-editor-root" style={{ minHeight: 760 }}>
             <GjsEditor
                 grapesjs={grapesjs}
                 plugins={[newsletterPreset as Plugin]}
                 options={{
-                    height: "640px",
+                    height: "760px",
                     storageManager: false, // we handle persistence
                     // Disable the default top panels & leave room for our custom ones later
                     panels: { defaults: [] },
