@@ -126,6 +126,7 @@ const saveCampaignSchema = z.object({
     renderedHtml: z.string().min(1).max(500_000),
     audienceType: z.enum(["all_contacts", "by_tag", "by_ids"]),
     audienceValue: z.array(z.string()).nullable().optional(),
+    scheduledAt: z.string().datetime().nullable().optional(),
 })
 
 export async function saveCampaignAction(input: z.infer<typeof saveCampaignSchema>) {
@@ -134,6 +135,8 @@ export async function saveCampaignAction(input: z.infer<typeof saveCampaignSchem
     if (!parsed.success) {
         return { success: false, error: parsed.error.issues[0].message }
     }
+
+    const scheduledAtDate = parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : null
 
     try {
         if (parsed.data.id) {
@@ -144,6 +147,7 @@ export async function saveCampaignAction(input: z.infer<typeof saveCampaignSchem
                 renderedHtml: parsed.data.renderedHtml,
                 audienceType: parsed.data.audienceType,
                 audienceValue: parsed.data.audienceValue ?? null,
+                scheduledAt: scheduledAtDate,
             })
             revalidatePath("/email-marketing")
             revalidatePath(`/email-marketing/campaigns/${updated.id}`)
@@ -158,6 +162,7 @@ export async function saveCampaignAction(input: z.infer<typeof saveCampaignSchem
             audienceType: parsed.data.audienceType,
             audienceValue: parsed.data.audienceValue ?? null,
             createdBy: userId,
+            scheduledAt: scheduledAtDate,
         })
         revalidatePath("/email-marketing")
         return { success: true, campaign: created }

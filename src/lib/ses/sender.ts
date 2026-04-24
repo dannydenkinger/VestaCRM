@@ -12,6 +12,7 @@ import {
     type TokenWorkspace,
 } from "@/lib/templating/tokens"
 import { inlineCss } from "@/lib/email/inline-css"
+import { injectOpenPixel, rewriteLinks } from "@/lib/email/tracking"
 import type { EmailLogStatus } from "@/types"
 
 export interface SendEmailInput {
@@ -154,9 +155,6 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
         text = text ? renderTokens(text, ctx) : text
     }
 
-    // Inline CSS so the email renders correctly in Gmail/Outlook/etc.
-    html = inlineCss(html)
-
     const identity = await getIdentity(workspaceId)
     if (!identity) throw new SesIdentityNotReadyError(workspaceId, "NOT_CONFIGURED")
     if (identity.status !== "VERIFIED") {
@@ -168,6 +166,14 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
 
     const emailLogRef = adminDb.collection("email_logs").doc()
     const emailLogId = emailLogRef.id
+
+    // Click tracking: rewrite anchor hrefs through our tracker (no-ops without
+    // NEXT_PUBLIC_APP_URL + TRACKING_SECRET).
+    html = rewriteLinks({ html, emailLogId })
+    // Open tracking: inject 1×1 pixel just before </body>.
+    html = injectOpenPixel({ html, emailLogId })
+    // Inline CSS so the email renders correctly in Gmail/Outlook/etc.
+    html = inlineCss(html)
 
     let balanceAfter = 0
     try {

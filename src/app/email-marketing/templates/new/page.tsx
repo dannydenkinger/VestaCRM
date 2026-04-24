@@ -1,4 +1,5 @@
 import { requireAuth } from "@/lib/auth-guard"
+import { adminDb } from "@/lib/firebase-admin"
 import { STARTER_TEMPLATES } from "@/lib/campaigns/starter-templates"
 import { TemplateEditor } from "../TemplateEditor"
 
@@ -6,7 +7,10 @@ export const dynamic = "force-dynamic"
 
 export default async function NewTemplatePage() {
     const session = await requireAuth()
-    const userId = (session.user as { id: string }).id
+    const user = session.user as { id: string; workspaceId: string }
+
+    const wsDoc = await adminDb.collection("workspaces").doc(user.workspaceId).get()
+    const workspaceName = (wsDoc.data()?.name as string) || undefined
 
     return (
         <div className="container mx-auto max-w-6xl py-10 px-4 space-y-6">
@@ -18,8 +22,9 @@ export default async function NewTemplatePage() {
             </div>
             <TemplateEditor
                 topolApiKey={process.env.NEXT_PUBLIC_TOPOL_API_KEY || null}
-                topolUserId={`ws-${userId}`}
+                topolUserId={`ws-${user.id}`}
                 starterTemplates={STARTER_TEMPLATES}
+                workspaceName={workspaceName}
             />
         </div>
     )

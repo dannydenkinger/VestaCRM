@@ -64,8 +64,22 @@ export default async function CampaignDetailPage({ params }: PageProps) {
             messageId: (data.messageId as string) ?? null,
             errorMessage: (data.errorMessage as string) ?? null,
             sentAt: data.sentAt?.toDate?.()?.toISOString?.() ?? null,
+            openedAt: data.openedAt?.toDate?.()?.toISOString?.() ?? null,
+            clickedAt: data.clickedAt?.toDate?.()?.toISOString?.() ?? null,
+            bouncedAt: data.bouncedAt?.toDate?.()?.toISOString?.() ?? null,
         }
     })
+
+    // Aggregate engagement: open / click / bounce / delivered counts. Only
+    // counts logs from this batch (max 50 most recent). For very large
+    // campaigns the campaign.stats.* counters are the source of truth, but
+    // open/click happens after stats are written, so we recompute here.
+    const opened = logs.filter((l) => !!l.openedAt).length
+    const clicked = logs.filter((l) => !!l.clickedAt).length
+    const bounced = logs.filter((l) => !!l.bouncedAt || l.status === "bounced").length
+
+    const sent = campaign.stats.sent || 0
+    const pct = (n: number) => (sent > 0 ? Math.round((n / sent) * 100) : 0)
 
     return (
         <div className="container mx-auto max-w-5xl py-10 px-4 space-y-6">
@@ -98,6 +112,29 @@ export default async function CampaignDetailPage({ params }: PageProps) {
                 <StatCard label="Failed" value={campaign.stats.failed} tone="danger" />
                 <StatCard label="Credits left" value={balance} />
             </div>
+
+            {sent > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <RateCard
+                        label="Opens"
+                        value={opened}
+                        rate={pct(opened)}
+                        tone="success"
+                    />
+                    <RateCard
+                        label="Clicks"
+                        value={clicked}
+                        rate={pct(clicked)}
+                        tone="success"
+                    />
+                    <RateCard
+                        label="Bounces"
+                        value={bounced}
+                        rate={pct(bounced)}
+                        tone="danger"
+                    />
+                </div>
+            )}
 
             <Card>
                 <CardHeader>
@@ -142,14 +179,30 @@ export default async function CampaignDetailPage({ params }: PageProps) {
                                 <div className="flex items-center gap-2 min-w-0">
                                     <span
                                         className={`inline-block w-2 h-2 rounded-full shrink-0 ${
-                                            log.status === "sent"
-                                                ? "bg-emerald-500"
+                                            log.status === "bounced"
+                                                ? "bg-red-500"
                                                 : log.status === "failed"
                                                   ? "bg-red-500"
-                                                  : "bg-muted-foreground"
+                                                  : log.status === "complained"
+                                                    ? "bg-orange-500"
+                                                    : log.clickedAt
+                                                      ? "bg-emerald-600"
+                                                      : log.openedAt
+                                                        ? "bg-emerald-400"
+                                                        : "bg-muted-foreground"
                                         }`}
                                     />
                                     <span className="truncate">{log.to}</span>
+                                    {log.openedAt && (
+                                        <span className="text-[10px] uppercase text-emerald-600 font-medium tracking-wider shrink-0">
+                                            opened
+                                        </span>
+                                    )}
+                                    {log.clickedAt && (
+                                        <span className="text-[10px] uppercase text-emerald-700 font-medium tracking-wider shrink-0">
+                                            clicked
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="text-xs text-muted-foreground tabular-nums ml-4 shrink-0">
                                     {log.sentAt ? new Date(log.sentAt).toLocaleString() : "—"}
@@ -184,6 +237,40 @@ function StatCard({
                 <div className="text-xs text-muted-foreground">{label}</div>
                 <div className={`text-2xl font-semibold tabular-nums ${color}`}>
                     {value.toLocaleString()}
+                </div>
+            </CardContent>
+        </Card>
+    )
+}
+
+function RateCard({
+    label,
+    value,
+    rate,
+    tone,
+}: {
+    label: string
+    value: number
+    rate: number
+    tone?: "success" | "danger"
+}) {
+    const color =
+        tone === "success"
+            ? "text-emerald-600"
+            : tone === "danger"
+              ? "text-red-600"
+              : ""
+    return (
+        <Card>
+            <CardContent className="py-4">
+                <div className="text-xs text-muted-foreground">{label}</div>
+                <div className="flex items-baseline gap-2 mt-0.5">
+                    <span className={`text-2xl font-semibold tabular-nums ${color}`}>
+                        {rate}%
+                    </span>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                        {value.toLocaleString()}
+                    </span>
                 </div>
             </CardContent>
         </Card>

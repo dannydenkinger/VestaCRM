@@ -74,6 +74,7 @@ export interface CreateCampaignInput {
     audienceType: CampaignAudienceType
     audienceValue?: string[] | null
     createdBy?: string | null
+    scheduledAt?: Date | null
 }
 
 export async function createCampaign(input: CreateCampaignInput): Promise<EmailCampaign> {
@@ -83,6 +84,7 @@ export async function createCampaign(input: CreateCampaignInput): Promise<EmailC
     if (!input.renderedHtml) throw new Error("renderedHtml required")
 
     const now = new Date()
+    const status: CampaignStatus = input.scheduledAt ? "scheduled" : "draft"
     const ref = await adminDb.collection("email_campaigns").add({
         workspaceId: input.workspaceId,
         name: input.name,
@@ -91,7 +93,8 @@ export async function createCampaign(input: CreateCampaignInput): Promise<EmailC
         renderedHtml: input.renderedHtml,
         audienceType: input.audienceType,
         audienceValue: input.audienceValue ?? null,
-        status: "draft" as CampaignStatus,
+        status,
+        scheduledAt: input.scheduledAt ?? null,
         stats: { targeted: 0, sent: 0, failed: 0, skipped: 0 },
         createdBy: input.createdBy ?? null,
         createdAt: now,
@@ -108,6 +111,7 @@ export interface UpdateCampaignInput {
     renderedHtml?: string
     audienceType?: CampaignAudienceType
     audienceValue?: string[] | null
+    scheduledAt?: Date | null
 }
 
 export async function updateCampaign(
@@ -120,7 +124,7 @@ export async function updateCampaign(
     if (!doc.exists) throw new Error("Campaign not found")
     const existing = doc.data()!
     if (existing.workspaceId !== workspaceId) throw new Error("Forbidden")
-    if (existing.status !== "draft") {
+    if (existing.status !== "draft" && existing.status !== "scheduled") {
         throw new Error(`Cannot edit campaign in status '${existing.status}'`)
     }
 
@@ -131,6 +135,11 @@ export async function updateCampaign(
     if (patch.renderedHtml !== undefined) updates.renderedHtml = patch.renderedHtml
     if (patch.audienceType !== undefined) updates.audienceType = patch.audienceType
     if (patch.audienceValue !== undefined) updates.audienceValue = patch.audienceValue
+    if (patch.scheduledAt !== undefined) {
+        updates.scheduledAt = patch.scheduledAt
+        // Status follows the schedule: presence of a date = scheduled, absence = draft
+        updates.status = patch.scheduledAt ? "scheduled" : "draft"
+    }
 
     await ref.update(updates)
     const updated = await ref.get()

@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
 import { Loader2, Save, AlertTriangle, Upload, Send } from "lucide-react"
 import { TokenInserter, insertAtCursor } from "@/components/email/TokenInserter"
+import { buildContactContext, renderTokens } from "@/lib/templating/tokens"
 import { saveTemplateAction, sendTemplateTestAction } from "../actions"
 
 interface StarterOption {
@@ -32,6 +33,7 @@ interface Props {
     topolApiKey: string | null
     topolUserId: string
     starterTemplates?: StarterOption[]
+    workspaceName?: string
 }
 
 declare global {
@@ -47,7 +49,13 @@ declare global {
 
 const TOPOL_SCRIPT = "https://plugin.topol.io/main.min.js"
 
-export function TemplateEditor({ initial, topolApiKey, topolUserId, starterTemplates }: Props) {
+export function TemplateEditor({
+    initial,
+    topolApiKey,
+    topolUserId,
+    starterTemplates,
+    workspaceName,
+}: Props) {
     const router = useRouter()
     const [isPending, startTransition] = useTransition()
     const [templateId, setTemplateId] = useState<string | null>(initial?.id ?? null)
@@ -66,6 +74,17 @@ export function TemplateEditor({ initial, topolApiKey, topolUserId, starterTempl
     const fileInputRef = useRef<HTMLInputElement | null>(null)
     const [testTo, setTestTo] = useState("")
     const [isSendingTest, setIsSendingTest] = useState(false)
+
+    // Preview-as-recipient: render personalization tokens against this
+    // sample contact so users can see what tokens look like resolved.
+    const [previewName, setPreviewName] = useState("Jane Doe")
+    const [previewEmail, setPreviewEmail] = useState("jane@example.com")
+    const previewContext = buildContactContext(
+        { name: previewName, email: previewEmail, phone: "+1 555 555 0100" },
+        { name: workspaceName ?? "Your Company" },
+    )
+    const previewSubject = renderTokens(subject, previewContext)
+    const previewHtml = renderTokens(html, previewContext)
 
     const insertIntoSubject = (token: string) => {
         const { value, cursor } = insertAtCursor(subjectInputRef.current, token, subject)
@@ -393,11 +412,43 @@ export function TemplateEditor({ initial, topolApiKey, topolUserId, starterTempl
                 <CardHeader>
                     <CardTitle>Preview</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 p-3 bg-muted/30 rounded-md">
+                        <div className="space-y-1">
+                            <Label htmlFor="previewName" className="text-xs">
+                                Preview as (name)
+                            </Label>
+                            <Input
+                                id="previewName"
+                                value={previewName}
+                                onChange={(e) => setPreviewName(e.target.value)}
+                                placeholder="Jane Doe"
+                                disabled={isPending}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <Label htmlFor="previewEmail" className="text-xs">
+                                Preview as (email)
+                            </Label>
+                            <Input
+                                id="previewEmail"
+                                value={previewEmail}
+                                onChange={(e) => setPreviewEmail(e.target.value)}
+                                placeholder="jane@example.com"
+                                disabled={isPending}
+                            />
+                        </div>
+                    </div>
+                    {subject && (
+                        <div className="text-sm">
+                            <span className="text-muted-foreground">Subject: </span>
+                            <span className="font-medium">{previewSubject}</span>
+                        </div>
+                    )}
                     <div className="border rounded-md overflow-hidden bg-white">
                         <iframe
                             title="Preview"
-                            srcDoc={html || "<p style='padding:2rem;color:#999'>(no content yet)</p>"}
+                            srcDoc={previewHtml || "<p style='padding:2rem;color:#999'>(no content yet)</p>"}
                             className="w-full h-[400px]"
                             sandbox=""
                         />

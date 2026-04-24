@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation"
 import { requireAuth } from "@/lib/auth-guard"
+import { adminDb } from "@/lib/firebase-admin"
 import { getTemplate } from "@/lib/campaigns/templates"
 import { TemplateEditor } from "../TemplateEditor"
 
@@ -16,6 +17,9 @@ export default async function EditTemplatePage({ params }: PageProps) {
 
     const template = await getTemplate(user.workspaceId, id)
     if (!template) notFound()
+
+    const wsDoc = await adminDb.collection("workspaces").doc(user.workspaceId).get()
+    const workspaceName = (wsDoc.data()?.name as string) || undefined
 
     return (
         <div className="container mx-auto max-w-6xl py-10 px-4 space-y-6">
@@ -34,6 +38,7 @@ export default async function EditTemplatePage({ params }: PageProps) {
                 }}
                 topolApiKey={process.env.NEXT_PUBLIC_TOPOL_API_KEY || null}
                 topolUserId={`ws-${user.id}`}
+                workspaceName={workspaceName}
             />
         </div>
     )

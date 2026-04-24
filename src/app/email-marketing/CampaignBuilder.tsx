@@ -16,7 +16,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { toast } from "sonner"
-import { Loader2, Send, Save, AlertTriangle } from "lucide-react"
+import { Loader2, Send, Save, AlertTriangle, Clock } from "lucide-react"
 import { saveCampaignAction, sendCampaignAction } from "./actions"
 
 interface TemplateSummary {
@@ -37,6 +37,7 @@ interface Props {
         renderedHtml: string
         audienceType: AudienceType
         audienceValue: string[] | null
+        scheduledAt?: string | null
     }
     templates: TemplateSummary[]
     balance: number
@@ -66,6 +67,16 @@ export function CampaignBuilder({
     const [audienceValue, setAudienceValue] = useState(
         (initialCampaign?.audienceValue ?? []).join(", "),
     )
+    const [sendMode, setSendMode] = useState<"now" | "schedule">(
+        initialCampaign?.scheduledAt ? "schedule" : "now",
+    )
+    const [scheduledAtLocal, setScheduledAtLocal] = useState<string>(() => {
+        if (!initialCampaign?.scheduledAt) return ""
+        // Convert ISO -> local datetime-local format (YYYY-MM-DDTHH:mm)
+        const d = new Date(initialCampaign.scheduledAt)
+        const pad = (n: number) => String(n).padStart(2, "0")
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    })
 
     const subjectInputRef = useRef<HTMLInputElement | null>(null)
     const htmlTextareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -114,7 +125,9 @@ export function CampaignBuilder({
         .map((s) => s.trim())
         .filter(Boolean)
 
-    const save = async (): Promise<string | null> => {
+    const save = async (
+        opts: { scheduledAt?: string | null } = {},
+    ): Promise<string | null> => {
         if (!canSave) {
             toast.error("Name, subject, and HTML are required")
             return null
@@ -127,6 +140,7 @@ export function CampaignBuilder({
             renderedHtml: html,
             audienceType,
             audienceValue: audienceType === "by_tag" ? audienceValueArr : null,
+            scheduledAt: opts.scheduledAt ?? null,
         })
         if (!result.success || !result.campaign) {
             toast.error(result.error || "Failed to save campaign")
@@ -155,7 +169,7 @@ export function CampaignBuilder({
             return
         }
         startTransition(async () => {
-            const id = await save()
+            const id = await save({ scheduledAt: null })
             if (!id) return
             const result = await sendCampaignAction(id)
             if (!result.success) {
@@ -165,6 +179,32 @@ export function CampaignBuilder({
             toast.success(
                 `Campaign sent. ${result.sent ?? 0} delivered, ${result.failed ?? 0} failed.`,
             )
+            router.push(`/email-marketing/campaigns/${id}`)
+        })
+    }
+
+    const handleSchedule = () => {
+        if (!sesReady) {
+            toast.error("Verify a SES domain before scheduling")
+            return
+        }
+        if (!scheduledAtLocal) {
+            toast.error("Pick a date and time")
+            return
+        }
+        const when = new Date(scheduledAtLocal)
+        if (isNaN(when.getTime())) {
+            toast.error("Invalid date")
+            return
+        }
+        if (when.getTime() < Date.now() + 60_000) {
+            toast.error("Pick a time at least a minute in the future")
+            return
+        }
+        startTransition(async () => {
+            const id = await save({ scheduledAt: when.toISOString() })
+            if (!id) return
+            toast.success(`Scheduled for ${when.toLocaleString()}`)
             router.push(`/email-marketing/campaigns/${id}`)
         })
     }
@@ -329,6 +369,51 @@ export function CampaignBuilder({
                                 </span>
                             </div>
                         )}
+
+                        <div className="space-y-2">
+                            <Label>When to send</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setSendMode("now")}
+                                    disabled={isPending}
+                                    className={`text-left p-2.5 border rounded-md text-xs transition-colors ${
+                                        sendMode === "now"
+                                            ? "border-primary bg-primary/5"
+                                            : "hover:bg-muted/50"
+                                    }`}
+                                >
+                                    <div className="font-medium flex items-center gap-1.5">
+                                        <Send className="w-3.5 h-3.5" />
+                                        Send now
+                                    </div>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setSendMode("schedule")}
+                                    disabled={isPending}
+                                    className={`text-left p-2.5 border rounded-md text-xs transition-colors ${
+                                        sendMode === "schedule"
+                                            ? "border-primary bg-primary/5"
+                                            : "hover:bg-muted/50"
+                                    }`}
+                                >
+                                    <div className="font-medium flex items-center gap-1.5">
+                                        <Clock className="w-3.5 h-3.5" />
+                                        Schedule
+                                    </div>
+                                </button>
+                            </div>
+                            {sendMode === "schedule" && (
+                                <Input
+                                    type="datetime-local"
+                                    value={scheduledAtLocal}
+                                    onChange={(e) => setScheduledAtLocal(e.target.value)}
+                                    disabled={isPending}
+                                />
+                            )}
+                        </div>
+
                         <Button
                             onClick={handleSaveDraft}
                             disabled={isPending || !canSave}
@@ -342,18 +427,33 @@ export function CampaignBuilder({
                             )}
                             Save draft
                         </Button>
-                        <Button
-                            onClick={handleSendNow}
-                            disabled={isPending || !canSave || !sesReady}
-                            className="w-full"
-                        >
-                            {isPending ? (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            ) : (
-                                <Send className="w-4 h-4 mr-2" />
-                            )}
-                            Save and send now
-                        </Button>
+                        {sendMode === "now" ? (
+                            <Button
+                                onClick={handleSendNow}
+                                disabled={isPending || !canSave || !sesReady}
+                                className="w-full"
+                            >
+                                {isPending ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                    <Send className="w-4 h-4 mr-2" />
+                                )}
+                                Save and send now
+                            </Button>
+                        ) : (
+                            <Button
+                                onClick={handleSchedule}
+                                disabled={isPending || !canSave || !sesReady || !scheduledAtLocal}
+                                className="w-full"
+                            >
+                                {isPending ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                    <Clock className="w-4 h-4 mr-2" />
+                                )}
+                                Schedule send
+                            </Button>
+                        )}
                     </CardContent>
                 </Card>
             </div>
