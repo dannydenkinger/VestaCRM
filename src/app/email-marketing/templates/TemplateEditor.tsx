@@ -8,8 +8,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
-import { Loader2, Save, AlertTriangle } from "lucide-react"
-import { saveTemplateAction } from "../actions"
+import { Loader2, Save, AlertTriangle, Upload, Send } from "lucide-react"
+import { TokenInserter, insertAtCursor } from "@/components/email/TokenInserter"
+import { saveTemplateAction, sendTemplateTestAction } from "../actions"
+
+interface StarterOption {
+    slug: string
+    name: string
+    subject: string
+    description: string
+    renderedHtml: string
+}
 
 interface Props {
     initial?: {
@@ -22,6 +31,7 @@ interface Props {
     }
     topolApiKey: string | null
     topolUserId: string
+    starterTemplates?: StarterOption[]
 }
 
 declare global {
@@ -37,7 +47,7 @@ declare global {
 
 const TOPOL_SCRIPT = "https://plugin.topol.io/main.min.js"
 
-export function TemplateEditor({ initial, topolApiKey, topolUserId }: Props) {
+export function TemplateEditor({ initial, topolApiKey, topolUserId, starterTemplates }: Props) {
     const router = useRouter()
     const [isPending, startTransition] = useTransition()
     const [templateId, setTemplateId] = useState<string | null>(initial?.id ?? null)
@@ -50,6 +60,99 @@ export function TemplateEditor({ initial, topolApiKey, topolUserId }: Props) {
     )
     const [topolReady, setTopolReady] = useState(false)
     const initializedRef = useRef(false)
+
+    const subjectInputRef = useRef<HTMLInputElement | null>(null)
+    const htmlTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+    const fileInputRef = useRef<HTMLInputElement | null>(null)
+    const [testTo, setTestTo] = useState("")
+    const [isSendingTest, setIsSendingTest] = useState(false)
+
+    const insertIntoSubject = (token: string) => {
+        const { value, cursor } = insertAtCursor(subjectInputRef.current, token, subject)
+        setSubject(value)
+        requestAnimationFrame(() => {
+            const el = subjectInputRef.current
+            if (el) {
+                el.focus()
+                el.setSelectionRange(cursor, cursor)
+            }
+        })
+    }
+
+    const insertIntoHtml = (token: string) => {
+        const { value, cursor } = insertAtCursor(htmlTextareaRef.current, token, html)
+        setHtml(value)
+        requestAnimationFrame(() => {
+            const el = htmlTextareaRef.current
+            if (el) {
+                el.focus()
+                el.setSelectionRange(cursor, cursor)
+            }
+        })
+    }
+
+    const handleHtmlFileChosen = async (file: File) => {
+        if (!file) return
+        const lower = file.name.toLowerCase()
+        if (!lower.endsWith(".html") && !lower.endsWith(".htm") && !file.type.includes("html")) {
+            toast.error("Pick an .html file (the file you got from Claude / Figma export / etc.)")
+            return
+        }
+        if (file.size > 1_000_000) {
+            toast.error("HTML file is too large (max 1 MB)")
+            return
+        }
+        try {
+            const text = await file.text()
+            setHtml(text)
+            toast.success(`Imported ${file.name}`)
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Failed to read file")
+        }
+    }
+
+    const handleUseStarter = (s: StarterOption) => {
+        if (
+            (name.trim() || subject.trim() || html.trim()) &&
+            !confirm("This will replace your current draft. Continue?")
+        ) {
+            return
+        }
+        setName(s.name)
+        setSubject(s.subject)
+        setHtml(s.renderedHtml)
+        toast.success(`Loaded "${s.name}"`)
+    }
+
+    const handleSendTest = () => {
+        if (!testTo.trim()) {
+            toast.error("Enter a recipient email")
+            return
+        }
+        if (!subject.trim() || !html.trim()) {
+            toast.error("Add a subject and HTML body first")
+            return
+        }
+        setIsSendingTest(true)
+        sendTemplateTestAction({
+            to: testTo.trim(),
+            subject: subject.trim(),
+            html,
+        })
+            .then((res) => {
+                if (!res.success) {
+                    toast.error(res.error || "Send failed")
+                    return
+                }
+                toast.success(
+                    `Sent. ${res.balanceAfter !== undefined ? `Credits left: ${res.balanceAfter}` : ""}`,
+                )
+            })
+            .catch((err) => {
+                toast.error(err instanceof Error ? err.message : "Send failed")
+            })
+            .finally(() => setIsSendingTest(false))
+    }
 
     useEffect(() => {
         if (!topolApiKey) return
@@ -130,6 +233,36 @@ export function TemplateEditor({ initial, topolApiKey, topolUserId }: Props) {
                 />
             )}
 
+            {!initial && starterTemplates && starterTemplates.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base">Start from a template</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-sm text-muted-foreground mb-3">
+                            Click any template to load it as a starting point. You can edit
+                            everything afterward.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {starterTemplates.map((s) => (
+                                <button
+                                    key={s.slug}
+                                    type="button"
+                                    onClick={() => handleUseStarter(s)}
+                                    disabled={isPending}
+                                    className="text-left p-3 border rounded-md hover:bg-muted/50 transition-colors disabled:opacity-50"
+                                >
+                                    <div className="text-sm font-medium">{s.name}</div>
+                                    <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                        {s.description}
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
             <Card>
                 <CardHeader>
                     <CardTitle>Details</CardTitle>
@@ -146,12 +279,21 @@ export function TemplateEditor({ initial, topolApiKey, topolUserId }: Props) {
                         />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="subject">Default subject</Label>
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="subject">Default subject</Label>
+                            <TokenInserter
+                                onInsert={insertIntoSubject}
+                                size="sm"
+                                label="Token"
+                                disabled={isPending}
+                            />
+                        </div>
                         <Input
                             id="subject"
+                            ref={subjectInputRef}
                             value={subject}
                             onChange={(e) => setSubject(e.target.value)}
-                            placeholder="Welcome to Acme"
+                            placeholder="Welcome, {{first_name}}"
                             disabled={isPending}
                         />
                     </div>
@@ -198,17 +340,50 @@ export function TemplateEditor({ initial, topolApiKey, topolUserId }: Props) {
                     </Card>
 
                     <Card>
-                        <CardHeader>
+                        <CardHeader className="flex-row items-center justify-between">
                             <CardTitle>HTML body</CardTitle>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept=".html,.htm,text/html"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const f = e.target.files?.[0]
+                                        if (f) handleHtmlFileChosen(f)
+                                        e.target.value = ""
+                                    }}
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={isPending}
+                                >
+                                    <Upload className="w-3.5 h-3.5 mr-1.5" />
+                                    Import .html
+                                </Button>
+                                <TokenInserter
+                                    onInsert={insertIntoHtml}
+                                    size="sm"
+                                    disabled={isPending}
+                                />
+                            </div>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="space-y-2">
                             <textarea
+                                ref={htmlTextareaRef}
                                 className="w-full min-h-[400px] font-mono text-xs p-3 border rounded-md bg-background"
                                 value={html}
                                 onChange={(e) => setHtml(e.target.value)}
-                                placeholder="<h1>Hello {{name}}</h1>"
+                                placeholder="Paste HTML here, or click 'Import .html' above. Designs from Claude, Figma, Stripo, etc. all work — we'll auto-inline CSS for Gmail/Outlook compatibility at send time."
                                 disabled={isPending}
                             />
+                            <p className="text-[11px] text-muted-foreground">
+                                CSS is auto-inlined at send time so Gmail/Outlook render correctly. Designed in
+                                Claude or Figma? Just paste the exported HTML.
+                            </p>
                         </CardContent>
                     </Card>
                 </>
@@ -226,6 +401,41 @@ export function TemplateEditor({ initial, topolApiKey, topolUserId }: Props) {
                             className="w-full h-[400px]"
                             sandbox=""
                         />
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-base">Send a test</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                        Sends this draft (with CSS inlined and tokens rendered) to one address.
+                        Deducts 1 credit. The fastest way to catch rendering issues across Gmail / Outlook.
+                    </p>
+                    <div className="flex items-center gap-2">
+                        <Input
+                            type="email"
+                            placeholder="you@example.com"
+                            value={testTo}
+                            onChange={(e) => setTestTo(e.target.value)}
+                            disabled={isSendingTest || isPending}
+                            className="max-w-xs"
+                        />
+                        <Button
+                            type="button"
+                            onClick={handleSendTest}
+                            disabled={isSendingTest || isPending || !testTo.trim()}
+                            variant="outline"
+                        >
+                            {isSendingTest ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                                <Send className="w-4 h-4 mr-2" />
+                            )}
+                            Send test
+                        </Button>
                     </div>
                 </CardContent>
             </Card>

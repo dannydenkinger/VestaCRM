@@ -14,6 +14,8 @@ import {
     sendCampaign,
     updateCampaign,
 } from "@/lib/campaigns/campaigns"
+import { sendEmail, SesIdentityNotReadyError } from "@/lib/ses/sender"
+import { InsufficientCreditsError } from "@/lib/credits/email-credits"
 
 async function resolveContext() {
     const session = await requireAuth()
@@ -62,6 +64,44 @@ export async function saveTemplateAction(input: z.infer<typeof saveTemplateSchem
         return { success: true, template: created }
     } catch (err) {
         const message = err instanceof Error ? err.message : "Failed to save template"
+        return { success: false, error: message }
+    }
+}
+
+const sendTestSchema = z.object({
+    to: z.string().email(),
+    subject: z.string().min(1).max(200),
+    html: z.string().min(1).max(500_000),
+})
+
+export async function sendTemplateTestAction(input: z.infer<typeof sendTestSchema>) {
+    const { workspaceId } = await resolveContext()
+    const parsed = sendTestSchema.safeParse(input)
+    if (!parsed.success) {
+        return { success: false, error: parsed.error.issues[0].message }
+    }
+
+    try {
+        const result = await sendEmail({
+            workspaceId,
+            to: parsed.data.to,
+            subject: parsed.data.subject,
+            html: parsed.data.html,
+        })
+        return {
+            success: result.ok,
+            error: result.error,
+            messageId: result.messageId,
+            balanceAfter: result.balanceAfter,
+        }
+    } catch (err) {
+        if (err instanceof SesIdentityNotReadyError) {
+            return { success: false, error: `SES is not ready (${err.status}). Verify a domain in Settings → Integrations → Amazon SES.` }
+        }
+        if (err instanceof InsufficientCreditsError) {
+            return { success: false, error: `Insufficient credits (${err.available} available). Buy a credit pack first.` }
+        }
+        const message = err instanceof Error ? err.message : "Failed to send"
         return { success: false, error: message }
     }
 }

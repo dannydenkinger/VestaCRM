@@ -11,6 +11,7 @@ import {
     type TokenContact,
     type TokenWorkspace,
 } from "@/lib/templating/tokens"
+import { inlineCss } from "@/lib/email/inline-css"
 import type { EmailLogStatus } from "@/types"
 
 export interface SendEmailInput {
@@ -152,6 +153,9 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
         html = renderTokens(html, ctx)
         text = text ? renderTokens(text, ctx) : text
     }
+
+    // Inline CSS so the email renders correctly in Gmail/Outlook/etc.
+    html = inlineCss(html)
 
     const identity = await getIdentity(workspaceId)
     if (!identity) throw new SesIdentityNotReadyError(workspaceId, "NOT_CONFIGURED")

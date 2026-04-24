@@ -1,7 +1,8 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useState, useTransition } from "react"
+import { useRef, useState, useTransition } from "react"
+import { TokenInserter, insertAtCursor } from "@/components/email/TokenInserter"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -65,6 +66,33 @@ export function CampaignBuilder({
     const [audienceValue, setAudienceValue] = useState(
         (initialCampaign?.audienceValue ?? []).join(", "),
     )
+
+    const subjectInputRef = useRef<HTMLInputElement | null>(null)
+    const htmlTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+    const insertIntoSubject = (token: string) => {
+        const { value, cursor } = insertAtCursor(subjectInputRef.current, token, subject)
+        setSubject(value)
+        requestAnimationFrame(() => {
+            const el = subjectInputRef.current
+            if (el) {
+                el.focus()
+                el.setSelectionRange(cursor, cursor)
+            }
+        })
+    }
+
+    const insertIntoHtml = (token: string) => {
+        const { value, cursor } = insertAtCursor(htmlTextareaRef.current, token, html)
+        setHtml(value)
+        requestAnimationFrame(() => {
+            const el = htmlTextareaRef.current
+            if (el) {
+                el.focus()
+                el.setSelectionRange(cursor, cursor)
+            }
+        })
+    }
 
     const handleTemplateChange = (value: string) => {
         const newId = value === "none" ? null : value
@@ -160,10 +188,18 @@ export function CampaignBuilder({
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="subject">Subject line</Label>
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="subject">Subject line</Label>
+                                <TokenInserter
+                                    onInsert={insertIntoSubject}
+                                    label="Token"
+                                    disabled={isPending}
+                                />
+                            </div>
                             <Input
                                 id="subject"
-                                placeholder="What's new this month"
+                                ref={subjectInputRef}
+                                placeholder="What's new for {{first_name}}"
                                 value={subject}
                                 onChange={(e) => setSubject(e.target.value)}
                                 disabled={isPending}
@@ -193,9 +229,16 @@ export function CampaignBuilder({
                             </p>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="html">HTML body</Label>
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="html">HTML body</Label>
+                                <TokenInserter
+                                    onInsert={insertIntoHtml}
+                                    disabled={isPending}
+                                />
+                            </div>
                             <textarea
                                 id="html"
+                                ref={htmlTextareaRef}
                                 className="w-full min-h-[240px] font-mono text-xs p-3 border rounded-md bg-background"
                                 value={html}
                                 onChange={(e) => setHtml(e.target.value)}
@@ -203,12 +246,8 @@ export function CampaignBuilder({
                                 disabled={isPending}
                             />
                             <p className="text-xs text-muted-foreground">
-                                Personalize with{" "}
-                                <code className="text-[11px]">{"{{first_name}}"}</code>,{" "}
-                                <code className="text-[11px]">{"{{name}}"}</code>,{" "}
-                                <code className="text-[11px]">{"{{email}}"}</code>,{" "}
-                                <code className="text-[11px]">{"{{phone}}"}</code>,{" "}
-                                <code className="text-[11px]">{"{{company}}"}</code>.
+                                CSS is auto-inlined at send time so Gmail/Outlook render correctly.
+                                Personalization tokens (above) get filled per-recipient.
                             </p>
                         </div>
                     </CardContent>
