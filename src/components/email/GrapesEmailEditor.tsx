@@ -6,6 +6,7 @@ import grapesjs from "grapesjs"
 import type { Editor, Plugin, ProjectData } from "grapesjs"
 import newsletterPreset from "grapesjs-preset-newsletter"
 import "grapesjs/dist/css/grapes.min.css"
+import "./grapes/grapes-theme.css"
 
 import { TopBar } from "./grapes/TopBar"
 import { BlocksPanel } from "./grapes/BlocksPanel"
