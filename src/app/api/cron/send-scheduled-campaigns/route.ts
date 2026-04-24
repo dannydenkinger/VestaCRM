@@ -7,10 +7,16 @@ export const maxDuration = 300 // 5 minutes — max for hobby plan
 
 /**
  * Cron route: pick up `scheduled` campaigns whose `scheduledAt` has passed
- * and send them. Wired to Vercel Cron via vercel.json (every minute).
+ * and send them.
  *
- * Auth: Vercel Cron sends a `Authorization: Bearer <CRON_SECRET>` header. We
- * accept either that or no auth on localhost (so dev can curl the route).
+ * Triggering:
+ *   - **Production:** GitHub Actions workflow at
+ *     .github/workflows/send-scheduled-campaigns.yml fires every 5 minutes
+ *     and curls this endpoint with Authorization: Bearer $CRON_SECRET.
+ *     (We do NOT use Vercel Cron because the Hobby tier only allows daily
+ *     crons — useless for "send this in 15 minutes" scheduling.)
+ *   - **Local dev:** can curl directly with no auth when NODE_ENV=development.
+ *   - **Manual:** anyone with the CRON_SECRET can trigger ad-hoc sends.
  */
 export async function GET(req: NextRequest) {
     if (process.env.NODE_ENV !== "development") {
