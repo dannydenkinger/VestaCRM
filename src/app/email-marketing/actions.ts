@@ -29,7 +29,7 @@ const saveTemplateSchema = z.object({
     subject: z.string().max(200).default(""),
     description: z.string().max(500).optional(),
     renderedHtml: z.string().max(500_000),
-    topolJson: z.record(z.string(), z.unknown()).nullable().optional(),
+    designJson: z.record(z.string(), z.unknown()).nullable().optional(),
 })
 
 export async function saveTemplateAction(input: z.infer<typeof saveTemplateSchema>) {
@@ -46,7 +46,7 @@ export async function saveTemplateAction(input: z.infer<typeof saveTemplateSchem
                 subject: parsed.data.subject,
                 description: parsed.data.description,
                 renderedHtml: parsed.data.renderedHtml,
-                topolJson: parsed.data.topolJson ?? null,
+                designJson: parsed.data.designJson ?? null,
             })
             revalidatePath("/email-marketing/templates")
             return { success: true, template: updated }
@@ -57,7 +57,7 @@ export async function saveTemplateAction(input: z.infer<typeof saveTemplateSchem
             subject: parsed.data.subject,
             description: parsed.data.description,
             renderedHtml: parsed.data.renderedHtml,
-            topolJson: parsed.data.topolJson ?? null,
+            designJson: parsed.data.designJson ?? null,
             createdBy: userId,
         })
         revalidatePath("/email-marketing/templates")

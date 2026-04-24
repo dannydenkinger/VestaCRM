@@ -44,12 +44,8 @@ interface Props {
         subject: string
         description?: string
         renderedHtml: string
-        /**
-         * Stored project JSON from a previous edit. Named `topolJson` for
-         * backward compatibility with templates created before the GrapesJS
-         * migration; treated as GrapesJS `ProjectData` going forward.
-         */
-        topolJson: Record<string, unknown> | null
+        /** Stored GrapesJS project JSON from a previous edit (null if HTML-only). */
+        designJson: Record<string, unknown> | null
     }
     starterTemplates?: StarterOption[]
     workspaceName?: string
@@ -64,7 +60,7 @@ export function TemplateEditor({ initial, starterTemplates, workspaceName }: Pro
     const [description, setDescription] = useState(initial?.description ?? "")
     const [html, setHtml] = useState(initial?.renderedHtml ?? "")
     const [designJson, setDesignJson] = useState<ProjectData | null>(
-        (initial?.topolJson as ProjectData | null) ?? null,
+        (initial?.designJson as ProjectData | null) ?? null,
     )
 
     // Seed HTML handed to the GrapesJS canvas on first mount. Mutating this
@@ -190,7 +186,7 @@ export function TemplateEditor({ initial, starterTemplates, workspaceName }: Pro
                 subject: subject.trim(),
                 description: description.trim() || undefined,
                 renderedHtml: html,
-                topolJson: (designJson as Record<string, unknown> | null) ?? null,
+                designJson: (designJson as Record<string, unknown> | null) ?? null,
             })
             if (!result.success || !result.template) {
                 toast.error(result.error || "Failed to save")

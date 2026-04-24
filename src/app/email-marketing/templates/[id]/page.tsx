@@ -34,7 +34,7 @@ export default async function EditTemplatePage({ params }: PageProps) {
                     subject: template.subject,
                     description: template.description,
                     renderedHtml: template.renderedHtml,
-                    topolJson: template.topolJson,
+                    designJson: template.designJson,
                 }}
                 workspaceName={workspaceName}
             />

@@ -165,7 +165,12 @@ export interface EmailTemplate {
     name: string
     description?: string
     subject: string
-    topolJson: Record<string, unknown> | null
+    /**
+     * Drag-and-drop editor project state (GrapesJS ProjectData). Null for
+     * templates created by pasting raw HTML. Older templates stored this
+     * under `topolJson`; readers fall back to that if `designJson` is absent.
+     */
+    designJson: Record<string, unknown> | null
     renderedHtml: string
     createdBy: string | null
     createdAt: string

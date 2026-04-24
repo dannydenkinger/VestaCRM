@@ -11,13 +11,19 @@ function tsToISO(ts: unknown): string {
 }
 
 function mapTemplate(id: string, data: Record<string, unknown>): EmailTemplate {
+    // Read from `designJson` first; fall back to legacy `topolJson` for
+    // docs created before the GrapesJS migration.
+    const design =
+        (data.designJson as Record<string, unknown> | null | undefined) ??
+        (data.topolJson as Record<string, unknown> | null | undefined) ??
+        null
     return {
         id,
         workspaceId: (data.workspaceId as string) ?? "",
         name: (data.name as string) ?? "",
         description: (data.description as string) ?? undefined,
         subject: (data.subject as string) ?? "",
-        topolJson: (data.topolJson as Record<string, unknown> | null) ?? null,
+        designJson: design,
         renderedHtml: (data.renderedHtml as string) ?? "",
         createdBy: (data.createdBy as string) ?? null,
         createdAt: tsToISO(data.createdAt),
@@ -53,7 +59,7 @@ export interface CreateTemplateInput {
     name: string
     subject: string
     renderedHtml: string
-    topolJson?: Record<string, unknown> | null
+    designJson?: Record<string, unknown> | null
     description?: string
     createdBy?: string | null
 }
@@ -69,7 +75,7 @@ export async function createTemplate(input: CreateTemplateInput): Promise<EmailT
         subject: input.subject ?? "",
         description: input.description ?? null,
         renderedHtml: input.renderedHtml ?? "",
-        topolJson: input.topolJson ?? null,
+        designJson: input.designJson ?? null,
         createdBy: input.createdBy ?? null,
         createdAt: now,
         updatedAt: now,
@@ -83,7 +89,7 @@ export interface UpdateTemplateInput {
     subject?: string
     description?: string
     renderedHtml?: string
-    topolJson?: Record<string, unknown> | null
+    designJson?: Record<string, unknown> | null
 }
 
 export async function updateTemplate(
@@ -102,7 +108,7 @@ export async function updateTemplate(
     if (patch.subject !== undefined) updates.subject = patch.subject
     if (patch.description !== undefined) updates.description = patch.description
     if (patch.renderedHtml !== undefined) updates.renderedHtml = patch.renderedHtml
-    if (patch.topolJson !== undefined) updates.topolJson = patch.topolJson
+    if (patch.designJson !== undefined) updates.designJson = patch.designJson
 
     await ref.update(updates)
     const updated = await ref.get()
