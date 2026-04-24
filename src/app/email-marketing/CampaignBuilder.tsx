@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useRef, useState, useTransition } from "react"
 import { TokenInserter, insertAtCursor } from "@/components/email/TokenInserter"
@@ -26,7 +27,13 @@ interface TemplateSummary {
     renderedHtml: string
 }
 
-type AudienceType = "all_contacts" | "by_tag"
+type AudienceType = "all_contacts" | "by_tag" | "by_list"
+
+interface ListSummary {
+    id: string
+    name: string
+    contactCount: number
+}
 
 interface Props {
     initialCampaign?: {
@@ -37,9 +44,11 @@ interface Props {
         renderedHtml: string
         audienceType: AudienceType
         audienceValue: string[] | null
+        excludeListIds?: string[] | null
         scheduledAt?: string | null
     }
     templates: TemplateSummary[]
+    lists?: ListSummary[]
     balance: number
     sesReady: boolean
 }
@@ -47,6 +56,7 @@ interface Props {
 export function CampaignBuilder({
     initialCampaign,
     templates,
+    lists = [],
     balance,
     sesReady,
 }: Props) {
@@ -66,6 +76,15 @@ export function CampaignBuilder({
     )
     const [audienceValue, setAudienceValue] = useState(
         (initialCampaign?.audienceValue ?? []).join(", "),
+    )
+    // For by_list: array of selected list IDs (multi-select)
+    const [selectedListIds, setSelectedListIds] = useState<string[]>(
+        initialCampaign?.audienceType === "by_list"
+            ? (initialCampaign.audienceValue ?? [])
+            : [],
+    )
+    const [excludeListIds, setExcludeListIds] = useState<string[]>(
+        initialCampaign?.excludeListIds ?? [],
     )
     const [sendMode, setSendMode] = useState<"now" | "schedule">(
         initialCampaign?.scheduledAt ? "schedule" : "now",
@@ -132,6 +151,10 @@ export function CampaignBuilder({
             toast.error("Name, subject, and HTML are required")
             return null
         }
+        let audienceValueOut: string[] | null = null
+        if (audienceType === "by_tag") audienceValueOut = audienceValueArr
+        else if (audienceType === "by_list") audienceValueOut = selectedListIds
+
         const result = await saveCampaignAction({
             id: campaignId ?? undefined,
             name: name.trim(),
@@ -139,7 +162,8 @@ export function CampaignBuilder({
             templateId: templateId ?? null,
             renderedHtml: html,
             audienceType,
-            audienceValue: audienceType === "by_tag" ? audienceValueArr : null,
+            audienceValue: audienceValueOut,
+            excludeListIds: excludeListIds.length > 0 ? excludeListIds : null,
             scheduledAt: opts.scheduledAt ?? null,
         })
         if (!result.success || !result.campaign) {
@@ -330,6 +354,7 @@ export function CampaignBuilder({
                                     <SelectItem value="all_contacts">
                                         All contacts with email
                                     </SelectItem>
+                                    <SelectItem value="by_list">By list</SelectItem>
                                     <SelectItem value="by_tag">By tag</SelectItem>
                                 </SelectContent>
                             </Select>
@@ -346,6 +371,84 @@ export function CampaignBuilder({
                                 />
                                 <p className="text-xs text-muted-foreground">
                                     Matches contacts with any of the listed tags.
+                                </p>
+                            </div>
+                        )}
+                        {audienceType === "by_list" && (
+                            <div className="space-y-2">
+                                <Label>Include lists</Label>
+                                {lists.length === 0 ? (
+                                    <div className="text-xs text-muted-foreground p-3 border border-dashed rounded">
+                                        No lists yet.{" "}
+                                        <Link
+                                            href="/email-marketing/lists/new"
+                                            className="underline"
+                                        >
+                                            Create one
+                                        </Link>
+                                        .
+                                    </div>
+                                ) : (
+                                    <div className="space-y-1 max-h-48 overflow-y-auto border rounded p-2">
+                                        {lists.map((l) => (
+                                            <label
+                                                key={l.id}
+                                                className="flex items-center gap-2 px-2 py-1 hover:bg-muted/40 rounded cursor-pointer text-sm"
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedListIds.includes(l.id)}
+                                                    onChange={(e) => {
+                                                        setSelectedListIds((prev) =>
+                                                            e.target.checked
+                                                                ? [...prev, l.id]
+                                                                : prev.filter((x) => x !== l.id),
+                                                        )
+                                                    }}
+                                                    disabled={isPending}
+                                                />
+                                                <span className="flex-1 truncate">{l.name}</span>
+                                                <span className="text-xs text-muted-foreground tabular-nums">
+                                                    {l.contactCount}
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+                                <p className="text-xs text-muted-foreground">
+                                    Contacts in any of these lists receive the email (deduped).
+                                </p>
+                            </div>
+                        )}
+
+                        {lists.length > 0 && (
+                            <div className="space-y-2 pt-3 border-t">
+                                <Label className="text-xs">Exclude lists (optional)</Label>
+                                <div className="space-y-1 max-h-32 overflow-y-auto border rounded p-2">
+                                    {lists.map((l) => (
+                                        <label
+                                            key={l.id}
+                                            className="flex items-center gap-2 px-2 py-1 hover:bg-muted/40 rounded cursor-pointer text-sm"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={excludeListIds.includes(l.id)}
+                                                onChange={(e) => {
+                                                    setExcludeListIds((prev) =>
+                                                        e.target.checked
+                                                            ? [...prev, l.id]
+                                                            : prev.filter((x) => x !== l.id),
+                                                    )
+                                                }}
+                                                disabled={isPending}
+                                            />
+                                            <span className="flex-1 truncate">{l.name}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                                <p className="text-[11px] text-muted-foreground">
+                                    Contacts in these lists are removed from the audience even if
+                                    they match above. Useful for &ldquo;send to A, except anyone in B&rdquo;.
                                 </p>
                             </div>
                         )}

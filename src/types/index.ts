@@ -177,7 +177,21 @@ export interface EmailTemplate {
     updatedAt: string
 }
 
-export type CampaignAudienceType = "all_contacts" | "by_tag" | "by_ids"
+export type CampaignAudienceType = "all_contacts" | "by_tag" | "by_ids" | "by_list"
+
+export interface ContactList {
+    id: string
+    workspaceId: string
+    name: string
+    description?: string
+    /** Static = manual member management. Smart = filter-based (future). */
+    type: "static" | "smart"
+    /** Cached count updated on add/remove. Refreshed via countMembers() when needed. */
+    contactCount: number
+    createdBy: string | null
+    createdAt: string
+    updatedAt: string
+}
 
 export type CampaignStatus =
     | "draft"
@@ -196,7 +210,14 @@ export interface EmailCampaign {
     templateId: string | null
     renderedHtml: string
     audienceType: CampaignAudienceType
+    /**
+     * For audienceType === "by_tag": array of tag names (max 10).
+     * For audienceType === "by_list": array of contact_lists IDs to INCLUDE.
+     * For audienceType === "by_ids": array of specific contact IDs.
+     */
     audienceValue: string[] | null
+    /** Optional: contact_lists IDs whose members to EXCLUDE from the send. */
+    excludeListIds?: string[] | null
     status: CampaignStatus
     scheduledAt?: string
     stats: {

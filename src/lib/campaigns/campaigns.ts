@@ -2,6 +2,7 @@ import { adminDb } from "@/lib/firebase-admin"
 import { sendEmail, SesIdentityNotReadyError } from "@/lib/ses/sender"
 import { InsufficientCreditsError } from "@/lib/credits/email-credits"
 import { logActivity } from "@/lib/activities/timeline"
+import { unionMemberIds } from "@/lib/lists/contact-lists"
 import type {
     CampaignAudienceType,
     CampaignStatus,
@@ -33,6 +34,7 @@ function mapCampaign(id: string, data: Record<string, unknown>): EmailCampaign {
         renderedHtml: (data.renderedHtml as string) ?? "",
         audienceType: (data.audienceType as CampaignAudienceType) ?? "all_contacts",
         audienceValue: (data.audienceValue as string[] | null) ?? null,
+        excludeListIds: (data.excludeListIds as string[] | null) ?? null,
         status: (data.status as CampaignStatus) ?? "draft",
         scheduledAt: data.scheduledAt ? tsToISO(data.scheduledAt) : undefined,
         stats,
@@ -73,6 +75,7 @@ export interface CreateCampaignInput {
     renderedHtml: string
     audienceType: CampaignAudienceType
     audienceValue?: string[] | null
+    excludeListIds?: string[] | null
     createdBy?: string | null
     scheduledAt?: Date | null
 }
@@ -93,6 +96,7 @@ export async function createCampaign(input: CreateCampaignInput): Promise<EmailC
         renderedHtml: input.renderedHtml,
         audienceType: input.audienceType,
         audienceValue: input.audienceValue ?? null,
+        excludeListIds: input.excludeListIds ?? null,
         status,
         scheduledAt: input.scheduledAt ?? null,
         stats: { targeted: 0, sent: 0, failed: 0, skipped: 0 },
@@ -111,6 +115,7 @@ export interface UpdateCampaignInput {
     renderedHtml?: string
     audienceType?: CampaignAudienceType
     audienceValue?: string[] | null
+    excludeListIds?: string[] | null
     scheduledAt?: Date | null
 }
 
@@ -135,6 +140,7 @@ export async function updateCampaign(
     if (patch.renderedHtml !== undefined) updates.renderedHtml = patch.renderedHtml
     if (patch.audienceType !== undefined) updates.audienceType = patch.audienceType
     if (patch.audienceValue !== undefined) updates.audienceValue = patch.audienceValue
+    if (patch.excludeListIds !== undefined) updates.excludeListIds = patch.excludeListIds
     if (patch.scheduledAt !== undefined) {
         updates.scheduledAt = patch.scheduledAt
         // Status follows the schedule: presence of a date = scheduled, absence = draft
@@ -161,59 +167,77 @@ interface AudienceContact {
     email: string
 }
 
+async function resolveContactsByIds(
+    workspaceId: string,
+    ids: string[],
+): Promise<AudienceContact[]> {
+    if (ids.length === 0) return []
+    const out: AudienceContact[] = []
+    for (let i = 0; i < ids.length; i += 30) {
+        const chunk = ids.slice(i, i + 30)
+        const snap = await adminDb
+            .collection("contacts")
+            .where("workspaceId", "==", workspaceId)
+            .where("__name__", "in", chunk)
+            .get()
+        for (const d of snap.docs) {
+            const email = (d.data().email as string) ?? ""
+            if (email && email.includes("@")) out.push({ id: d.id, email })
+        }
+    }
+    return out
+}
+
 async function resolveAudience(
     workspaceId: string,
     audienceType: CampaignAudienceType,
     audienceValue: string[] | null,
+    excludeListIds: string[] | null = null,
     limit = 5000,
 ): Promise<AudienceContact[]> {
+    let base: AudienceContact[] = []
+
     if (audienceType === "all_contacts") {
         const snap = await adminDb
             .collection("contacts")
             .where("workspaceId", "==", workspaceId)
             .limit(limit)
             .get()
-        return snap.docs
+        base = snap.docs
             .map((d) => ({ id: d.id, email: (d.data().email as string) ?? "" }))
             .filter((c) => c.email && c.email.includes("@"))
-    }
-
-    if (audienceType === "by_ids") {
-        const ids = audienceValue ?? []
-        if (ids.length === 0) return []
-        const out: AudienceContact[] = []
-        // Firestore `in` queries cap at 30 ids, so chunk
-        for (let i = 0; i < ids.length; i += 30) {
-            const chunk = ids.slice(i, i + 30)
-            const snap = await adminDb
-                .collection("contacts")
-                .where("workspaceId", "==", workspaceId)
-                .where("__name__", "in", chunk)
-                .get()
-            for (const d of snap.docs) {
-                const email = (d.data().email as string) ?? ""
-                if (email && email.includes("@")) out.push({ id: d.id, email })
-            }
-        }
-        return out
+    } else if (audienceType === "by_ids") {
+        base = await resolveContactsByIds(workspaceId, audienceValue ?? [])
+    } else if (audienceType === "by_list") {
+        const listIds = audienceValue ?? []
+        if (listIds.length === 0) return []
+        const memberIds = await unionMemberIds(workspaceId, listIds, limit)
+        base = await resolveContactsByIds(workspaceId, memberIds)
     }
 
     if (audienceType === "by_tag") {
         const tags = audienceValue ?? []
         if (tags.length === 0) return []
-        // "tags" is an array of strings on contact docs
         const snap = await adminDb
             .collection("contacts")
             .where("workspaceId", "==", workspaceId)
             .where("tags", "array-contains-any", tags.slice(0, 10))
             .limit(limit)
             .get()
-        return snap.docs
+        base = snap.docs
             .map((d) => ({ id: d.id, email: (d.data().email as string) ?? "" }))
             .filter((c) => c.email && c.email.includes("@"))
     }
 
-    return []
+    // Exclusion step: filter out any contacts that appear in the excludeListIds.
+    if (excludeListIds && excludeListIds.length > 0) {
+        const excluded = new Set(
+            await unionMemberIds(workspaceId, excludeListIds, limit),
+        )
+        base = base.filter((c) => !excluded.has(c.id))
+    }
+
+    return base
 }
 
 export interface SendCampaignResult {
@@ -252,6 +276,7 @@ export async function sendCampaign(
             workspaceId,
             data.audienceType as CampaignAudienceType,
             (data.audienceValue as string[] | null) ?? null,
+            (data.excludeListIds as string[] | null) ?? null,
         )
         targeted = audience.length
 

@@ -124,8 +124,9 @@ const saveCampaignSchema = z.object({
     subject: z.string().min(1).max(200),
     templateId: z.string().nullable().optional(),
     renderedHtml: z.string().min(1).max(500_000),
-    audienceType: z.enum(["all_contacts", "by_tag", "by_ids"]),
+    audienceType: z.enum(["all_contacts", "by_tag", "by_ids", "by_list"]),
     audienceValue: z.array(z.string()).nullable().optional(),
+    excludeListIds: z.array(z.string()).nullable().optional(),
     scheduledAt: z.string().datetime().nullable().optional(),
 })
 
@@ -147,6 +148,7 @@ export async function saveCampaignAction(input: z.infer<typeof saveCampaignSchem
                 renderedHtml: parsed.data.renderedHtml,
                 audienceType: parsed.data.audienceType,
                 audienceValue: parsed.data.audienceValue ?? null,
+                excludeListIds: parsed.data.excludeListIds ?? null,
                 scheduledAt: scheduledAtDate,
             })
             revalidatePath("/email-marketing")
@@ -161,6 +163,7 @@ export async function saveCampaignAction(input: z.infer<typeof saveCampaignSchem
             renderedHtml: parsed.data.renderedHtml,
             audienceType: parsed.data.audienceType,
             audienceValue: parsed.data.audienceValue ?? null,
+            excludeListIds: parsed.data.excludeListIds ?? null,
             createdBy: userId,
             scheduledAt: scheduledAtDate,
         })
