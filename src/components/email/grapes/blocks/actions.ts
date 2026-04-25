@@ -1,4 +1,4 @@
-import { ICON, type VestaBlock } from "./types"
+import { COLORS, FONT, ICON, button as btn, type VestaBlock } from "./types"
 
 export const ACTIONS_BLOCKS: VestaBlock[] = [
     {
@@ -8,8 +8,7 @@ export const ACTIONS_BLOCKS: VestaBlock[] = [
         media: ICON(
             '<rect x="4" y="8" width="16" height="8" rx="4" fill="currentColor"/>',
         ),
-        content:
-            '<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:16px auto;"><tr><td align="center" style="border-radius:8px;background:#0f172a;"><a href="#" style="display:inline-block;padding:12px 28px;color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;font-size:15px;font-weight:500;text-decoration:none;border-radius:8px;">Call to action</a></td></tr></table>',
+        content: `<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:24px auto;"><tr><td>${btn("Get started", "#", "primary")}</td></tr></table>`,
     },
     {
         id: "vesta-button-secondary",
@@ -18,8 +17,7 @@ export const ACTIONS_BLOCKS: VestaBlock[] = [
         media: ICON(
             '<rect x="4" y="8" width="16" height="8" rx="4" stroke="currentColor" stroke-width="1.5" fill="none"/>',
         ),
-        content:
-            '<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:16px auto;"><tr><td align="center" style="border-radius:8px;border:1px solid #0f172a;"><a href="#" style="display:inline-block;padding:11px 27px;color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;font-size:15px;font-weight:500;text-decoration:none;border-radius:8px;">Learn more</a></td></tr></table>',
+        content: `<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:24px auto;"><tr><td>${btn("Learn more", "#", "secondary")}</td></tr></table>`,
     },
     {
         id: "vesta-button-pill",
@@ -28,8 +26,7 @@ export const ACTIONS_BLOCKS: VestaBlock[] = [
         media: ICON(
             '<rect x="4" y="8" width="16" height="8" rx="8" fill="currentColor"/>',
         ),
-        content:
-            '<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:16px auto;"><tr><td align="center" style="border-radius:999px;background:#0f172a;"><a href="#" style="display:inline-block;padding:12px 32px;color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;font-size:15px;font-weight:500;text-decoration:none;border-radius:999px;">Get started</a></td></tr></table>',
+        content: `<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:24px auto;"><tr><td>${btn("Sign up free", "#", "pill")}</td></tr></table>`,
     },
     {
         id: "vesta-button-row",
@@ -38,10 +35,10 @@ export const ACTIONS_BLOCKS: VestaBlock[] = [
         media: ICON(
             '<rect x="2" y="9" width="8" height="6" rx="2" fill="currentColor"/><rect x="14" y="9" width="8" height="6" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/>',
         ),
-        content: `<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:16px auto;">
+        content: `<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:24px auto;">
 <tr>
-<td style="padding:0 6px;"><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td align="center" style="border-radius:8px;background:#0f172a;"><a href="#" style="display:inline-block;padding:12px 24px;color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;font-weight:500;text-decoration:none;border-radius:8px;">Primary</a></td></tr></table></td>
-<td style="padding:0 6px;"><table role="presentation" border="0" cellpadding="0" cellspacing="0"><tr><td align="center" style="border-radius:8px;border:1px solid #0f172a;"><a href="#" style="display:inline-block;padding:11px 23px;color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;font-weight:500;text-decoration:none;border-radius:8px;">Secondary</a></td></tr></table></td>
+<td style="padding:0 6px;">${btn("Buy now", "#", "primary")}</td>
+<td style="padding:0 6px;">${btn("View demo", "#", "secondary")}</td>
 </tr>
 </table>`,
     },
@@ -52,13 +49,13 @@ export const ACTIONS_BLOCKS: VestaBlock[] = [
         media: ICON(
             '<circle cx="6" cy="12" r="2.5" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="12" cy="12" r="2.5" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="18" cy="12" r="2.5" stroke="currentColor" stroke-width="1.5" fill="none"/>',
         ),
-        content: `<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:16px auto;">
+        content: `<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:20px auto;font-family:${FONT};">
 <tr>
-<td style="padding:0 6px;"><a href="https://facebook.com" style="display:inline-block;width:32px;height:32px;background:#1877f2;border-radius:50%;color:#fff;text-align:center;line-height:32px;font-weight:700;text-decoration:none;font-family:-apple-system,sans-serif;">f</a></td>
-<td style="padding:0 6px;"><a href="https://twitter.com" style="display:inline-block;width:32px;height:32px;background:#000;border-radius:50%;color:#fff;text-align:center;line-height:32px;font-weight:700;text-decoration:none;font-family:-apple-system,sans-serif;">𝕏</a></td>
-<td style="padding:0 6px;"><a href="https://linkedin.com" style="display:inline-block;width:32px;height:32px;background:#0a66c2;border-radius:50%;color:#fff;text-align:center;line-height:32px;font-weight:700;text-decoration:none;font-family:-apple-system,sans-serif;font-size:13px;">in</a></td>
-<td style="padding:0 6px;"><a href="https://instagram.com" style="display:inline-block;width:32px;height:32px;background:#e4405f;border-radius:50%;color:#fff;text-align:center;line-height:32px;font-weight:700;text-decoration:none;font-family:-apple-system,sans-serif;">IG</a></td>
-<td style="padding:0 6px;"><a href="https://youtube.com" style="display:inline-block;width:32px;height:32px;background:#ff0000;border-radius:50%;color:#fff;text-align:center;line-height:32px;font-weight:700;text-decoration:none;font-family:-apple-system,sans-serif;">▶</a></td>
+<td style="padding:0 6px;"><a href="https://facebook.com" style="display:inline-block;width:36px;height:36px;background:${COLORS.bgSubtle};border-radius:50%;color:${COLORS.text};text-align:center;line-height:36px;font-weight:700;text-decoration:none;font-size:15px;">f</a></td>
+<td style="padding:0 6px;"><a href="https://twitter.com" style="display:inline-block;width:36px;height:36px;background:${COLORS.bgSubtle};border-radius:50%;color:${COLORS.text};text-align:center;line-height:36px;font-weight:700;text-decoration:none;font-size:15px;">𝕏</a></td>
+<td style="padding:0 6px;"><a href="https://linkedin.com" style="display:inline-block;width:36px;height:36px;background:${COLORS.bgSubtle};border-radius:50%;color:${COLORS.text};text-align:center;line-height:36px;font-weight:700;text-decoration:none;font-size:13px;">in</a></td>
+<td style="padding:0 6px;"><a href="https://instagram.com" style="display:inline-block;width:36px;height:36px;background:${COLORS.bgSubtle};border-radius:50%;color:${COLORS.text};text-align:center;line-height:36px;font-weight:700;text-decoration:none;font-size:13px;">IG</a></td>
+<td style="padding:0 6px;"><a href="https://youtube.com" style="display:inline-block;width:36px;height:36px;background:${COLORS.bgSubtle};border-radius:50%;color:${COLORS.text};text-align:center;line-height:36px;font-weight:700;text-decoration:none;font-size:13px;">▶</a></td>
 </tr>
 </table>`,
     },
@@ -69,12 +66,12 @@ export const ACTIONS_BLOCKS: VestaBlock[] = [
         media: ICON(
             '<line x1="3" y1="12" x2="8" y2="12" stroke="currentColor" stroke-width="1.5"/><line x1="10" y1="12" x2="15" y2="12" stroke="currentColor" stroke-width="1.5"/><line x1="17" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="1.5"/>',
         ),
-        content: `<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:16px auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+        content: `<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:16px auto;font-family:${FONT};">
 <tr>
-<td style="padding:0 12px;"><a href="#" style="color:#0f172a;text-decoration:none;font-size:14px;font-weight:500;">Home</a></td>
-<td style="padding:0 12px;"><a href="#" style="color:#0f172a;text-decoration:none;font-size:14px;font-weight:500;">Features</a></td>
-<td style="padding:0 12px;"><a href="#" style="color:#0f172a;text-decoration:none;font-size:14px;font-weight:500;">Pricing</a></td>
-<td style="padding:0 12px;"><a href="#" style="color:#0f172a;text-decoration:none;font-size:14px;font-weight:500;">Contact</a></td>
+<td style="padding:0 14px;"><a href="#" style="color:${COLORS.text};text-decoration:none;font-size:14px;font-weight:500;letter-spacing:-0.01em;">Home</a></td>
+<td style="padding:0 14px;"><a href="#" style="color:${COLORS.text};text-decoration:none;font-size:14px;font-weight:500;letter-spacing:-0.01em;">Features</a></td>
+<td style="padding:0 14px;"><a href="#" style="color:${COLORS.text};text-decoration:none;font-size:14px;font-weight:500;letter-spacing:-0.01em;">Pricing</a></td>
+<td style="padding:0 14px;"><a href="#" style="color:${COLORS.text};text-decoration:none;font-size:14px;font-weight:500;letter-spacing:-0.01em;">Contact</a></td>
 </tr>
 </table>`,
     },

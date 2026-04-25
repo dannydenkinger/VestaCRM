@@ -2,8 +2,9 @@ import Link from "next/link"
 import { requireAuth } from "@/lib/auth-guard"
 import { listTemplates } from "@/lib/campaigns/templates"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { FileText, Plus } from "lucide-react"
+import { TemplateTile } from "./TemplateTile"
 
 export const dynamic = "force-dynamic"
 
@@ -54,26 +55,16 @@ export default async function TemplatesListPage() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {templates.map((t) => (
-                        <Link key={t.id} href={`/email-marketing/templates/${t.id}`}>
-                            <Card className="hover:bg-muted/40 transition-colors cursor-pointer h-full">
-                                <CardHeader className="pb-2">
-                                    <CardTitle className="text-base truncate">{t.name}</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-sm text-muted-foreground truncate">
-                                        {t.subject || "(no subject)"}
-                                    </div>
-                                    {t.description && (
-                                        <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                            {t.description}
-                                        </div>
-                                    )}
-                                    <div className="mt-3 text-[11px] text-muted-foreground">
-                                        Updated {new Date(t.updatedAt).toLocaleDateString()}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </Link>
+                        <TemplateTile
+                            key={t.id}
+                            template={{
+                                id: t.id,
+                                name: t.name,
+                                subject: t.subject,
+                                description: t.description,
+                                updatedAt: t.updatedAt,
+                            }}
+                        />
                     ))}
                 </div>
             )}
