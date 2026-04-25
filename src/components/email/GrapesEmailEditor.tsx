@@ -185,11 +185,16 @@ export function GrapesEmailEditor({
                             <Canvas className="h-full" />
                             {isEmpty && <EmptyCanvasHint />}
                         </div>
-                        {rightPanelOpen && (
-                            <div className="w-72 shrink-0 border-l bg-card">
+                        <div
+                            className={`shrink-0 border-l bg-card overflow-hidden transition-[width] duration-200 ease-out ${
+                                rightPanelOpen ? "w-72" : "w-0 border-l-0"
+                            }`}
+                            aria-hidden={!rightPanelOpen}
+                        >
+                            <div className="w-72 h-full">
                                 <RightPanel />
                             </div>
-                        )}
+                        </div>
                     </div>
                     <StatusBar
                         componentCount={componentCount}
@@ -205,7 +210,7 @@ function EmptyCanvasHint() {
     return (
         <div className="pointer-events-none absolute inset-0 flex items-start pt-24 justify-center">
             <div className="bg-popover/95 backdrop-blur border border-dashed rounded-lg px-5 py-4 max-w-xs shadow-sm flex items-center gap-3">
-                <ArrowLeft className="w-5 h-5 text-primary shrink-0" />
+                <ArrowLeft className="w-5 h-5 text-primary shrink-0 animate-pulse" />
                 <div>
                     <div className="text-sm font-medium">Drag a block to start</div>
                     <div className="text-xs text-muted-foreground mt-0.5">
