@@ -11,7 +11,25 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Paintbrush, Settings2, Layers } from "lucide-react"
+import {
+    Paintbrush,
+    Settings2,
+    Layers,
+    X,
+    ChevronDown,
+    ChevronRight,
+    Box,
+    Type,
+    Heading,
+    Image as ImageIcon,
+    Link as LinkIcon,
+    Square,
+    Table,
+    List,
+    Minus,
+    Rows,
+    Columns,
+} from "lucide-react"
 import type { Component, Property, Sector } from "grapesjs"
 
 export function RightPanel() {
@@ -156,19 +174,66 @@ function StylesPanel() {
     )
 }
 
+const SECTOR_COLLAPSED_KEY = "vesta:editor:collapsedSectors"
+
+function loadCollapsedSectors(): Set<string> {
+    if (typeof window === "undefined") return new Set()
+    try {
+        const raw = localStorage.getItem(SECTOR_COLLAPSED_KEY)
+        if (!raw) return new Set()
+        const arr = JSON.parse(raw)
+        return new Set(Array.isArray(arr) ? arr : [])
+    } catch {
+        return new Set()
+    }
+}
+
 function SectorBlock({ sector }: { sector: Sector }) {
+    const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsedSectors)
+    const sectorId = sector.getId()
+    const isCollapsed = collapsed.has(sectorId)
+
+    const toggle = () => {
+        setCollapsed((prev) => {
+            const next = new Set(prev)
+            if (next.has(sectorId)) next.delete(sectorId)
+            else next.add(sectorId)
+            try {
+                localStorage.setItem(SECTOR_COLLAPSED_KEY, JSON.stringify([...next]))
+            } catch {
+                // ignore
+            }
+            return next
+        })
+    }
+
     const properties = sector.getProperties()
     if (properties.length === 0) return null
     return (
         <div>
-            <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 mb-1.5">
-                {sector.getName()}
-            </div>
-            <div className="space-y-2">
-                {properties.map((prop) => (
-                    <PropertyInput key={prop.getId()} property={prop} />
-                ))}
-            </div>
+            <button
+                type="button"
+                onClick={toggle}
+                aria-expanded={!isCollapsed}
+                className="flex items-center gap-1 w-full text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 hover:text-foreground transition-colors mb-1.5"
+            >
+                {isCollapsed ? (
+                    <ChevronRight className="w-3 h-3" />
+                ) : (
+                    <ChevronDown className="w-3 h-3" />
+                )}
+                <span className="flex-1 text-left">{sector.getName()}</span>
+                <span className="opacity-60 tabular-nums normal-case font-normal">
+                    {properties.length}
+                </span>
+            </button>
+            {!isCollapsed && (
+                <div className="space-y-2 mb-3">
+                    {properties.map((prop) => (
+                        <PropertyInput key={prop.getId()} property={prop} />
+                    ))}
+                </div>
+            )}
         </div>
     )
 }
@@ -179,21 +244,16 @@ function PropertyInput({ property }: { property: Property }) {
     const type = property.getType() as string
     const name = property.getName()
 
-    // Read the value from the selected component's actual inline style first.
-    // GrapesJS's Property.getValue() depends on the active selector, which
-    // can return defaults for components that have inline styles but no class.
-    // Falling back to component.getStyle() ensures our blocks (which use
-    // inline `style="..."` attributes) show their real values.
+    // Read in priority order:
+    //   1. component.getStyle()[name] — GrapesJS's parsed style model
+    //   2. raw `style="..."` HTML attribute (parsed inline)
+    //   3. DOM element's actual computed style (always works for inline styles)
+    //   4. property.getValue() — last-resort, depends on active selector
     const selected = editor?.getSelected()
     const componentStyle = (selected?.getStyle?.() ?? {}) as Record<string, string>
-    const inlineValue = componentStyle[name]
-    const propValue = (property.getValue() as string) ?? ""
-    const value = (inlineValue ?? propValue) || ""
+    const value = readStyleValue(selected, componentStyle, name, property)
 
     const updateValue = (next: string) => {
-        // Update through both the Property API (drives sector re-render and
-        // animations) and the component's style directly (ensures inline-styled
-        // blocks reflect the change immediately in the iframe).
         try {
             property.upValue(next)
         } catch {
@@ -208,12 +268,30 @@ function PropertyInput({ property }: { property: Property }) {
         }
     }
 
+    const clearValue = () => {
+        try {
+            if (selected) {
+                const remaining: Record<string, string> = { ...componentStyle }
+                delete remaining[name]
+                selected.setStyle(remaining)
+            }
+        } catch {
+            // ignore
+        }
+        try {
+            property.upValue("")
+        } catch {
+            // ignore
+        }
+    }
+
     const isColor = type === "color" || /color|background-color/i.test(name)
+    const hasValue = !!value
 
     // Color picker: native + hex text side-by-side
     if (isColor) {
         return (
-            <PropRow label={label}>
+            <PropRow label={label} onClear={hasValue ? clearValue : undefined}>
                 <div className="flex items-center gap-1 flex-1 min-w-0">
                     <input
                         type="color"
@@ -238,7 +316,7 @@ function PropertyInput({ property }: { property: Property }) {
         const options = ((property as unknown as { getOptions?: () => SelectOption[] }).getOptions?.() ?? []) as SelectOption[]
         if (options.length > 0) {
             return (
-                <PropRow label={label}>
+                <PropRow label={label} onClear={hasValue ? clearValue : undefined}>
                     <select
                         value={value}
                         onChange={(e) => updateValue(e.target.value)}
@@ -265,7 +343,7 @@ function PropertyInput({ property }: { property: Property }) {
         const step = numberOrNull((property as unknown as { getStep?: () => number }).getStep?.()) ?? 1
         if (type === "slider" && min !== null && max !== null) {
             return (
-                <PropRow label={label}>
+                <PropRow label={label} onClear={hasValue ? clearValue : undefined}>
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                         <input
                             type="range"
@@ -284,7 +362,7 @@ function PropertyInput({ property }: { property: Property }) {
             )
         }
         return (
-            <PropRow label={label}>
+            <PropRow label={label} onClear={hasValue ? clearValue : undefined}>
                 <Input
                     type="text"
                     value={value}
@@ -298,7 +376,7 @@ function PropertyInput({ property }: { property: Property }) {
 
     // Default: text input
     return (
-        <PropRow label={label}>
+        <PropRow label={label} onClear={hasValue ? clearValue : undefined}>
             <Input
                 type="text"
                 value={value}
@@ -309,15 +387,142 @@ function PropertyInput({ property }: { property: Property }) {
     )
 }
 
-function PropRow({ label, children }: { label: string; children: React.ReactNode }) {
+function PropRow({
+    label,
+    children,
+    onClear,
+}: {
+    label: string
+    children: React.ReactNode
+    onClear?: () => void
+}) {
     return (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 group/prop">
             <Label className="text-[11px] text-muted-foreground w-20 truncate shrink-0">
                 {label}
             </Label>
             {children}
+            {onClear && (
+                <button
+                    type="button"
+                    onClick={onClear}
+                    title="Clear value"
+                    className="text-muted-foreground/40 hover:text-destructive opacity-0 group-hover/prop:opacity-100 transition-opacity shrink-0"
+                >
+                    <X className="w-3 h-3" />
+                </button>
+            )}
         </div>
     )
+}
+
+/**
+ * Read a CSS property's effective value from the selected component.
+ * Tries the model layer first, falls back to the live DOM style — that's
+ * the source of truth for inline-styled blocks (Hero, Pricing Table, etc.)
+ * where the StyleManager's getValue() doesn't always pick up inline styles.
+ */
+function readStyleValue(
+    selected: Component | undefined,
+    componentStyle: Record<string, string>,
+    name: string,
+    property: Property,
+): string {
+    // 1. Model-level style
+    if (componentStyle[name]) return componentStyle[name]
+
+    // 2. Raw style attribute (in case getStyle didn't parse it)
+    try {
+        const attrs = selected?.getAttributes?.() as Record<string, unknown> | undefined
+        const raw = attrs?.style
+        if (typeof raw === "string") {
+            const parsed = parseInlineStyle(raw)
+            if (parsed[name]) return parsed[name]
+        }
+    } catch {
+        // ignore
+    }
+
+    // 3. Live DOM (most reliable for inline styles)
+    try {
+        const el = selected?.getEl?.() as HTMLElement | undefined
+        if (el) {
+            const inline = el.style.getPropertyValue(name)
+            if (inline) return inline
+        }
+    } catch {
+        // ignore
+    }
+
+    // 4. Property API fallback
+    try {
+        const v = property.getValue() as string
+        if (v) return v
+    } catch {
+        // ignore
+    }
+
+    return ""
+}
+
+function iconForTag(tag: string) {
+    const t = (tag || "").toLowerCase()
+    if (/^h[1-6]$/.test(t)) return Heading
+    if (t === "p") return Type
+    if (t === "img") return ImageIcon
+    if (t === "a") return LinkIcon
+    if (t === "button") return Square
+    if (t === "table") return Table
+    if (t === "tr") return Rows
+    if (t === "td" || t === "th") return Columns
+    if (t === "ul" || t === "ol") return List
+    if (t === "li") return Minus
+    if (t === "span") return Type
+    return Box
+}
+
+function prettifyTag(tag: string): string {
+    const t = (tag || "").toLowerCase()
+    const map: Record<string, string> = {
+        h1: "Heading 1",
+        h2: "Heading 2",
+        h3: "Heading 3",
+        h4: "Heading 4",
+        h5: "Heading 5",
+        h6: "Heading 6",
+        p: "Paragraph",
+        div: "Container",
+        span: "Text",
+        a: "Link",
+        img: "Image",
+        button: "Button",
+        table: "Section",
+        tr: "Row",
+        td: "Cell",
+        th: "Header cell",
+        ul: "Bullet list",
+        ol: "Numbered list",
+        li: "List item",
+        body: "Body",
+        section: "Section",
+        article: "Article",
+        header: "Header",
+        footer: "Footer",
+    }
+    return map[t] ?? t
+}
+
+function parseInlineStyle(s: string): Record<string, string> {
+    const out: Record<string, string> = {}
+    s.split(";").forEach((decl) => {
+        const idx = decl.indexOf(":")
+        if (idx > 0) {
+            const key = decl.slice(0, idx).trim().toLowerCase()
+            const val = decl.slice(idx + 1).trim()
+            if (key && val) out[key] = val
+        }
+    })
+    return out
 }
 
 interface SelectOption {
@@ -329,14 +534,26 @@ interface SelectOption {
 
 function normalizeColor(v: string): string {
     if (!v) return ""
-    if (v.startsWith("#")) {
-        // Native input wants 7 chars (#rrggbb). Expand 3-digit hex.
-        if (v.length === 4) {
-            return "#" + v.slice(1).split("").map((c) => c + c).join("")
+    const trimmed = v.trim()
+    if (trimmed.startsWith("#")) {
+        if (trimmed.length === 4) {
+            // expand #abc → #aabbcc for native color picker
+            return "#" + trimmed.slice(1).split("").map((c) => c + c).join("")
         }
-        return v.slice(0, 7)
+        return trimmed.slice(0, 7)
+    }
+    if (trimmed.startsWith("rgb")) {
+        return rgbToHex(trimmed)
     }
     return ""
+}
+
+function rgbToHex(rgb: string): string {
+    const m = rgb.match(/^rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/)
+    if (!m) return ""
+    const toHex = (n: number) =>
+        Math.max(0, Math.min(255, n)).toString(16).padStart(2, "0")
+    return "#" + toHex(+m[1]) + toHex(+m[2]) + toHex(+m[3])
 }
 
 function numberOrNull(v: number | undefined): number | null {
@@ -355,25 +572,100 @@ function TraitsPanel() {
                     )
                 }
                 return (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                         {traits.map((trait) => (
-                            <div key={trait.getId()} className="space-y-1">
-                                <Label className="text-[11px] text-muted-foreground">
-                                    {trait.getLabel() || trait.getName()}
-                                </Label>
-                                <Input
-                                    value={(trait.getValue() as string) ?? ""}
-                                    onChange={(e) => trait.setValue(e.target.value)}
-                                    placeholder={(trait.get("placeholder") as string) ?? ""}
-                                    className="h-7 text-xs"
-                                />
-                            </div>
+                            <TraitInput key={String(trait.getId())} trait={trait as unknown as TraitLike} />
                         ))}
                     </div>
                 )
             }}
         </TraitsProvider>
     )
+}
+
+interface TraitLike {
+    getId: () => string | number
+    getName: () => string
+    getLabel: () => string
+    getValue: () => unknown
+    setValue: (v: string) => void
+    getType?: () => string
+    get: (key: string) => unknown
+}
+
+function TraitInput({ trait }: { trait: TraitLike }) {
+    const name = trait.getName()
+    const label = trait.getLabel() || prettifyTrait(name)
+    const value = (trait.getValue() as string) ?? ""
+    const type = trait.getType?.() ?? "text"
+    const placeholder = (trait.get("placeholder") as string) ?? defaultPlaceholder(name)
+    const helpText = (trait.get("description") as string) ?? defaultHelp(name)
+
+    return (
+        <div className="space-y-1">
+            <Label className="text-[11px] text-muted-foreground">{label}</Label>
+            {type === "checkbox" ? (
+                <label className="flex items-center gap-2 text-xs">
+                    <input
+                        type="checkbox"
+                        checked={value === "true" || value === "1"}
+                        onChange={(e) =>
+                            trait.setValue(e.target.checked ? "true" : "")
+                        }
+                        className="rounded border"
+                    />
+                    {placeholder || label}
+                </label>
+            ) : (
+                <Input
+                    type={type === "number" ? "number" : "text"}
+                    value={value}
+                    onChange={(e) => trait.setValue(e.target.value)}
+                    placeholder={placeholder}
+                    className="h-7 text-xs"
+                />
+            )}
+            {helpText && (
+                <p className="text-[10px] text-muted-foreground/70 leading-snug">
+                    {helpText}
+                </p>
+            )}
+        </div>
+    )
+}
+
+function prettifyTrait(name: string): string {
+    const map: Record<string, string> = {
+        href: "Link URL",
+        src: "Image source",
+        alt: "Alt text",
+        target: "Open in",
+        title: "Title (tooltip)",
+        id: "HTML id",
+        name: "Name",
+        placeholder: "Placeholder",
+    }
+    return map[name] ?? name.replace(/-/g, " ")
+}
+
+function defaultPlaceholder(name: string): string {
+    const map: Record<string, string> = {
+        href: "https://example.com",
+        src: "https://example.com/image.jpg",
+        alt: "Describe the image for screen readers",
+        target: "_blank",
+        title: "Tooltip text",
+    }
+    return map[name] ?? ""
+}
+
+function defaultHelp(name: string): string {
+    const map: Record<string, string> = {
+        alt: "Required for accessibility — what would someone see if the image didn't load?",
+        target: "Use _blank to open in a new tab.",
+        href: "Make sure the URL is absolute (starts with https://).",
+    }
+    return map[name] ?? ""
 }
 
 function LayersPanel() {
@@ -395,35 +687,82 @@ function LayersPanel() {
 
 function LayerNode({ componentId, depth }: { componentId: string; depth: number }) {
     const editor = useEditorMaybe()
+    const [expanded, setExpanded] = useState(true)
     if (!editor) return null
     const cmp = editor.Components.getById(componentId)
     if (!cmp) return null
 
+    const tagName = (cmp.get("tagName") as string) || "div"
     const label =
         (cmp.get("name") as string) ||
         (cmp.get("custom-name") as string) ||
-        (cmp.get("tagName") as string) ||
-        "element"
+        prettifyTag(tagName)
     const children = cmp.components()
+    const hasChildren = children.length > 0
+    const Icon = iconForTag(tagName)
+    const isSelected = editor.getSelected()?.getId?.() === componentId
+
+    const highlight = (on: boolean) => {
+        try {
+            const el = cmp.getEl?.() as HTMLElement | undefined
+            if (!el) return
+            if (on) {
+                el.style.outline = "2px solid #4f46e5"
+                el.style.outlineOffset = "2px"
+                el.scrollIntoView({ block: "nearest", behavior: "smooth" })
+            } else {
+                el.style.outline = ""
+                el.style.outlineOffset = ""
+            }
+        } catch {
+            // ignore
+        }
+    }
 
     return (
         <div>
             <button
                 type="button"
                 onClick={() => editor.select(cmp)}
-                className="flex items-center gap-1.5 px-3 py-1 w-full text-left text-xs hover:bg-muted/50 truncate"
-                style={{ paddingLeft: 12 + depth * 12 }}
+                onMouseEnter={() => highlight(true)}
+                onMouseLeave={() => highlight(false)}
+                className={`flex items-center gap-1.5 py-1 w-full text-left text-xs truncate transition-colors ${
+                    isSelected
+                        ? "bg-primary/10 text-primary"
+                        : "hover:bg-muted/50 text-foreground/80"
+                }`}
+                style={{ paddingLeft: 8 + depth * 12, paddingRight: 8 }}
             >
-                <span className="inline-block w-1 h-1 rounded-full bg-muted-foreground/50" />
+                {hasChildren ? (
+                    <span
+                        role="button"
+                        tabIndex={-1}
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            setExpanded((v) => !v)
+                        }}
+                        className="shrink-0 text-muted-foreground hover:text-foreground"
+                    >
+                        {expanded ? (
+                            <ChevronDown className="w-3 h-3" />
+                        ) : (
+                            <ChevronRight className="w-3 h-3" />
+                        )}
+                    </span>
+                ) : (
+                    <span className="w-3 shrink-0" />
+                )}
+                <Icon className="w-3 h-3 shrink-0 opacity-70" />
                 <span className="truncate">{label}</span>
             </button>
-            {(children as unknown as Component[]).map((child) => (
-                <LayerNode
-                    key={child.getId()}
-                    componentId={child.getId()}
-                    depth={depth + 1}
-                />
-            ))}
+            {expanded &&
+                (children as unknown as Component[]).map((child) => (
+                    <LayerNode
+                        key={child.getId()}
+                        componentId={child.getId()}
+                        depth={depth + 1}
+                    />
+                ))}
         </div>
     )
 }
