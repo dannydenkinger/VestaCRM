@@ -174,10 +174,39 @@ function SectorBlock({ sector }: { sector: Sector }) {
 }
 
 function PropertyInput({ property }: { property: Property }) {
+    const editor = useEditorMaybe()
     const label = property.getLabel() || property.getName()
-    const value = (property.getValue() as string) ?? ""
     const type = property.getType() as string
     const name = property.getName()
+
+    // Read the value from the selected component's actual inline style first.
+    // GrapesJS's Property.getValue() depends on the active selector, which
+    // can return defaults for components that have inline styles but no class.
+    // Falling back to component.getStyle() ensures our blocks (which use
+    // inline `style="..."` attributes) show their real values.
+    const selected = editor?.getSelected()
+    const componentStyle = (selected?.getStyle?.() ?? {}) as Record<string, string>
+    const inlineValue = componentStyle[name]
+    const propValue = (property.getValue() as string) ?? ""
+    const value = (inlineValue ?? propValue) || ""
+
+    const updateValue = (next: string) => {
+        // Update through both the Property API (drives sector re-render and
+        // animations) and the component's style directly (ensures inline-styled
+        // blocks reflect the change immediately in the iframe).
+        try {
+            property.upValue(next)
+        } catch {
+            // ignore
+        }
+        try {
+            if (selected) {
+                selected.setStyle({ ...componentStyle, [name]: next })
+            }
+        } catch {
+            // ignore
+        }
+    }
 
     const isColor = type === "color" || /color|background-color/i.test(name)
 
@@ -189,13 +218,13 @@ function PropertyInput({ property }: { property: Property }) {
                     <input
                         type="color"
                         value={normalizeColor(value) || "#000000"}
-                        onChange={(e) => property.upValue(e.target.value)}
+                        onChange={(e) => updateValue(e.target.value)}
                         className="w-7 h-7 rounded border cursor-pointer p-0 bg-transparent"
                         aria-label={label}
                     />
                     <Input
                         value={value}
-                        onChange={(e) => property.upValue(e.target.value)}
+                        onChange={(e) => updateValue(e.target.value)}
                         placeholder="#000000"
                         className="h-7 text-xs flex-1 min-w-0 font-mono"
                     />
@@ -212,7 +241,7 @@ function PropertyInput({ property }: { property: Property }) {
                 <PropRow label={label}>
                     <select
                         value={value}
-                        onChange={(e) => property.upValue(e.target.value)}
+                        onChange={(e) => updateValue(e.target.value)}
                         className="h-7 text-xs flex-1 min-w-0 rounded-md border bg-background px-2"
                     >
                         {options.map((opt, idx) => (
@@ -244,7 +273,7 @@ function PropertyInput({ property }: { property: Property }) {
                             max={max}
                             step={step}
                             value={parseFloat(value) || 0}
-                            onChange={(e) => property.upValue(e.target.value)}
+                            onChange={(e) => updateValue(e.target.value)}
                             className="flex-1 min-w-0 accent-primary"
                         />
                         <span className="text-[11px] tabular-nums text-muted-foreground w-8 text-right">
@@ -259,7 +288,7 @@ function PropertyInput({ property }: { property: Property }) {
                 <Input
                     type="text"
                     value={value}
-                    onChange={(e) => property.upValue(e.target.value)}
+                    onChange={(e) => updateValue(e.target.value)}
                     placeholder="0"
                     className="h-7 text-xs flex-1 min-w-0"
                 />
@@ -273,7 +302,7 @@ function PropertyInput({ property }: { property: Property }) {
             <Input
                 type="text"
                 value={value}
-                onChange={(e) => property.upValue(e.target.value)}
+                onChange={(e) => updateValue(e.target.value)}
                 className="h-7 text-xs flex-1 min-w-0"
             />
         </PropRow>
