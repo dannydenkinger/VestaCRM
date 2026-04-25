@@ -25,6 +25,8 @@ export interface GrapesEmailEditorProps {
     onChange?: (html: string, projectJson: ProjectData) => void
     /** Fired once when the editor is mounted and ready. */
     onReady?: (editor: Editor) => void
+    /** Optional: triggered when the user clicks the Save button in the editor TopBar. */
+    onSave?: () => void
 }
 
 /**
@@ -36,6 +38,7 @@ export function GrapesEmailEditor({
     initialHtml,
     onChange,
     onReady,
+    onSave,
 }: GrapesEmailEditorProps) {
     const editorRef = useRef<Editor | null>(null)
     const [fullscreen, setFullscreen] = useState(false)
@@ -83,18 +86,16 @@ export function GrapesEmailEditor({
         }
     }
 
-    // When inline: fill most of the viewport so the canvas is large and the
-    // iframe doesn't shift around when the user scrolls the page.
-    // When fullscreen: cover the whole viewport.
+    // Inline mode fills its parent (TemplateEditor pins it in a fixed-height
+    // flex region — the iframe never moves on page scroll, which keeps
+    // GrapesJS's drop-position math accurate).
+    // Fullscreen mode covers the whole viewport.
     const wrapperClass = fullscreen
         ? "grapes-editor-root fixed inset-0 z-50 bg-background flex flex-col"
-        : "grapes-editor-root border rounded-md overflow-hidden bg-background flex flex-col"
-    const wrapperStyle: React.CSSProperties = fullscreen
-        ? { height: "100vh" }
-        : { height: "calc(100vh - 220px)", minHeight: 560 }
+        : "grapes-editor-root bg-background flex flex-col h-full w-full"
 
     return (
-        <div className={wrapperClass} style={wrapperStyle}>
+        <div className={wrapperClass}>
             <GjsEditor
                 grapesjs={grapesjs}
                 plugins={[newsletterPreset as Plugin, vestaBlocksPlugin]}
@@ -115,6 +116,7 @@ export function GrapesEmailEditor({
                     <TopBar
                         fullscreen={fullscreen}
                         onToggleFullscreen={() => setFullscreen((v) => !v)}
+                        onSave={onSave}
                     />
                     <div className="flex flex-1 min-h-0">
                         <div className="w-56 shrink-0 border-r bg-card">

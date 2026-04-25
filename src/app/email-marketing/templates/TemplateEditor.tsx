@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useRef, useState, useTransition } from "react"
 import dynamic from "next/dynamic"
@@ -7,22 +8,38 @@ import type { ProjectData } from "grapesjs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
+} from "@/components/ui/sheet"
+import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
-import { Loader2, Save, Upload, Send } from "lucide-react"
+import {
+    Loader2,
+    Save,
+    Upload,
+    Send,
+    ArrowLeft,
+    Settings2,
+    Sparkles,
+} from "lucide-react"
 import { TokenInserter, insertAtCursor } from "@/components/email/TokenInserter"
 import { buildContactContext, renderTokens } from "@/lib/templating/tokens"
 import { saveTemplateAction, sendTemplateTestAction } from "../actions"
 
-// Lazy-load GrapesJS — heavy bundle (~300 KB). Keeps initial JS small on
-// every other page.
+// Lazy-load GrapesJS — heavy bundle (~300 KB).
 const GrapesEmailEditor = dynamic(
-    () => import("@/components/email/GrapesEmailEditor").then((m) => m.GrapesEmailEditor),
+    () =>
+        import("@/components/email/GrapesEmailEditor").then((m) => m.GrapesEmailEditor),
     {
         ssr: false,
         loading: () => (
-            <div className="py-16 text-sm text-muted-foreground text-center">
-                <Loader2 className="w-5 h-5 mx-auto mb-2 animate-spin" />
+            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                 Loading editor…
             </div>
         ),
@@ -44,7 +61,6 @@ interface Props {
         subject: string
         description?: string
         renderedHtml: string
-        /** Stored GrapesJS project JSON from a previous edit (null if HTML-only). */
         designJson: Record<string, unknown> | null
     }
     starterTemplates?: StarterOption[]
@@ -63,14 +79,15 @@ export function TemplateEditor({ initial, starterTemplates, workspaceName }: Pro
         (initial?.designJson as ProjectData | null) ?? null,
     )
 
-    // Seed HTML handed to the GrapesJS canvas on first mount. Mutating this
-    // after mount doesn't re-import — we'd have to call setComponents on the
-    // editor instance, which is handled via the `seedHtmlKey` force-remount.
+    // Seed used for first-mount and force-remounts (file imports / starters).
     const [canvasSeed, setCanvasSeed] = useState<string>(initial?.renderedHtml ?? "")
     const [canvasSeedKey, setCanvasSeedKey] = useState(0)
 
     const subjectInputRef = useRef<HTMLInputElement | null>(null)
     const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+    const [settingsOpen, setSettingsOpen] = useState(false)
+
     const [testTo, setTestTo] = useState("")
     const [isSendingTest, setIsSendingTest] = useState(false)
 
@@ -120,6 +137,7 @@ export function TemplateEditor({ initial, starterTemplates, workspaceName }: Pro
             setCanvasSeedKey((n) => n + 1)
             setDesignJson(null)
             toast.success(`Imported ${file.name}`)
+            setSettingsOpen(false)
         } catch (err) {
             toast.error(err instanceof Error ? err.message : "Failed to read file")
         }
@@ -138,6 +156,7 @@ export function TemplateEditor({ initial, starterTemplates, workspaceName }: Pro
         setCanvasSeedKey((n) => n + 1)
         setDesignJson(null)
         toast.success(`Loaded "${s.name}"`)
+        setSettingsOpen(false)
     }
 
     const handleSendTest = () => {
@@ -199,216 +218,239 @@ export function TemplateEditor({ initial, starterTemplates, workspaceName }: Pro
     }
 
     return (
-        <div className="space-y-6">
-            {!initial && starterTemplates && starterTemplates.length > 0 && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-base">Start from a template</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-sm text-muted-foreground mb-3">
-                            Click any template to load it as a starting point. You can edit
-                            everything afterward.
-                        </p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {starterTemplates.map((s) => (
-                                <button
-                                    key={s.slug}
-                                    type="button"
-                                    onClick={() => handleUseStarter(s)}
-                                    disabled={isPending}
-                                    className="text-left p-3 border rounded-md hover:bg-muted/50 transition-colors disabled:opacity-50"
-                                >
-                                    <div className="text-sm font-medium">{s.name}</div>
-                                    <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                        {s.description}
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Details</CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="name">Name</Label>
-                        <Input
-                            id="name"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="Welcome email v2"
-                            disabled={isPending}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <Label htmlFor="subject">Default subject</Label>
-                            <TokenInserter
-                                onInsert={insertIntoSubject}
-                                size="sm"
-                                label="Token"
-                                disabled={isPending}
-                            />
-                        </div>
-                        <Input
-                            id="subject"
-                            ref={subjectInputRef}
-                            value={subject}
-                            onChange={(e) => setSubject(e.target.value)}
-                            placeholder="Welcome, {{first_name}}"
-                            disabled={isPending}
-                        />
-                    </div>
-                    <div className="space-y-2 md:col-span-2">
-                        <Label htmlFor="description">Description (optional)</Label>
-                        <Input
-                            id="description"
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            disabled={isPending}
-                        />
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader className="flex-row items-center justify-between">
-                    <CardTitle>Design</CardTitle>
-                    <div className="flex items-center gap-2">
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept=".html,.htm,text/html"
-                            className="hidden"
-                            onChange={(e) => {
-                                const f = e.target.files?.[0]
-                                if (f) handleHtmlFileChosen(f)
-                                e.target.value = ""
-                            }}
-                        />
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={isPending}
-                        >
-                            <Upload className="w-3.5 h-3.5 mr-1.5" />
-                            Import .html
-                        </Button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <GrapesEmailEditor
-                        key={canvasSeedKey}
-                        initialProject={canvasSeedKey === 0 ? designJson : null}
-                        initialHtml={canvasSeed}
-                        onChange={handleEditorChange}
+        <div className="flex flex-col h-[calc(100dvh-72px)] bg-background">
+            {/* Top toolbar — single row containing all template-level chrome.
+                Keeps the editor pinned in a stable layout below it so GrapesJS's
+                drop-position math doesn't drift on page scroll. */}
+            <header className="h-14 border-b shrink-0 flex items-center px-3 gap-2 bg-card">
+                <Link href="/email-marketing/templates">
+                    <Button variant="ghost" size="icon" className="h-9 w-9" title="Back">
+                        <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                </Link>
+                <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Untitled template"
+                    className="h-9 max-w-xs border-0 bg-transparent shadow-none focus-visible:bg-muted/40 font-medium"
+                    disabled={isPending}
+                />
+                <Separator orientation="vertical" className="h-6" />
+                <div className="flex-1 min-w-0 flex items-center gap-1">
+                    <Input
+                        ref={subjectInputRef}
+                        value={subject}
+                        onChange={(e) => setSubject(e.target.value)}
+                        placeholder="Subject — what recipients see in their inbox"
+                        className="h-9 border-0 bg-transparent shadow-none focus-visible:bg-muted/40"
+                        disabled={isPending}
                     />
-                    <p className="text-[11px] text-muted-foreground mt-2">
-                        Drag blocks from the left panel. CSS is auto-inlined at send time for
-                        Gmail/Outlook compatibility.
-                    </p>
-                </CardContent>
-            </Card>
+                    <TokenInserter
+                        onInsert={insertIntoSubject}
+                        size="sm"
+                        label="Token"
+                        disabled={isPending}
+                    />
+                </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Preview</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 p-3 bg-muted/30 rounded-md">
-                        <div className="space-y-1">
-                            <Label htmlFor="previewName" className="text-xs">
-                                Preview as (name)
-                            </Label>
-                            <Input
-                                id="previewName"
-                                value={previewName}
-                                onChange={(e) => setPreviewName(e.target.value)}
-                                placeholder="Jane Doe"
-                                disabled={isPending}
-                            />
-                        </div>
-                        <div className="space-y-1">
-                            <Label htmlFor="previewEmail" className="text-xs">
-                                Preview as (email)
-                            </Label>
-                            <Input
-                                id="previewEmail"
-                                value={previewEmail}
-                                onChange={(e) => setPreviewEmail(e.target.value)}
-                                placeholder="jane@example.com"
-                                disabled={isPending}
-                            />
-                        </div>
-                    </div>
-                    {subject && (
-                        <div className="text-sm">
-                            <span className="text-muted-foreground">Subject: </span>
-                            <span className="font-medium">{previewSubject}</span>
-                        </div>
-                    )}
-                    <div className="border rounded-md overflow-hidden bg-white">
-                        <iframe
-                            title="Preview"
-                            srcDoc={previewHtml || "<p style='padding:2rem;color:#999'>(no content yet)</p>"}
-                            className="w-full h-[400px]"
-                            sandbox=""
-                        />
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-base">Send a test</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                    <p className="text-sm text-muted-foreground">
-                        Sends this draft (with CSS inlined and tokens rendered) to one address.
-                        Deducts 1 credit. The fastest way to catch rendering issues across Gmail / Outlook.
-                    </p>
-                    <div className="flex items-center gap-2">
-                        <Input
-                            type="email"
-                            placeholder="you@example.com"
-                            value={testTo}
-                            onChange={(e) => setTestTo(e.target.value)}
-                            disabled={isSendingTest || isPending}
-                            className="max-w-xs"
-                        />
-                        <Button
-                            type="button"
-                            onClick={handleSendTest}
-                            disabled={isSendingTest || isPending || !testTo.trim()}
-                            variant="outline"
-                        >
-                            {isSendingTest ? (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            ) : (
-                                <Send className="w-4 h-4 mr-2" />
-                            )}
-                            Send test
+                <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
+                    <SheetTrigger asChild>
+                        <Button variant="outline" size="sm" className="gap-1.5">
+                            <Settings2 className="w-3.5 h-3.5" />
+                            Settings
                         </Button>
-                    </div>
-                </CardContent>
-            </Card>
+                    </SheetTrigger>
+                    <SheetContent side="right" className="sm:max-w-md w-full flex flex-col p-0">
+                        <SheetHeader className="px-5 py-4 border-b shrink-0">
+                            <SheetTitle>Template settings</SheetTitle>
+                            <SheetDescription>
+                                Description, starter templates, preview, and test send.
+                            </SheetDescription>
+                        </SheetHeader>
+                        <div className="flex-1 min-h-0 overflow-y-auto">
+                            <div className="p-5 space-y-6">
+                                {/* Description */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="description">Description (internal note)</Label>
+                                    <Input
+                                        id="description"
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                        placeholder="Short note about when to use this template"
+                                        disabled={isPending}
+                                    />
+                                </div>
 
-            <div className="flex justify-end">
-                <Button onClick={handleSave} disabled={isPending}>
+                                {/* Starter templates — only when creating new */}
+                                {!initial && starterTemplates && starterTemplates.length > 0 && (
+                                    <div className="space-y-2">
+                                        <Label className="flex items-center gap-1.5">
+                                            <Sparkles className="w-3.5 h-3.5" />
+                                            Start from a template
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            Replaces your current design.
+                                        </p>
+                                        <div className="grid grid-cols-1 gap-2">
+                                            {starterTemplates.map((s) => (
+                                                <button
+                                                    key={s.slug}
+                                                    type="button"
+                                                    onClick={() => handleUseStarter(s)}
+                                                    disabled={isPending}
+                                                    className="text-left p-3 border rounded-md hover:bg-muted/50 transition-colors disabled:opacity-50"
+                                                >
+                                                    <div className="text-sm font-medium">{s.name}</div>
+                                                    <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                                        {s.description}
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Import .html */}
+                                <div className="space-y-2">
+                                    <Label>Import HTML</Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        Replace the canvas with HTML you exported from Claude, Figma,
+                                        Stripo, etc. Replaces current design.
+                                    </p>
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept=".html,.htm,text/html"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            const f = e.target.files?.[0]
+                                            if (f) handleHtmlFileChosen(f)
+                                            e.target.value = ""
+                                        }}
+                                    />
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={isPending}
+                                    >
+                                        <Upload className="w-3.5 h-3.5 mr-2" />
+                                        Choose .html file
+                                    </Button>
+                                </div>
+
+                                <Separator />
+
+                                {/* Preview as recipient */}
+                                <div className="space-y-3">
+                                    <Label>Preview as recipient</Label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="space-y-1">
+                                            <Label htmlFor="previewName" className="text-xs">
+                                                Name
+                                            </Label>
+                                            <Input
+                                                id="previewName"
+                                                value={previewName}
+                                                onChange={(e) => setPreviewName(e.target.value)}
+                                                disabled={isPending}
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="previewEmail" className="text-xs">
+                                                Email
+                                            </Label>
+                                            <Input
+                                                id="previewEmail"
+                                                value={previewEmail}
+                                                onChange={(e) => setPreviewEmail(e.target.value)}
+                                                disabled={isPending}
+                                            />
+                                        </div>
+                                    </div>
+                                    {subject && (
+                                        <div className="text-xs">
+                                            <span className="text-muted-foreground">Subject: </span>
+                                            <span className="font-medium">{previewSubject}</span>
+                                        </div>
+                                    )}
+                                    <div className="border rounded-md overflow-hidden bg-white">
+                                        <iframe
+                                            title="Preview"
+                                            srcDoc={
+                                                previewHtml ||
+                                                "<p style='padding:2rem;color:#999'>(no content yet)</p>"
+                                            }
+                                            className="w-full h-[260px]"
+                                            sandbox=""
+                                        />
+                                    </div>
+                                </div>
+
+                                <Separator />
+
+                                {/* Send a test */}
+                                <div className="space-y-2">
+                                    <Label>Send a test email</Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        Sends to one address with CSS inlined and tokens rendered. Deducts 1 credit.
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                        <Input
+                                            type="email"
+                                            placeholder="you@example.com"
+                                            value={testTo}
+                                            onChange={(e) => setTestTo(e.target.value)}
+                                            disabled={isSendingTest || isPending}
+                                        />
+                                        <Button
+                                            type="button"
+                                            onClick={handleSendTest}
+                                            disabled={
+                                                isSendingTest || isPending || !testTo.trim()
+                                            }
+                                            variant="outline"
+                                        >
+                                            {isSendingTest ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <Send className="w-4 h-4" />
+                                            )}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </SheetContent>
+                </Sheet>
+
+                <Button
+                    onClick={handleSave}
+                    disabled={isPending}
+                    size="sm"
+                    className="gap-1.5"
+                >
                     {isPending ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                        <Save className="w-4 h-4 mr-2" />
+                        <Save className="w-4 h-4" />
                     )}
-                    Save template
+                    Save
                 </Button>
+            </header>
+
+            {/* Editor fills the entire remaining area. The container has fixed
+                height (set by the parent flex), so the iframe never moves —
+                drop math stays accurate. */}
+            <div className="flex-1 min-h-0">
+                <GrapesEmailEditor
+                    key={canvasSeedKey}
+                    initialProject={canvasSeedKey === 0 ? designJson : null}
+                    initialHtml={canvasSeed}
+                    onChange={handleEditorChange}
+                    onSave={handleSave}
+                />
             </div>
         </div>
     )

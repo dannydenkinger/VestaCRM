@@ -20,6 +20,7 @@ import {
     EyeOff,
     Maximize2,
     Minimize2,
+    Save,
 } from "lucide-react"
 
 const DEVICE_ICONS: Record<string, React.ReactNode> = {
@@ -33,9 +34,11 @@ const DEVICE_ICONS: Record<string, React.ReactNode> = {
 export interface TopBarProps {
     fullscreen: boolean
     onToggleFullscreen: () => void
+    /** Optional save trigger; when present a Save button appears in fullscreen mode. */
+    onSave?: () => void
 }
 
-export function TopBar({ fullscreen, onToggleFullscreen }: TopBarProps) {
+export function TopBar({ fullscreen, onToggleFullscreen, onSave }: TopBarProps) {
     const editor = useEditorMaybe()
     const [canUndo, setCanUndo] = useState(false)
     const [canRedo, setCanRedo] = useState(false)
@@ -180,6 +183,17 @@ export function TopBar({ fullscreen, onToggleFullscreen }: TopBarProps) {
                         <Maximize2 className="w-4 h-4" />
                     )}
                 </Button>
+                {fullscreen && onSave && (
+                    <Button
+                        size="sm"
+                        onClick={onSave}
+                        className="h-8 ml-1 gap-1.5"
+                        title="Save template"
+                    >
+                        <Save className="w-3.5 h-3.5" />
+                        Save
+                    </Button>
+                )}
             </div>
         </div>
     )
