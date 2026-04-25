@@ -21,6 +21,8 @@ import {
     Maximize2,
     Minimize2,
     Save,
+    PanelRightOpen,
+    PanelRightClose,
 } from "lucide-react"
 
 const DEVICE_ICONS: Record<string, React.ReactNode> = {
@@ -36,9 +38,17 @@ export interface TopBarProps {
     onToggleFullscreen: () => void
     /** Optional save trigger; when present a Save button appears in fullscreen mode. */
     onSave?: () => void
+    rightPanelOpen: boolean
+    onToggleRightPanel: () => void
 }
 
-export function TopBar({ fullscreen, onToggleFullscreen, onSave }: TopBarProps) {
+export function TopBar({
+    fullscreen,
+    onToggleFullscreen,
+    onSave,
+    rightPanelOpen,
+    onToggleRightPanel,
+}: TopBarProps) {
     const editor = useEditorMaybe()
     const [canUndo, setCanUndo] = useState(false)
     const [canRedo, setCanRedo] = useState(false)
@@ -169,6 +179,19 @@ export function TopBar({ fullscreen, onToggleFullscreen, onSave }: TopBarProps) 
                 >
                     <Code2 className="w-3.5 h-3.5" />
                     Code
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onToggleRightPanel}
+                    className="h-8 w-8"
+                    title={rightPanelOpen ? "Hide properties panel" : "Show properties panel"}
+                >
+                    {rightPanelOpen ? (
+                        <PanelRightClose className="w-4 h-4" />
+                    ) : (
+                        <PanelRightOpen className="w-4 h-4" />
+                    )}
                 </Button>
                 <Button
                     variant="ghost"

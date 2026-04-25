@@ -42,6 +42,10 @@ export function GrapesEmailEditor({
 }: GrapesEmailEditorProps) {
     const editorRef = useRef<Editor | null>(null)
     const [fullscreen, setFullscreen] = useState(false)
+    // Properties panel collapses by default; opens automatically when the
+    // user selects something in the canvas, closes on deselect. User can
+    // also toggle manually via the TopBar button.
+    const [rightPanelOpen, setRightPanelOpen] = useState(false)
 
     // Lock body scroll while fullscreen so background scrolling can't drift
     // the iframe and throw off GrapesJS's drop-position math.
@@ -72,6 +76,12 @@ export function GrapesEmailEditor({
         } else if (initialHtml) {
             editor.setComponents(initialHtml)
         }
+
+        // Auto-open the properties panel when the user selects something,
+        // close it on deselect. Gives users full canvas width when not
+        // styling, and surfaces controls automatically when needed.
+        editor.on("component:selected", () => setRightPanelOpen(true))
+        editor.on("component:deselected", () => setRightPanelOpen(false))
 
         onReady?.(editor)
     }
@@ -117,6 +127,8 @@ export function GrapesEmailEditor({
                         fullscreen={fullscreen}
                         onToggleFullscreen={() => setFullscreen((v) => !v)}
                         onSave={onSave}
+                        rightPanelOpen={rightPanelOpen}
+                        onToggleRightPanel={() => setRightPanelOpen((v) => !v)}
                     />
                     <div className="flex flex-1 min-h-0">
                         <div className="w-56 shrink-0 border-r bg-card">
@@ -125,9 +137,11 @@ export function GrapesEmailEditor({
                         <div className="flex-1 min-w-0 relative">
                             <Canvas className="h-full" />
                         </div>
-                        <div className="w-72 shrink-0 border-l bg-card">
-                            <RightPanel />
-                        </div>
+                        {rightPanelOpen && (
+                            <div className="w-72 shrink-0 border-l bg-card">
+                                <RightPanel />
+                            </div>
+                        )}
                     </div>
                 </div>
             </GjsEditor>
