@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
     LayersProvider,
     SelectorsProvider,
@@ -37,8 +37,8 @@ import {
     Sparkles,
     Layout,
     Eraser,
-    Lock,
-    Unlock,
+    Link2,
+    Unlink2,
 } from "lucide-react"
 import type { Component, Property, Sector } from "grapesjs"
 
@@ -359,79 +359,160 @@ function SpacingBox({ label, props }: { label: string; props: Property[] }) {
     )
 
     const values = props.map((p) => readStyleValue(selected, expanded, p.getName(), p))
-    const allSame = values.every((v) => v === values[0])
-    const sides = ["Top", "Right", "Bottom", "Left"]
+    const [top, right, bottom, left] = [
+        values[0] ?? "",
+        values[1] ?? "",
+        values[2] ?? "",
+        values[3] ?? "",
+    ]
 
     const updateSide = (idx: number, next: string) => {
         const cleaned = next.trim()
         const writeValue = cleaned ? formatLength(cleaned) : ""
-        if (linked) {
-            // Apply to all 4
-            try {
-                const newStyle = { ...componentStyle }
+        try {
+            const newStyle = { ...componentStyle }
+            if (linked) {
                 props.forEach((p) => {
                     if (writeValue) newStyle[p.getName()] = writeValue
                     else delete newStyle[p.getName()]
                     try { p.upValue(writeValue) } catch { /* ignore */ }
                 })
-                selected?.setStyle(newStyle)
-            } catch { /* ignore */ }
-        } else {
-            try {
-                const newStyle = { ...componentStyle }
+            } else {
                 if (writeValue) newStyle[props[idx].getName()] = writeValue
                 else delete newStyle[props[idx].getName()]
-                selected?.setStyle(newStyle)
                 try { props[idx].upValue(writeValue) } catch { /* ignore */ }
-            } catch { /* ignore */ }
-        }
+            }
+            selected?.setStyle(newStyle)
+        } catch { /* ignore */ }
     }
 
+    const isPadding = label.toLowerCase() === "padding"
+
     return (
-        <div className="space-y-1">
+        <div className="space-y-1.5">
             <div className="flex items-center justify-between">
                 <Label className="text-[11px] text-muted-foreground">{label}</Label>
                 <button
                     type="button"
                     onClick={() => setLinked((v) => !v)}
-                    title={linked ? "Edit each side individually" : "Link all sides"}
-                    className={`text-[10px] px-1.5 py-0.5 rounded transition-colors flex items-center gap-1 ${
+                    title={linked ? "Per-side editing (unlink)" : "Link all sides"}
+                    className={`text-[10px] p-1 rounded transition-colors flex items-center justify-center ${
                         linked
-                            ? "bg-primary/10 text-primary"
-                            : "bg-muted text-muted-foreground hover:bg-muted/80"
+                            ? "bg-primary/10 text-primary hover:bg-primary/20"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     }`}
+                    aria-pressed={linked}
                 >
-                    {linked ? <Lock className="w-2.5 h-2.5" /> : <Unlock className="w-2.5 h-2.5" />}
-                    {linked ? "All" : "Sides"}
+                    {linked ? (
+                        <Link2 className="w-3 h-3" />
+                    ) : (
+                        <Unlink2 className="w-3 h-3" />
+                    )}
                 </button>
             </div>
-            {linked ? (
-                <Input
-                    type="text"
-                    value={allSame ? values[0] : ""}
-                    placeholder={allSame ? "0" : "Mixed"}
-                    onChange={(e) => updateSide(0, e.target.value)}
-                    className="h-7 text-xs"
-                />
-            ) : (
-                <div className="grid grid-cols-2 gap-1">
-                    {sides.map((s, i) => (
-                        <div key={s} className="space-y-0.5">
-                            <Label className="text-[9px] text-muted-foreground/70 uppercase tracking-wider">
-                                {s}
-                            </Label>
-                            <Input
-                                type="text"
-                                value={values[i] ?? ""}
-                                placeholder="0"
-                                onChange={(e) => updateSide(i, e.target.value)}
-                                className="h-6 text-[11px] px-1.5"
-                            />
-                        </div>
-                    ))}
+
+            <div
+                className={`relative rounded-md p-1.5 ${
+                    isPadding
+                        ? "bg-primary/[0.04] border border-dashed border-primary/30"
+                        : "bg-muted/40 border border-dashed border-muted-foreground/25"
+                }`}
+            >
+                {/* Top */}
+                <div className="flex justify-center">
+                    <SpacingInput
+                        value={top}
+                        onChange={(v) => updateSide(0, v)}
+                        ariaLabel={`${label} top`}
+                    />
                 </div>
-            )}
+
+                {/* Middle row: left, label, right */}
+                <div className="flex items-center gap-1 my-1">
+                    <SpacingInput
+                        value={left}
+                        onChange={(v) => updateSide(3, v)}
+                        ariaLabel={`${label} left`}
+                    />
+                    <div
+                        className={`flex-1 h-7 rounded-sm flex items-center justify-center text-[9px] uppercase tracking-wider font-semibold ${
+                            isPadding
+                                ? "bg-background border border-dashed border-primary/20 text-primary/60"
+                                : "bg-background/70 border border-dashed border-muted-foreground/20 text-muted-foreground/60"
+                        }`}
+                    >
+                        {isPadding ? "Inner" : "Outer"}
+                    </div>
+                    <SpacingInput
+                        value={right}
+                        onChange={(v) => updateSide(1, v)}
+                        ariaLabel={`${label} right`}
+                    />
+                </div>
+
+                {/* Bottom */}
+                <div className="flex justify-center">
+                    <SpacingInput
+                        value={bottom}
+                        onChange={(v) => updateSide(2, v)}
+                        ariaLabel={`${label} bottom`}
+                    />
+                </div>
+            </div>
+
+            {/* Quick presets */}
+            <div className="flex items-center gap-1 pt-0.5">
+                <span className="text-[9px] uppercase tracking-wider text-muted-foreground/60 mr-0.5">
+                    Quick
+                </span>
+                {[0, 8, 16, 24, 32].map((n) => (
+                    <button
+                        key={n}
+                        type="button"
+                        onClick={() => {
+                            // Apply to all sides — effectively a "set all" preset
+                            const writeValue = n === 0 ? "" : `${n}px`
+                            try {
+                                const newStyle = { ...componentStyle }
+                                props.forEach((p) => {
+                                    if (writeValue) newStyle[p.getName()] = writeValue
+                                    else delete newStyle[p.getName()]
+                                    try { p.upValue(writeValue) } catch { /* ignore */ }
+                                })
+                                selected?.setStyle(newStyle)
+                            } catch { /* ignore */ }
+                        }}
+                        className="text-[10px] tabular-nums px-1.5 py-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                        title={`Set all sides to ${n}px`}
+                    >
+                        {n}
+                    </button>
+                ))}
+            </div>
         </div>
+    )
+}
+
+function SpacingInput({
+    value,
+    onChange,
+    ariaLabel,
+}: {
+    value: string
+    onChange: (next: string) => void
+    ariaLabel: string
+}) {
+    // Strip trailing "px" for cleaner display; user can still type units.
+    const display = value ? value.replace(/^(-?\d+(?:\.\d+)?)px$/, "$1") : ""
+    return (
+        <input
+            type="text"
+            value={display}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="0"
+            aria-label={ariaLabel}
+            className="w-12 h-6 text-[11px] text-center font-mono rounded border bg-background hover:border-primary/40 focus:border-primary focus:ring-1 focus:ring-primary/20 focus:outline-none transition-colors tabular-nums"
+        />
     )
 }
 
@@ -594,6 +675,7 @@ function ColorInput({
 }) {
     const [open, setOpen] = useState(false)
     const [recent, setRecent] = useState<string[]>(loadRecentColors)
+    const containerRef = useRef<HTMLDivElement | null>(null)
     const hex = normalizeColor(value) || ""
 
     useEffect(() => {
@@ -602,17 +684,35 @@ function ColorInput({
         return () => window.removeEventListener("storage", onSync)
     }, [])
 
+    // Click outside / Esc closes the popover
+    useEffect(() => {
+        if (!open) return
+        const onDown = (e: MouseEvent) => {
+            if (!containerRef.current) return
+            if (!containerRef.current.contains(e.target as Node)) setOpen(false)
+        }
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setOpen(false)
+        }
+        document.addEventListener("mousedown", onDown)
+        document.addEventListener("keydown", onKey)
+        return () => {
+            document.removeEventListener("mousedown", onDown)
+            document.removeEventListener("keydown", onKey)
+        }
+    }, [open])
+
     const apply = (next: string) => {
         onChange(next)
         setRecent(loadRecentColors())
     }
 
     return (
-        <div className="flex items-center gap-1 flex-1 min-w-0 relative">
+        <div ref={containerRef} className="flex items-center gap-1 flex-1 min-w-0 relative">
             <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
-                className="w-7 h-7 rounded border shrink-0 cursor-pointer overflow-hidden bg-checker"
+                className="w-7 h-7 rounded border shrink-0 cursor-pointer overflow-hidden hover:ring-2 hover:ring-primary/20 transition-shadow"
                 style={{
                     backgroundColor: hex || "transparent",
                     backgroundImage: hex
@@ -631,8 +731,7 @@ function ColorInput({
             />
             {open && (
                 <div
-                    className="absolute z-50 top-8 left-0 w-56 rounded-lg border bg-popover shadow-lg p-2 space-y-2"
-                    onMouseLeave={() => setOpen(false)}
+                    className="absolute z-50 top-full mt-1 right-0 w-56 max-w-[calc(var(--right-panel-width,288px)-24px)] rounded-lg border bg-popover shadow-lg p-2 space-y-2"
                 >
                     <input
                         type="color"
