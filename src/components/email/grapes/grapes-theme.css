@@ -14,6 +14,24 @@
  * still wins.
  */
 
+/* ── Hide native GrapesJS chrome (we render React panels) ──────────────── */
+/* All the manager UIs are rendered via @grapesjs/react providers in our
+   shadcn-themed panels. The native panels (top toolbar with download/erase/
+   trash icons, right-side view tabs with paintbrush/gear/layers, the dark
+   style manager column) duplicate that information. Hide them. */
+.gjs-pn-options,
+.gjs-pn-views,
+.gjs-pn-views-container,
+.gjs-pn-devices-c,
+.gjs-pn-commands,
+.gjs-pn-buttons,
+.gjs-pn-panels,
+.gjs-pn-panel.gjs-pn-options,
+.gjs-pn-panel.gjs-pn-views,
+.gjs-pn-panel.gjs-pn-views-container {
+    display: none !important;
+}
+
 /* ── Canvas wrapper ─────────────────────────────────────────────────────── */
 .gjs-cv-canvas {
     background: var(--muted) !important;

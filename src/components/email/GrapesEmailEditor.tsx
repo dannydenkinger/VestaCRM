@@ -113,6 +113,15 @@ export function GrapesEmailEditor({
                     height: "100%",
                     storageManager: false,
                     panels: { defaults: [] },
+                    // Tell GrapesJS we're rendering each manager's UI ourselves
+                    // (via the React providers in our left/right panels).
+                    // Without this it ALSO renders its own native panels,
+                    // causing the duplicate "two right sidebars" effect.
+                    blockManager: { custom: true },
+                    styleManager: { custom: true },
+                    selectorManager: { custom: true },
+                    traitManager: { custom: true },
+                    layerManager: { custom: true },
                 }}
                 onEditor={handleEditor}
                 onUpdate={handleUpdate}
