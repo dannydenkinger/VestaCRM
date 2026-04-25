@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
     LayersProvider,
     SelectorsProvider,
@@ -29,12 +29,23 @@ import {
     Minus,
     Rows,
     Columns,
+    Move3d,
+    AlignVerticalJustifyCenter,
+    Frame,
+    PaintBucket,
+    SquareDashed,
+    Sparkles,
+    Layout,
+    Eraser,
+    Lock,
+    Unlock,
 } from "lucide-react"
 import type { Component, Property, Sector } from "grapesjs"
 
 export function RightPanel() {
     const editor = useEditorMaybe()
     const [selectedLabel, setSelectedLabel] = useState<string | null>(null)
+    const [selectedTag, setSelectedTag] = useState<string | null>(null)
 
     useEffect(() => {
         if (!editor) return
@@ -43,16 +54,22 @@ export function RightPanel() {
                 const cmp = component as {
                     get?: (key: string) => unknown
                 }
+                const tag = (cmp.get?.("tagName") as string) || ""
                 const name =
                     (cmp.get?.("name") as string) ||
-                    (cmp.get?.("tagName") as string) ||
+                    prettifyTag(tag) ||
                     "Element"
                 setSelectedLabel(name)
+                setSelectedTag(tag)
             } catch {
                 setSelectedLabel(null)
+                setSelectedTag(null)
             }
         }
-        const onDeselected = () => setSelectedLabel(null)
+        const onDeselected = () => {
+            setSelectedLabel(null)
+            setSelectedTag(null)
+        }
         editor.on("component:selected", onSelected)
         editor.on("component:deselected", onDeselected)
         return () => {
@@ -61,14 +78,26 @@ export function RightPanel() {
         }
     }, [editor])
 
+    const HeaderIcon = selectedTag ? iconForTag(selectedTag) : Box
+
     return (
         <div className="flex flex-col h-full overflow-hidden">
             <div className="px-3 py-2.5 border-b bg-muted/30">
-                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Properties
-                </div>
-                <div className="text-[11px] text-muted-foreground/70 mt-0.5 truncate">
-                    {selectedLabel ?? "Nothing selected"}
+                <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Properties
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                            <HeaderIcon className="w-3 h-3 text-muted-foreground/70 shrink-0" />
+                            <span className="text-[11px] text-muted-foreground/70 truncate">
+                                {selectedLabel ?? "Nothing selected"}
+                            </span>
+                        </div>
+                    </div>
+                    {selectedLabel && (
+                        <ResetStylesButton />
+                    )}
                 </div>
             </div>
 
@@ -100,6 +129,33 @@ export function RightPanel() {
                 </TabsContent>
             </Tabs>
         </div>
+    )
+}
+
+function ResetStylesButton() {
+    const editor = useEditorMaybe()
+    return (
+        <button
+            type="button"
+            onClick={() => {
+                const selected = editor?.getSelected()
+                if (!selected) return
+                if (!confirm("Clear all styles on this element?")) return
+                try {
+                    selected.setStyle({})
+                    selected.setAttributes({
+                        ...(selected.getAttributes() as Record<string, unknown>),
+                        style: undefined,
+                    })
+                } catch {
+                    // ignore
+                }
+            }}
+            title="Reset all styles"
+            className="text-muted-foreground/50 hover:text-destructive transition-colors p-1 rounded hover:bg-destructive/10"
+        >
+            <Eraser className="w-3.5 h-3.5" />
+        </button>
     )
 }
 
@@ -163,7 +219,7 @@ function StylesPanel() {
                     )
                 }
                 return (
-                    <div className="space-y-3">
+                    <div className="space-y-1">
                         {sectors.map((sector) => (
                             <SectorBlock key={sector.getId()} sector={sector} />
                         ))}
@@ -188,9 +244,22 @@ function loadCollapsedSectors(): Set<string> {
     }
 }
 
+function iconForSector(name: string) {
+    const n = name.toLowerCase()
+    if (/dimens|size|width|height/.test(n)) return Move3d
+    if (/typo|font|text/.test(n)) return Type
+    if (/decora|background|border|color/.test(n)) return PaintBucket
+    if (/extra|effect|shadow|opacity/.test(n)) return Sparkles
+    if (/flex|layout|position|display/.test(n)) return Layout
+    if (/align/.test(n)) return AlignVerticalJustifyCenter
+    if (/space|padding|margin/.test(n)) return Frame
+    return SquareDashed
+}
+
 function SectorBlock({ sector }: { sector: Sector }) {
     const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsedSectors)
     const sectorId = sector.getId()
+    const sectorName = sector.getName()
     const isCollapsed = collapsed.has(sectorId)
 
     const toggle = () => {
@@ -209,27 +278,40 @@ function SectorBlock({ sector }: { sector: Sector }) {
 
     const properties = sector.getProperties()
     if (properties.length === 0) return null
+
+    const Icon = iconForSector(sectorName)
+
+    // Group spacing properties (padding/margin) into a visual box editor
+    const { spacingGroup, otherProps } = groupSpacingProps(properties)
+
     return (
         <div>
             <button
                 type="button"
                 onClick={toggle}
                 aria-expanded={!isCollapsed}
-                className="flex items-center gap-1 w-full text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 hover:text-foreground transition-colors mb-1.5"
+                className="flex items-center gap-1.5 w-full text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80 hover:text-foreground transition-colors py-1.5 px-1 rounded hover:bg-muted/50"
             >
                 {isCollapsed ? (
-                    <ChevronRight className="w-3 h-3" />
+                    <ChevronRight className="w-3 h-3 shrink-0" />
                 ) : (
-                    <ChevronDown className="w-3 h-3" />
+                    <ChevronDown className="w-3 h-3 shrink-0" />
                 )}
-                <span className="flex-1 text-left">{sector.getName()}</span>
-                <span className="opacity-60 tabular-nums normal-case font-normal">
+                <Icon className="w-3 h-3 shrink-0 opacity-70" />
+                <span className="flex-1 text-left">{sectorName}</span>
+                <span className="opacity-50 tabular-nums normal-case font-normal">
                     {properties.length}
                 </span>
             </button>
             {!isCollapsed && (
-                <div className="space-y-2 mb-3">
-                    {properties.map((prop) => (
+                <div className="space-y-2 mb-3 pl-1 pt-1">
+                    {spacingGroup.padding && (
+                        <SpacingBox label="Padding" props={spacingGroup.padding} />
+                    )}
+                    {spacingGroup.margin && (
+                        <SpacingBox label="Margin" props={spacingGroup.margin} />
+                    )}
+                    {otherProps.map((prop) => (
                         <PropertyInput key={prop.getId()} property={prop} />
                     ))}
                 </div>
@@ -238,20 +320,145 @@ function SectorBlock({ sector }: { sector: Sector }) {
     )
 }
 
+function groupSpacingProps(properties: Property[]): {
+    spacingGroup: { padding?: Property[]; margin?: Property[] }
+    otherProps: Property[]
+} {
+    const padding: Property[] = []
+    const margin: Property[] = []
+    const other: Property[] = []
+    for (const p of properties) {
+        const name = p.getName()
+        if (/^padding-(top|right|bottom|left)$/.test(name)) padding.push(p)
+        else if (/^margin-(top|right|bottom|left)$/.test(name)) margin.push(p)
+        else other.push(p)
+    }
+    const ordered = (arr: Property[]) =>
+        ["top", "right", "bottom", "left"]
+            .map((side) => arr.find((p) => p.getName().endsWith("-" + side)))
+            .filter(Boolean) as Property[]
+    return {
+        spacingGroup: {
+            padding: padding.length === 4 ? ordered(padding) : undefined,
+            margin: margin.length === 4 ? ordered(margin) : undefined,
+        },
+        otherProps: other.concat(padding.length !== 4 ? padding : []).concat(
+            margin.length !== 4 ? margin : [],
+        ),
+    }
+}
+
+function SpacingBox({ label, props }: { label: string; props: Property[] }) {
+    const editor = useEditorMaybe()
+    const [linked, setLinked] = useState(true)
+    const selected = editor?.getSelected()
+    const componentStyle = (selected?.getStyle?.() ?? {}) as Record<string, string>
+    const expanded = useMemo(
+        () => expandStyles(componentStyle, selected),
+        [componentStyle, selected],
+    )
+
+    const values = props.map((p) => readStyleValue(selected, expanded, p.getName(), p))
+    const allSame = values.every((v) => v === values[0])
+    const sides = ["Top", "Right", "Bottom", "Left"]
+
+    const updateSide = (idx: number, next: string) => {
+        const cleaned = next.trim()
+        const writeValue = cleaned ? formatLength(cleaned) : ""
+        if (linked) {
+            // Apply to all 4
+            try {
+                const newStyle = { ...componentStyle }
+                props.forEach((p) => {
+                    if (writeValue) newStyle[p.getName()] = writeValue
+                    else delete newStyle[p.getName()]
+                    try { p.upValue(writeValue) } catch { /* ignore */ }
+                })
+                selected?.setStyle(newStyle)
+            } catch { /* ignore */ }
+        } else {
+            try {
+                const newStyle = { ...componentStyle }
+                if (writeValue) newStyle[props[idx].getName()] = writeValue
+                else delete newStyle[props[idx].getName()]
+                selected?.setStyle(newStyle)
+                try { props[idx].upValue(writeValue) } catch { /* ignore */ }
+            } catch { /* ignore */ }
+        }
+    }
+
+    return (
+        <div className="space-y-1">
+            <div className="flex items-center justify-between">
+                <Label className="text-[11px] text-muted-foreground">{label}</Label>
+                <button
+                    type="button"
+                    onClick={() => setLinked((v) => !v)}
+                    title={linked ? "Edit each side individually" : "Link all sides"}
+                    className={`text-[10px] px-1.5 py-0.5 rounded transition-colors flex items-center gap-1 ${
+                        linked
+                            ? "bg-primary/10 text-primary"
+                            : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}
+                >
+                    {linked ? <Lock className="w-2.5 h-2.5" /> : <Unlock className="w-2.5 h-2.5" />}
+                    {linked ? "All" : "Sides"}
+                </button>
+            </div>
+            {linked ? (
+                <Input
+                    type="text"
+                    value={allSame ? values[0] : ""}
+                    placeholder={allSame ? "0" : "Mixed"}
+                    onChange={(e) => updateSide(0, e.target.value)}
+                    className="h-7 text-xs"
+                />
+            ) : (
+                <div className="grid grid-cols-2 gap-1">
+                    {sides.map((s, i) => (
+                        <div key={s} className="space-y-0.5">
+                            <Label className="text-[9px] text-muted-foreground/70 uppercase tracking-wider">
+                                {s}
+                            </Label>
+                            <Input
+                                type="text"
+                                value={values[i] ?? ""}
+                                placeholder="0"
+                                onChange={(e) => updateSide(i, e.target.value)}
+                                className="h-6 text-[11px] px-1.5"
+                            />
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
+function formatLength(v: string): string {
+    const trimmed = v.trim()
+    if (!trimmed) return ""
+    // Number-only → assume px
+    if (/^-?\d+(\.\d+)?$/.test(trimmed)) return trimmed + "px"
+    return trimmed
+}
+
 function PropertyInput({ property }: { property: Property }) {
     const editor = useEditorMaybe()
     const label = property.getLabel() || property.getName()
     const type = property.getType() as string
     const name = property.getName()
 
-    // Read in priority order:
-    //   1. component.getStyle()[name] — GrapesJS's parsed style model
-    //   2. raw `style="..."` HTML attribute (parsed inline)
-    //   3. DOM element's actual computed style (always works for inline styles)
-    //   4. property.getValue() — last-resort, depends on active selector
     const selected = editor?.getSelected()
     const componentStyle = (selected?.getStyle?.() ?? {}) as Record<string, string>
-    const value = readStyleValue(selected, componentStyle, name, property)
+    // Expand inline shorthand to longhand via browser CSS engine.
+    // This is the fix for the Hero badge bug — model has `background:#4f46e5`
+    // but the StyleManager asks for `background-color`. Expansion picks it up.
+    const expanded = useMemo(
+        () => expandStyles(componentStyle, selected),
+        [componentStyle, selected],
+    )
+    const value = readStyleValue(selected, expanded, name, property)
 
     const updateValue = (next: string) => {
         try {
@@ -266,6 +473,9 @@ function PropertyInput({ property }: { property: Property }) {
         } catch {
             // ignore
         }
+        if (isColorProp(name) && next) {
+            pushRecentColor(next)
+        }
     }
 
     const clearValue = () => {
@@ -273,6 +483,11 @@ function PropertyInput({ property }: { property: Property }) {
             if (selected) {
                 const remaining: Record<string, string> = { ...componentStyle }
                 delete remaining[name]
+                // Also delete the parent shorthand if we're clearing a longhand
+                const shorthand = SHORTHAND_OF[name]
+                if (shorthand && remaining[shorthand]) {
+                    delete remaining[shorthand]
+                }
                 selected.setStyle(remaining)
             }
         } catch {
@@ -285,33 +500,17 @@ function PropertyInput({ property }: { property: Property }) {
         }
     }
 
-    const isColor = type === "color" || /color|background-color/i.test(name)
+    const isColor = isColorProp(name) || type === "color"
     const hasValue = !!value
 
-    // Color picker: native + hex text side-by-side
     if (isColor) {
         return (
             <PropRow label={label} onClear={hasValue ? clearValue : undefined}>
-                <div className="flex items-center gap-1 flex-1 min-w-0">
-                    <input
-                        type="color"
-                        value={normalizeColor(value) || "#000000"}
-                        onChange={(e) => updateValue(e.target.value)}
-                        className="w-7 h-7 rounded border cursor-pointer p-0 bg-transparent"
-                        aria-label={label}
-                    />
-                    <Input
-                        value={value}
-                        onChange={(e) => updateValue(e.target.value)}
-                        placeholder="#000000"
-                        className="h-7 text-xs flex-1 min-w-0 font-mono"
-                    />
-                </div>
+                <ColorInput value={value} onChange={updateValue} />
             </PropRow>
         )
     }
 
-    // Select: shadcn-styled dropdown
     if (type === "select" || type === "radio") {
         const options = ((property as unknown as { getOptions?: () => SelectOption[] }).getOptions?.() ?? []) as SelectOption[]
         if (options.length > 0) {
@@ -322,6 +521,7 @@ function PropertyInput({ property }: { property: Property }) {
                         onChange={(e) => updateValue(e.target.value)}
                         className="h-7 text-xs flex-1 min-w-0 rounded-md border bg-background px-2"
                     >
+                        <option value="">—</option>
                         {options.map((opt, idx) => (
                             <option
                                 key={String(opt.id ?? opt.value ?? idx)}
@@ -336,7 +536,6 @@ function PropertyInput({ property }: { property: Property }) {
         }
     }
 
-    // Slider: range input + numeric display
     if (type === "slider" || type === "integer" || type === "number") {
         const min = numberOrNull((property as unknown as { getMin?: () => number }).getMin?.())
         const max = numberOrNull((property as unknown as { getMax?: () => number }).getMax?.())
@@ -374,7 +573,6 @@ function PropertyInput({ property }: { property: Property }) {
         )
     }
 
-    // Default: text input
     return (
         <PropRow label={label} onClear={hasValue ? clearValue : undefined}>
             <Input
@@ -384,6 +582,111 @@ function PropertyInput({ property }: { property: Property }) {
                 className="h-7 text-xs flex-1 min-w-0"
             />
         </PropRow>
+    )
+}
+
+function ColorInput({
+    value,
+    onChange,
+}: {
+    value: string
+    onChange: (next: string) => void
+}) {
+    const [open, setOpen] = useState(false)
+    const [recent, setRecent] = useState<string[]>(loadRecentColors)
+    const hex = normalizeColor(value) || ""
+
+    useEffect(() => {
+        const onSync = () => setRecent(loadRecentColors())
+        window.addEventListener("storage", onSync)
+        return () => window.removeEventListener("storage", onSync)
+    }, [])
+
+    const apply = (next: string) => {
+        onChange(next)
+        setRecent(loadRecentColors())
+    }
+
+    return (
+        <div className="flex items-center gap-1 flex-1 min-w-0 relative">
+            <button
+                type="button"
+                onClick={() => setOpen((v) => !v)}
+                className="w-7 h-7 rounded border shrink-0 cursor-pointer overflow-hidden bg-checker"
+                style={{
+                    backgroundColor: hex || "transparent",
+                    backgroundImage: hex
+                        ? "none"
+                        : "linear-gradient(45deg,#e5e7eb 25%,transparent 25%),linear-gradient(-45deg,#e5e7eb 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e5e7eb 75%),linear-gradient(-45deg,transparent 75%,#e5e7eb 75%)",
+                    backgroundSize: "8px 8px",
+                    backgroundPosition: "0 0, 0 4px, 4px -4px, -4px 0",
+                }}
+                aria-label="Pick a color"
+            />
+            <Input
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                placeholder="transparent"
+                className="h-7 text-xs flex-1 min-w-0 font-mono"
+            />
+            {open && (
+                <div
+                    className="absolute z-50 top-8 left-0 w-56 rounded-lg border bg-popover shadow-lg p-2 space-y-2"
+                    onMouseLeave={() => setOpen(false)}
+                >
+                    <input
+                        type="color"
+                        value={hex || "#000000"}
+                        onChange={(e) => apply(e.target.value)}
+                        className="w-full h-8 rounded border cursor-pointer p-0 bg-transparent"
+                        aria-label="Color picker"
+                    />
+                    <div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-1">
+                            Brand
+                        </div>
+                        <div className="grid grid-cols-8 gap-1">
+                            {BRAND_COLORS.map((c) => (
+                                <Swatch key={c} color={c} onClick={() => apply(c)} />
+                            ))}
+                        </div>
+                    </div>
+                    {recent.length > 0 && (
+                        <div>
+                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-1">
+                                Recent
+                            </div>
+                            <div className="grid grid-cols-8 gap-1">
+                                {recent.map((c) => (
+                                    <Swatch key={c} color={c} onClick={() => apply(c)} />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => apply("transparent")}
+                        className="w-full text-[11px] py-1 rounded border hover:bg-muted transition-colors flex items-center justify-center gap-1"
+                    >
+                        <X className="w-3 h-3" />
+                        No fill
+                    </button>
+                </div>
+            )}
+        </div>
+    )
+}
+
+function Swatch({ color, onClick }: { color: string; onClick: () => void }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            title={color}
+            className="w-5 h-5 rounded border hover:scale-110 transition-transform shrink-0"
+            style={{ backgroundColor: color }}
+            aria-label={color}
+        />
     )
 }
 
@@ -402,7 +705,7 @@ function PropRow({
                 {label}
             </Label>
             {children}
-            {onClear && (
+            {onClear ? (
                 <button
                     type="button"
                     onClick={onClear}
@@ -411,44 +714,157 @@ function PropRow({
                 >
                     <X className="w-3 h-3" />
                 </button>
+            ) : (
+                <span className="w-3 shrink-0" />
             )}
         </div>
     )
 }
 
-/**
- * Read a CSS property's effective value from the selected component.
- * Tries the model layer first, falls back to the live DOM style — that's
- * the source of truth for inline-styled blocks (Hero, Pricing Table, etc.)
- * where the StyleManager's getValue() doesn't always pick up inline styles.
- */
-function readStyleValue(
-    selected: Component | undefined,
-    componentStyle: Record<string, string>,
-    name: string,
-    property: Property,
-): string {
-    // 1. Model-level style
-    if (componentStyle[name]) return componentStyle[name]
+// ── Style resolution ────────────────────────────────────────────────────────
 
-    // 2. Raw style attribute (in case getStyle didn't parse it)
+const BRAND_COLORS = [
+    "#4f46e5", "#4338ca", "#eef2ff", "#0f172a",
+    "#64748b", "#94a3b8", "#e2e8f0", "#f8fafc",
+    "#ffffff", "#f59e0b", "#16a34a", "#dc2626",
+    "#0ea5e9", "#8b5cf6", "#ec4899", "#000000",
+]
+
+const RECENT_COLORS_KEY = "vesta:editor:recentColors"
+
+function loadRecentColors(): string[] {
+    if (typeof window === "undefined") return []
+    try {
+        const raw = localStorage.getItem(RECENT_COLORS_KEY)
+        const parsed = raw ? JSON.parse(raw) : []
+        return Array.isArray(parsed) ? parsed.slice(0, 16) : []
+    } catch {
+        return []
+    }
+}
+
+function pushRecentColor(color: string) {
+    if (typeof window === "undefined") return
+    const c = color.trim()
+    if (!c || c === "transparent" || c === "inherit") return
+    try {
+        const current = loadRecentColors()
+        const next = [c, ...current.filter((x) => x !== c)].slice(0, 16)
+        localStorage.setItem(RECENT_COLORS_KEY, JSON.stringify(next))
+    } catch {
+        // ignore
+    }
+}
+
+function isColorProp(name: string): boolean {
+    return /color$|background-color|border-color/i.test(name) || name === "color"
+}
+
+const SHORTHAND_OF: Record<string, string> = {
+    "background-color": "background",
+    "background-image": "background",
+    "background-repeat": "background",
+    "background-position": "background",
+    "background-size": "background",
+    "background-attachment": "background",
+    "border-top-color": "border-top",
+    "border-right-color": "border-right",
+    "border-bottom-color": "border-bottom",
+    "border-left-color": "border-left",
+}
+
+/**
+ * Expand any shorthand styles in the model into their longhand equivalents
+ * using the browser's CSS engine (a temporary, off-DOM element). This makes
+ * properties like `background:#4f46e5` resolve when the StyleManager asks
+ * for `background-color`.
+ */
+function expandStyles(
+    styles: Record<string, string>,
+    selected?: Component,
+): Record<string, string> {
+    const out: Record<string, string> = { ...styles }
+    if (typeof document === "undefined") return out
+
+    // Source 1: model styles
+    const temp = document.createElement("div")
+    Object.entries(styles).forEach(([k, v]) => {
+        try { temp.style.setProperty(k, v) } catch { /* ignore */ }
+    })
+
+    // Source 2: raw inline style attribute (in case GrapesJS didn't parse it
+    // into the model — happens with newly-loaded HTML containing shorthand)
     try {
         const attrs = selected?.getAttributes?.() as Record<string, unknown> | undefined
-        const raw = attrs?.style
-        if (typeof raw === "string") {
-            const parsed = parseInlineStyle(raw)
-            if (parsed[name]) return parsed[name]
+        const rawStyle = attrs?.style
+        if (typeof rawStyle === "string" && rawStyle) {
+            // Apply on top of the temp element so longhand expansion happens
+            temp.style.cssText = (temp.style.cssText || "") + ";" + rawStyle
         }
     } catch {
         // ignore
     }
 
-    // 3. Live DOM (most reliable for inline styles)
+    const longhands = [
+        "background-color", "background-image", "background-repeat", "background-position",
+        "background-size", "background-attachment",
+        "border-top-color", "border-top-style", "border-top-width",
+        "border-right-color", "border-right-style", "border-right-width",
+        "border-bottom-color", "border-bottom-style", "border-bottom-width",
+        "border-left-color", "border-left-style", "border-left-width",
+        "border-color", "border-style", "border-width",
+        "padding-top", "padding-right", "padding-bottom", "padding-left",
+        "margin-top", "margin-right", "margin-bottom", "margin-left",
+        "border-top-left-radius", "border-top-right-radius",
+        "border-bottom-left-radius", "border-bottom-right-radius",
+        "border-radius",
+        "font-family", "font-size", "font-weight", "font-style", "line-height",
+        "color", "text-align", "letter-spacing", "text-transform", "text-decoration",
+        "display", "width", "height", "min-width", "min-height", "max-width", "max-height",
+        "opacity", "box-shadow",
+    ]
+    longhands.forEach((p) => {
+        if (!out[p]) {
+            const v = temp.style.getPropertyValue(p)
+            if (v) out[p] = v
+        }
+    })
+    return out
+}
+
+function readStyleValue(
+    selected: Component | undefined,
+    expanded: Record<string, string>,
+    name: string,
+    property: Property,
+): string {
+    // 1. From the expanded model styles (covers model + parsed inline + shorthand expansion)
+    if (expanded[name]) return expanded[name]
+
+    // 2. Live DOM inline style (for elements where styles aren't in the model)
     try {
         const el = selected?.getEl?.() as HTMLElement | undefined
         if (el) {
             const inline = el.style.getPropertyValue(name)
             if (inline) return inline
+
+            // 3. Computed style (resolves CSS rules) — only when this element
+            // overrides its parent (avoids leaking inherited / initial values
+            // for every property on every element).
+            if (typeof window !== "undefined") {
+                const win = el.ownerDocument?.defaultView ?? window
+                const elComputed = win.getComputedStyle(el).getPropertyValue(name)
+                if (elComputed && !isInitialDefault(name, elComputed)) {
+                    if (el.parentElement) {
+                        const parentComputed = win
+                            .getComputedStyle(el.parentElement)
+                            .getPropertyValue(name)
+                        if (elComputed !== parentComputed) return elComputed
+                    } else {
+                        return elComputed
+                    }
+                }
+            }
         }
     } catch {
         // ignore
@@ -463,6 +879,20 @@ function readStyleValue(
     }
 
     return ""
+}
+
+function isInitialDefault(name: string, value: string): boolean {
+    const v = value.trim().toLowerCase()
+    if (isColorProp(name)) {
+        return v === "rgba(0, 0, 0, 0)" || v === "transparent"
+    }
+    if (/border.*-style/.test(name)) return v === "none"
+    if (/border.*-width|outline-width/.test(name)) return v === "0px"
+    if (/^(padding|margin)-/.test(name)) return v === "0px"
+    if (name === "background-image") return v === "none"
+    if (name === "box-shadow") return v === "none"
+    if (name === "opacity") return v === "1"
+    return false
 }
 
 function iconForTag(tag: string) {
@@ -512,19 +942,6 @@ function prettifyTag(tag: string): string {
     return map[t] ?? t
 }
 
-function parseInlineStyle(s: string): Record<string, string> {
-    const out: Record<string, string> = {}
-    s.split(";").forEach((decl) => {
-        const idx = decl.indexOf(":")
-        if (idx > 0) {
-            const key = decl.slice(0, idx).trim().toLowerCase()
-            const val = decl.slice(idx + 1).trim()
-            if (key && val) out[key] = val
-        }
-    })
-    return out
-}
-
 interface SelectOption {
     id?: string
     value?: string
@@ -537,7 +954,6 @@ function normalizeColor(v: string): string {
     const trimmed = v.trim()
     if (trimmed.startsWith("#")) {
         if (trimmed.length === 4) {
-            // expand #abc → #aabbcc for native color picker
             return "#" + trimmed.slice(1).split("").map((c) => c + c).join("")
         }
         return trimmed.slice(0, 7)
@@ -574,7 +990,10 @@ function TraitsPanel() {
                 return (
                     <div className="space-y-3">
                         {traits.map((trait) => (
-                            <TraitInput key={String(trait.getId())} trait={trait as unknown as TraitLike} />
+                            <TraitInput
+                                key={String(trait.getId())}
+                                trait={trait as unknown as TraitLike}
+                            />
                         ))}
                     </div>
                 )
