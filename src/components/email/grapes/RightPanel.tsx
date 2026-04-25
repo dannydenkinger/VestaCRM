@@ -175,28 +175,143 @@ function SectorBlock({ sector }: { sector: Sector }) {
 
 function PropertyInput({ property }: { property: Property }) {
     const label = property.getLabel() || property.getName()
-    const value = property.getValue() as string
+    const value = (property.getValue() as string) ?? ""
     const type = property.getType() as string
+    const name = property.getName()
 
-    // Phase 2 stub: wire a basic text/color input per property. The GrapesJS
-    // property API is rich (select, radio, slider, composite, stack) — Phase 3
-    // can upgrade each type with the right shadcn control. For now, a single
-    // text input covers ~70% of properties usefully.
-    const isColor = type === "color" || /color|background/i.test(property.getName())
+    const isColor = type === "color" || /color|background-color/i.test(name)
 
+    // Color picker: native + hex text side-by-side
+    if (isColor) {
+        return (
+            <PropRow label={label}>
+                <div className="flex items-center gap-1 flex-1 min-w-0">
+                    <input
+                        type="color"
+                        value={normalizeColor(value) || "#000000"}
+                        onChange={(e) => property.upValue(e.target.value)}
+                        className="w-7 h-7 rounded border cursor-pointer p-0 bg-transparent"
+                        aria-label={label}
+                    />
+                    <Input
+                        value={value}
+                        onChange={(e) => property.upValue(e.target.value)}
+                        placeholder="#000000"
+                        className="h-7 text-xs flex-1 min-w-0 font-mono"
+                    />
+                </div>
+            </PropRow>
+        )
+    }
+
+    // Select: shadcn-styled dropdown
+    if (type === "select" || type === "radio") {
+        const options = ((property as unknown as { getOptions?: () => SelectOption[] }).getOptions?.() ?? []) as SelectOption[]
+        if (options.length > 0) {
+            return (
+                <PropRow label={label}>
+                    <select
+                        value={value}
+                        onChange={(e) => property.upValue(e.target.value)}
+                        className="h-7 text-xs flex-1 min-w-0 rounded-md border bg-background px-2"
+                    >
+                        {options.map((opt, idx) => (
+                            <option
+                                key={String(opt.id ?? opt.value ?? idx)}
+                                value={String(opt.id ?? opt.value ?? "")}
+                            >
+                                {String(opt.label ?? opt.name ?? opt.id ?? opt.value ?? "")}
+                            </option>
+                        ))}
+                    </select>
+                </PropRow>
+            )
+        }
+    }
+
+    // Slider: range input + numeric display
+    if (type === "slider" || type === "integer" || type === "number") {
+        const min = numberOrNull((property as unknown as { getMin?: () => number }).getMin?.())
+        const max = numberOrNull((property as unknown as { getMax?: () => number }).getMax?.())
+        const step = numberOrNull((property as unknown as { getStep?: () => number }).getStep?.()) ?? 1
+        if (type === "slider" && min !== null && max !== null) {
+            return (
+                <PropRow label={label}>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <input
+                            type="range"
+                            min={min}
+                            max={max}
+                            step={step}
+                            value={parseFloat(value) || 0}
+                            onChange={(e) => property.upValue(e.target.value)}
+                            className="flex-1 min-w-0 accent-primary"
+                        />
+                        <span className="text-[11px] tabular-nums text-muted-foreground w-8 text-right">
+                            {parseFloat(value) || 0}
+                        </span>
+                    </div>
+                </PropRow>
+            )
+        }
+        return (
+            <PropRow label={label}>
+                <Input
+                    type="text"
+                    value={value}
+                    onChange={(e) => property.upValue(e.target.value)}
+                    placeholder="0"
+                    className="h-7 text-xs flex-1 min-w-0"
+                />
+            </PropRow>
+        )
+    }
+
+    // Default: text input
+    return (
+        <PropRow label={label}>
+            <Input
+                type="text"
+                value={value}
+                onChange={(e) => property.upValue(e.target.value)}
+                className="h-7 text-xs flex-1 min-w-0"
+            />
+        </PropRow>
+    )
+}
+
+function PropRow({ label, children }: { label: string; children: React.ReactNode }) {
     return (
         <div className="flex items-center gap-2">
             <Label className="text-[11px] text-muted-foreground w-20 truncate shrink-0">
                 {label}
             </Label>
-            <Input
-                type={isColor ? "color" : "text"}
-                value={value ?? ""}
-                onChange={(e) => property.upValue(e.target.value)}
-                className="h-7 text-xs flex-1 min-w-0"
-            />
+            {children}
         </div>
     )
+}
+
+interface SelectOption {
+    id?: string
+    value?: string
+    name?: string
+    label?: string
+}
+
+function normalizeColor(v: string): string {
+    if (!v) return ""
+    if (v.startsWith("#")) {
+        // Native input wants 7 chars (#rrggbb). Expand 3-digit hex.
+        if (v.length === 4) {
+            return "#" + v.slice(1).split("").map((c) => c + c).join("")
+        }
+        return v.slice(0, 7)
+    }
+    return ""
+}
+
+function numberOrNull(v: number | undefined): number | null {
+    return typeof v === "number" && Number.isFinite(v) ? v : null
 }
 
 function TraitsPanel() {

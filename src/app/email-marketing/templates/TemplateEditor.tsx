@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useRef, useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import dynamic from "next/dynamic"
 import type { ProjectData } from "grapesjs"
 import { Button } from "@/components/ui/button"
@@ -26,6 +26,8 @@ import {
     ArrowLeft,
     Settings2,
     Sparkles,
+    Check,
+    CircleDot,
 } from "lucide-react"
 import { TokenInserter, insertAtCursor } from "@/components/email/TokenInserter"
 import { buildContactContext, renderTokens } from "@/lib/templating/tokens"
@@ -83,6 +85,10 @@ export function TemplateEditor({ initial, starterTemplates, workspaceName }: Pro
     const [canvasSeed, setCanvasSeed] = useState<string>(initial?.renderedHtml ?? "")
     const [canvasSeedKey, setCanvasSeedKey] = useState(0)
 
+    // Save state — drives the "Saved / Saving / Unsaved" indicator
+    const [isDirty, setIsDirty] = useState(false)
+    const [savedAt, setSavedAt] = useState<Date | null>(initial ? new Date() : null)
+
     const subjectInputRef = useRef<HTMLInputElement | null>(null)
     const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -115,7 +121,11 @@ export function TemplateEditor({ initial, starterTemplates, workspaceName }: Pro
     const handleEditorChange = (nextHtml: string, project: ProjectData) => {
         setHtml(nextHtml)
         setDesignJson(project)
+        setIsDirty(true)
     }
+
+    // Mark dirty whenever the user edits any template-level field.
+    const markDirty = () => setIsDirty(true)
 
     const handleHtmlFileChosen = async (file: File) => {
         if (!file) return
@@ -212,10 +222,29 @@ export function TemplateEditor({ initial, starterTemplates, workspaceName }: Pro
                 return
             }
             setTemplateId(result.template.id)
+            setIsDirty(false)
+            setSavedAt(new Date())
             toast.success("Template saved")
-            router.push(`/email-marketing/templates/${result.template.id}`)
+            // For new templates, redirect to the edit URL so the back button works
+            if (!initial) {
+                router.push(`/email-marketing/templates/${result.template.id}`)
+            }
         })
     }
+
+    // Cmd/Ctrl+S to save from anywhere
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+                e.preventDefault()
+                if (!isPending) handleSave()
+            }
+        }
+        window.addEventListener("keydown", onKey)
+        return () => window.removeEventListener("keydown", onKey)
+        // handleSave references stable refs / state; intentionally not in deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isPending, name, subject, html, designJson, description])
 
     return (
         <div className="flex flex-col h-[calc(100dvh-72px)] bg-background">
@@ -230,7 +259,10 @@ export function TemplateEditor({ initial, starterTemplates, workspaceName }: Pro
                 </Link>
                 <Input
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => {
+                        setName(e.target.value)
+                        markDirty()
+                    }}
                     placeholder="Untitled template"
                     className="h-9 max-w-xs border-0 bg-transparent shadow-none focus-visible:bg-muted/40 font-medium"
                     disabled={isPending}
@@ -240,7 +272,10 @@ export function TemplateEditor({ initial, starterTemplates, workspaceName }: Pro
                     <Input
                         ref={subjectInputRef}
                         value={subject}
-                        onChange={(e) => setSubject(e.target.value)}
+                        onChange={(e) => {
+                            setSubject(e.target.value)
+                            markDirty()
+                        }}
                         placeholder="Subject — what recipients see in their inbox"
                         className="h-9 border-0 bg-transparent shadow-none focus-visible:bg-muted/40"
                         disabled={isPending}
@@ -425,11 +460,18 @@ export function TemplateEditor({ initial, starterTemplates, workspaceName }: Pro
                     </SheetContent>
                 </Sheet>
 
+                <SaveIndicator
+                    isDirty={isDirty}
+                    isSaving={isPending}
+                    savedAt={savedAt}
+                />
+
                 <Button
                     onClick={handleSave}
                     disabled={isPending}
                     size="sm"
                     className="gap-1.5"
+                    title="Save (⌘S)"
                 >
                     {isPending ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -454,4 +496,62 @@ export function TemplateEditor({ initial, starterTemplates, workspaceName }: Pro
             </div>
         </div>
     )
+}
+
+function SaveIndicator({
+    isDirty,
+    isSaving,
+    savedAt,
+}: {
+    isDirty: boolean
+    isSaving: boolean
+    savedAt: Date | null
+}) {
+    const [tick, setTick] = useState(0)
+
+    // Re-render every 30s so "Saved Xm ago" text stays current
+    useEffect(() => {
+        if (!savedAt) return
+        const id = setInterval(() => setTick((t) => t + 1), 30_000)
+        return () => clearInterval(id)
+    }, [savedAt])
+
+    if (isSaving) {
+        return (
+            <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Saving…
+            </div>
+        )
+    }
+    if (isDirty) {
+        return (
+            <div className="text-xs text-amber-600 flex items-center gap-1.5">
+                <CircleDot className="w-3 h-3" />
+                Unsaved changes
+            </div>
+        )
+    }
+    if (savedAt) {
+        return (
+            <div
+                key={tick}
+                className="text-xs text-muted-foreground flex items-center gap-1.5"
+            >
+                <Check className="w-3 h-3 text-emerald-600" />
+                Saved {formatRelative(savedAt)}
+            </div>
+        )
+    }
+    return null
+}
+
+function formatRelative(d: Date): string {
+    const seconds = Math.floor((Date.now() - d.getTime()) / 1000)
+    if (seconds < 5) return "just now"
+    if (seconds < 60) return `${seconds}s ago`
+    const minutes = Math.floor(seconds / 60)
+    if (minutes < 60) return `${minutes}m ago`
+    const hours = Math.floor(minutes / 60)
+    return `${hours}h ago`
 }

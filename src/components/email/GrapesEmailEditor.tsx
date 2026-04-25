@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react"
 import GjsEditor, { Canvas } from "@grapesjs/react"
 import grapesjs from "grapesjs"
-import type { Editor, Plugin, ProjectData } from "grapesjs"
+import type { Component, Editor, Plugin, ProjectData } from "grapesjs"
 import newsletterPreset from "grapesjs-preset-newsletter"
+import { ArrowLeft } from "lucide-react"
 import "grapesjs/dist/css/grapes.min.css"
 import "./grapes/grapes-theme.css"
 import { vestaBlocksPlugin } from "./grapes/blocks"
@@ -46,6 +47,10 @@ export function GrapesEmailEditor({
     // user selects something in the canvas, closes on deselect. User can
     // also toggle manually via the TopBar button.
     const [rightPanelOpen, setRightPanelOpen] = useState(false)
+    // Track whether the canvas has any components — drives the empty-state hint
+    const [isEmpty, setIsEmpty] = useState(!initialHtml && !initialProject)
+    // Element count for the status bar
+    const [componentCount, setComponentCount] = useState(0)
 
     // Lock body scroll while fullscreen so background scrolling can't drift
     // the iframe and throw off GrapesJS's drop-position math.
@@ -53,14 +58,33 @@ export function GrapesEmailEditor({
         if (!fullscreen) return
         const prev = document.body.style.overflow
         document.body.style.overflow = "hidden"
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") setFullscreen(false)
-        }
-        window.addEventListener("keydown", onKey)
         return () => {
             document.body.style.overflow = prev
-            window.removeEventListener("keydown", onKey)
         }
+    }, [fullscreen])
+
+    // Esc: exit fullscreen, otherwise deselect any element. Useful when the
+    // properties panel feels intrusive — one tap returns to the empty canvas.
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== "Escape") return
+            // Don't fight inputs / textareas
+            const tag = (e.target as HTMLElement | null)?.tagName
+            if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return
+            if (fullscreen) {
+                setFullscreen(false)
+                return
+            }
+            try {
+                const ed = editorRef.current
+                const selected = ed?.getSelected()
+                if (ed && selected) ed.selectRemove(selected)
+            } catch {
+                // ignore
+            }
+        }
+        window.addEventListener("keydown", onKey)
+        return () => window.removeEventListener("keydown", onKey)
     }, [fullscreen])
 
     const handleEditor = (editor: Editor) => {
@@ -82,6 +106,20 @@ export function GrapesEmailEditor({
         // styling, and surfaces controls automatically when needed.
         editor.on("component:selected", () => setRightPanelOpen(true))
         editor.on("component:deselected", () => setRightPanelOpen(false))
+
+        // Track empty state and component count for the status bar / hint
+        const refreshCounts = () => {
+            try {
+                const wrapper = editor.getWrapper()
+                const count = wrapper ? countDescendants(wrapper) : 0
+                setComponentCount(count)
+                setIsEmpty(count === 0)
+            } catch {
+                // ignore
+            }
+        }
+        refreshCounts()
+        editor.on("component:add component:remove component:update", refreshCounts)
 
         onReady?.(editor)
     }
@@ -145,6 +183,7 @@ export function GrapesEmailEditor({
                         </div>
                         <div className="flex-1 min-w-0 relative">
                             <Canvas className="h-full" />
+                            {isEmpty && <EmptyCanvasHint />}
                         </div>
                         {rightPanelOpen && (
                             <div className="w-72 shrink-0 border-l bg-card">
@@ -152,8 +191,67 @@ export function GrapesEmailEditor({
                             </div>
                         )}
                     </div>
+                    <StatusBar
+                        componentCount={componentCount}
+                        fullscreen={fullscreen}
+                    />
                 </div>
             </GjsEditor>
         </div>
     )
+}
+
+function EmptyCanvasHint() {
+    return (
+        <div className="pointer-events-none absolute inset-0 flex items-start pt-24 justify-center">
+            <div className="bg-popover/95 backdrop-blur border border-dashed rounded-lg px-5 py-4 max-w-xs shadow-sm flex items-center gap-3">
+                <ArrowLeft className="w-5 h-5 text-primary shrink-0" />
+                <div>
+                    <div className="text-sm font-medium">Drag a block to start</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                        Pick from the panel on the left and drop it on the canvas.
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function StatusBar({
+    componentCount,
+    fullscreen,
+}: {
+    componentCount: number
+    fullscreen: boolean
+}) {
+    return (
+        <div className="h-7 border-t shrink-0 px-3 flex items-center justify-between text-[11px] text-muted-foreground bg-card">
+            <div className="flex items-center gap-3">
+                <span className="tabular-nums">
+                    {componentCount} element{componentCount === 1 ? "" : "s"}
+                </span>
+                <span className="opacity-50">·</span>
+                <span>
+                    <kbd className="px-1 py-0.5 rounded border bg-background text-[10px]">⌘S</kbd> save
+                </span>
+                <span className="opacity-50">·</span>
+                <span>
+                    <kbd className="px-1 py-0.5 rounded border bg-background text-[10px]">Esc</kbd>{" "}
+                    {fullscreen ? "exit fullscreen" : "deselect"}
+                </span>
+            </div>
+            <div className="text-muted-foreground/70">
+                CSS auto-inlined on send
+            </div>
+        </div>
+    )
+}
+
+function countDescendants(component: Component): number {
+    const children = component.components()
+    let total = children.length
+    children.each((child: Component) => {
+        total += countDescendants(child)
+    })
+    return total
 }

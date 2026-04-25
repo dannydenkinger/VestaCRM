@@ -1,31 +1,78 @@
 "use client"
 
+import { useState } from "react"
 import { BlocksProvider } from "@grapesjs/react"
 import type { Block } from "grapesjs"
+import { Input } from "@/components/ui/input"
+import { Search, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function BlocksPanel() {
+    const [query, setQuery] = useState("")
+
     return (
         <BlocksProvider>
             {({ mapCategoryBlocks, dragStart, dragStop }) => {
-                const categories = Array.from(mapCategoryBlocks.entries())
+                const q = query.trim().toLowerCase()
+                const filteredCategories: [string, Block[]][] = Array.from(
+                    mapCategoryBlocks.entries(),
+                )
+                    .map(([cat, blocks]) => {
+                        const filtered = q
+                            ? blocks.filter((b) => {
+                                  const label = String(b.get("label") ?? "").toLowerCase()
+                                  return label.includes(q) || cat.toLowerCase().includes(q)
+                              })
+                            : blocks
+                        return [cat, filtered] as [string, Block[]]
+                    })
+                    .filter(([, blocks]) => blocks.length > 0)
+
+                const totalShown = filteredCategories.reduce(
+                    (sum, [, blocks]) => sum + blocks.length,
+                    0,
+                )
+
                 return (
-                    <div className="flex flex-col h-full overflow-y-auto">
-                        <div className="px-3 py-2.5 border-b bg-muted/30">
-                            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                Blocks
+                    <div className="flex flex-col h-full overflow-hidden">
+                        <div className="px-3 py-2.5 border-b bg-muted/30 shrink-0">
+                            <div className="flex items-center justify-between mb-1">
+                                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                    Blocks
+                                </div>
+                                <div className="text-[10px] text-muted-foreground/70 tabular-nums">
+                                    {totalShown}
+                                </div>
                             </div>
-                            <div className="text-[11px] text-muted-foreground/70 mt-0.5">
-                                Drag onto the canvas
+                            <div className="relative">
+                                <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                    value={query}
+                                    onChange={(e) => setQuery(e.target.value)}
+                                    placeholder="Search blocks…"
+                                    className="h-7 text-xs pl-6 pr-7"
+                                />
+                                {query && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setQuery("")}
+                                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                        aria-label="Clear search"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                )}
                             </div>
                         </div>
-                        <div className="flex-1 p-2 space-y-3">
-                            {categories.length === 0 && (
-                                <div className="text-xs text-muted-foreground text-center py-8">
-                                    No blocks registered
+                        <div className="flex-1 overflow-y-auto p-2 space-y-3">
+                            {filteredCategories.length === 0 && (
+                                <div className="text-xs text-muted-foreground text-center py-8 px-3">
+                                    {q
+                                        ? `No blocks match "${query}"`
+                                        : "No blocks registered"}
                                 </div>
                             )}
-                            {categories.map(([categoryName, blocks]) => (
+                            {filteredCategories.map(([categoryName, blocks]) => (
                                 <div key={categoryName || "uncategorized"}>
                                     {categoryName && (
                                         <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70 px-1 mb-1.5">
