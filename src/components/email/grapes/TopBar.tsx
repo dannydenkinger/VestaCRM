@@ -18,6 +18,8 @@ import {
     Code2,
     Eye,
     EyeOff,
+    Maximize2,
+    Minimize2,
 } from "lucide-react"
 
 const DEVICE_ICONS: Record<string, React.ReactNode> = {
@@ -28,7 +30,12 @@ const DEVICE_ICONS: Record<string, React.ReactNode> = {
     Mobile: <Smartphone className="w-3.5 h-3.5" />,
 }
 
-export function TopBar() {
+export interface TopBarProps {
+    fullscreen: boolean
+    onToggleFullscreen: () => void
+}
+
+export function TopBar({ fullscreen, onToggleFullscreen }: TopBarProps) {
     const editor = useEditorMaybe()
     const [canUndo, setCanUndo] = useState(false)
     const [canRedo, setCanRedo] = useState(false)
@@ -159,6 +166,19 @@ export function TopBar() {
                 >
                     <Code2 className="w-3.5 h-3.5" />
                     Code
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onToggleFullscreen}
+                    className="h-8 w-8"
+                    title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+                >
+                    {fullscreen ? (
+                        <Minimize2 className="w-4 h-4" />
+                    ) : (
+                        <Maximize2 className="w-4 h-4" />
+                    )}
                 </Button>
             </div>
         </div>

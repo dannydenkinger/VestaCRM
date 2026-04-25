@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import GjsEditor, { Canvas } from "@grapesjs/react"
 import grapesjs from "grapesjs"
 import type { Editor, Plugin, ProjectData } from "grapesjs"
@@ -38,6 +38,23 @@ export function GrapesEmailEditor({
     onReady,
 }: GrapesEmailEditorProps) {
     const editorRef = useRef<Editor | null>(null)
+    const [fullscreen, setFullscreen] = useState(false)
+
+    // Lock body scroll while fullscreen so background scrolling can't drift
+    // the iframe and throw off GrapesJS's drop-position math.
+    useEffect(() => {
+        if (!fullscreen) return
+        const prev = document.body.style.overflow
+        document.body.style.overflow = "hidden"
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setFullscreen(false)
+        }
+        window.addEventListener("keydown", onKey)
+        return () => {
+            document.body.style.overflow = prev
+            window.removeEventListener("keydown", onKey)
+        }
+    }, [fullscreen])
 
     const handleEditor = (editor: Editor) => {
         editorRef.current = editor
@@ -66,13 +83,23 @@ export function GrapesEmailEditor({
         }
     }
 
+    // When inline: fill most of the viewport so the canvas is large and the
+    // iframe doesn't shift around when the user scrolls the page.
+    // When fullscreen: cover the whole viewport.
+    const wrapperClass = fullscreen
+        ? "grapes-editor-root fixed inset-0 z-50 bg-background flex flex-col"
+        : "grapes-editor-root border rounded-md overflow-hidden bg-background flex flex-col"
+    const wrapperStyle: React.CSSProperties = fullscreen
+        ? { height: "100vh" }
+        : { height: "calc(100vh - 220px)", minHeight: 560 }
+
     return (
-        <div className="grapes-editor-root border rounded-md overflow-hidden bg-background">
+        <div className={wrapperClass} style={wrapperStyle}>
             <GjsEditor
                 grapesjs={grapesjs}
                 plugins={[newsletterPreset as Plugin, vestaBlocksPlugin]}
                 options={{
-                    height: "760px",
+                    height: "100%",
                     storageManager: false,
                     panels: { defaults: [] },
                 }}
@@ -84,8 +111,11 @@ export function GrapesEmailEditor({
                     </div>
                 }
             >
-                <div className="flex flex-col" style={{ height: "760px" }}>
-                    <TopBar />
+                <div className="flex flex-col h-full">
+                    <TopBar
+                        fullscreen={fullscreen}
+                        onToggleFullscreen={() => setFullscreen((v) => !v)}
+                    />
                     <div className="flex flex-1 min-h-0">
                         <div className="w-56 shrink-0 border-r bg-card">
                             <BlocksPanel />
