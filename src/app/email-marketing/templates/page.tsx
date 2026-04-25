@@ -1,9 +1,10 @@
 import Link from "next/link"
 import { requireAuth } from "@/lib/auth-guard"
 import { listTemplates } from "@/lib/campaigns/templates"
+import { STARTER_TEMPLATES } from "@/lib/campaigns/starter-templates"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { FileText, Plus } from "lucide-react"
+import { Plus, Sparkles, ArrowRight } from "lucide-react"
 import { TemplateTile } from "./TemplateTile"
 
 export const dynamic = "force-dynamic"
@@ -14,7 +15,7 @@ export default async function TemplatesListPage() {
     const templates = await listTemplates(workspaceId)
 
     return (
-        <div className="container mx-auto max-w-6xl py-10 px-4 space-y-6">
+        <div className="container mx-auto max-w-6xl py-10 px-4 space-y-8">
             <div className="flex items-center justify-between">
                 <div>
                     <div className="text-xs text-muted-foreground mb-1">
@@ -35,39 +36,76 @@ export default async function TemplatesListPage() {
                 </Link>
             </div>
 
-            {templates.length === 0 ? (
-                <Card>
-                    <CardContent className="py-16 text-center space-y-3">
-                        <FileText className="w-10 h-10 mx-auto opacity-40" />
-                        <div className="font-medium">No templates yet</div>
-                        <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                            Build once, reuse across campaigns. Drag blocks onto the canvas, or
-                            paste HTML from anywhere.
-                        </p>
-                        <Link href="/email-marketing/templates/new">
-                            <Button>
-                                <Plus className="w-4 h-4 mr-2" />
-                                Create your first template
-                            </Button>
+            {templates.length > 0 && (
+                <section className="space-y-3">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                            Your templates
+                        </h2>
+                        <span className="text-xs text-muted-foreground">
+                            {templates.length} total
+                        </span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {templates.map((t) => (
+                            <TemplateTile
+                                key={t.id}
+                                template={{
+                                    id: t.id,
+                                    name: t.name,
+                                    subject: t.subject,
+                                    description: t.description,
+                                    updatedAt: t.updatedAt,
+                                }}
+                            />
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Start from a template
+                    </h2>
+                    <span className="text-xs text-muted-foreground">
+                        {STARTER_TEMPLATES.length} starters
+                    </span>
+                </div>
+                {templates.length === 0 && (
+                    <Card>
+                        <CardContent className="py-6 text-sm text-muted-foreground">
+                            You don&apos;t have any templates yet. Pick a starter below to get
+                            going in seconds — every starter is fully editable.
+                        </CardContent>
+                    </Card>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {STARTER_TEMPLATES.map((s) => (
+                        <Link
+                            key={s.slug}
+                            href={`/email-marketing/templates/new?starter=${s.slug}`}
+                            className="group"
+                        >
+                            <Card className="h-full hover:bg-muted/40 hover:border-primary/30 transition-colors cursor-pointer">
+                                <CardContent className="py-4 space-y-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-[10px] uppercase tracking-wider font-semibold text-primary/70 bg-primary/5 px-1.5 py-0.5 rounded">
+                                            {s.category}
+                                        </span>
+                                        <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/40 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                                    </div>
+                                    <div className="font-medium text-sm">{s.name}</div>
+                                    <div className="text-xs text-muted-foreground line-clamp-2 leading-snug">
+                                        {s.description}
+                                    </div>
+                                </CardContent>
+                            </Card>
                         </Link>
-                    </CardContent>
-                </Card>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {templates.map((t) => (
-                        <TemplateTile
-                            key={t.id}
-                            template={{
-                                id: t.id,
-                                name: t.name,
-                                subject: t.subject,
-                                description: t.description,
-                                updatedAt: t.updatedAt,
-                            }}
-                        />
                     ))}
                 </div>
-            )}
+            </section>
         </div>
     )
 }

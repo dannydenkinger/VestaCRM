@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useRef, useState, useTransition } from "react"
+import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { TokenInserter, insertAtCursor } from "@/components/email/TokenInserter"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -508,10 +508,9 @@ export function CampaignBuilder({
                                 </button>
                             </div>
                             {sendMode === "schedule" && (
-                                <Input
-                                    type="datetime-local"
-                                    value={scheduledAtLocal}
-                                    onChange={(e) => setScheduledAtLocal(e.target.value)}
+                                <ScheduleControls
+                                    scheduledAtLocal={scheduledAtLocal}
+                                    onChange={setScheduledAtLocal}
                                     disabled={isPending}
                                 />
                             )}
@@ -562,4 +561,154 @@ export function CampaignBuilder({
             </div>
         </div>
     )
+}
+
+function pad(n: number): string {
+    return String(n).padStart(2, "0")
+}
+
+function toLocalInputValue(d: Date): string {
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+interface QuickPreset {
+    label: string
+    compute: () => Date
+}
+
+const QUICK_PRESETS: QuickPreset[] = [
+    {
+        label: "In 1 hour",
+        compute: () => {
+            const d = new Date()
+            d.setHours(d.getHours() + 1, 0, 0, 0)
+            return d
+        },
+    },
+    {
+        label: "Tomorrow 9am",
+        compute: () => {
+            const d = new Date()
+            d.setDate(d.getDate() + 1)
+            d.setHours(9, 0, 0, 0)
+            return d
+        },
+    },
+    {
+        label: "Tomorrow 1pm",
+        compute: () => {
+            const d = new Date()
+            d.setDate(d.getDate() + 1)
+            d.setHours(13, 0, 0, 0)
+            return d
+        },
+    },
+    {
+        label: "Next Monday 9am",
+        compute: () => {
+            const d = new Date()
+            const day = d.getDay()
+            const daysUntilMonday = day === 1 ? 7 : (8 - day) % 7 || 7
+            d.setDate(d.getDate() + daysUntilMonday)
+            d.setHours(9, 0, 0, 0)
+            return d
+        },
+    },
+]
+
+function ScheduleControls({
+    scheduledAtLocal,
+    onChange,
+    disabled,
+}: {
+    scheduledAtLocal: string
+    onChange: (v: string) => void
+    disabled?: boolean
+}) {
+    // Tick every 30s so the relative time preview stays fresh.
+    const [, setTick] = useState(0)
+    useEffect(() => {
+        const id = setInterval(() => setTick((t) => t + 1), 30_000)
+        return () => clearInterval(id)
+    }, [])
+
+    const tz = useMemo(() => {
+        try {
+            return Intl.DateTimeFormat().resolvedOptions().timeZone
+        } catch {
+            return "local"
+        }
+    }, [])
+
+    const parsed = useMemo(() => {
+        if (!scheduledAtLocal) return null
+        const d = new Date(scheduledAtLocal)
+        return isNaN(d.getTime()) ? null : d
+    }, [scheduledAtLocal])
+
+    const inPast = parsed && parsed.getTime() < Date.now()
+    const tooSoon =
+        parsed && parsed.getTime() < Date.now() + 60_000 && !inPast
+
+    const relative = parsed ? formatRelativeFuture(parsed) : ""
+
+    return (
+        <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-1.5">
+                {QUICK_PRESETS.map((p) => (
+                    <button
+                        key={p.label}
+                        type="button"
+                        onClick={() => onChange(toLocalInputValue(p.compute()))}
+                        disabled={disabled}
+                        className="text-[11px] px-2 py-1.5 border rounded-md hover:bg-muted/50 hover:border-primary/30 transition-colors disabled:opacity-50 text-muted-foreground hover:text-foreground"
+                    >
+                        {p.label}
+                    </button>
+                ))}
+            </div>
+            <Input
+                type="datetime-local"
+                value={scheduledAtLocal}
+                onChange={(e) => onChange(e.target.value)}
+                disabled={disabled}
+            />
+            <div className="flex items-center justify-between text-[11px]">
+                <span className="text-muted-foreground">
+                    Timezone: <span className="font-medium">{tz}</span>
+                </span>
+                {parsed && (
+                    <span
+                        className={
+                            inPast
+                                ? "text-red-600"
+                                : tooSoon
+                                  ? "text-amber-600"
+                                  : "text-emerald-600"
+                        }
+                    >
+                        {inPast
+                            ? "Time is in the past"
+                            : tooSoon
+                              ? "Schedule at least 1 minute out"
+                              : `Fires ${relative}`}
+                    </span>
+                )}
+            </div>
+            <p className="text-[10px] text-muted-foreground/70 leading-snug">
+                Cron checks every 5 min, so actual send may fire up to 5 minutes after the scheduled time.
+            </p>
+        </div>
+    )
+}
+
+function formatRelativeFuture(d: Date): string {
+    const diffMs = d.getTime() - Date.now()
+    const diffMin = Math.round(diffMs / 60_000)
+    if (diffMin < 60) return `in ${diffMin} min`
+    const diffHr = Math.round(diffMin / 60)
+    if (diffHr < 24) return `in ${diffHr}h ${diffMin % 60}m`
+    const diffDay = Math.round(diffHr / 24)
+    if (diffDay < 7) return `in ${diffDay} day${diffDay === 1 ? "" : "s"}`
+    return `on ${d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}`
 }

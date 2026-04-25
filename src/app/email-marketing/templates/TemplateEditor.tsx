@@ -53,6 +53,7 @@ interface StarterOption {
     name: string
     subject: string
     description: string
+    category?: string
     renderedHtml: string
 }
 
@@ -66,23 +67,36 @@ interface Props {
         designJson: Record<string, unknown> | null
     }
     starterTemplates?: StarterOption[]
+    /** When set, pre-fills the editor with this starter on mount. */
+    preselectedStarter?: StarterOption
     workspaceName?: string
 }
 
-export function TemplateEditor({ initial, starterTemplates, workspaceName }: Props) {
+export function TemplateEditor({
+    initial,
+    starterTemplates,
+    preselectedStarter,
+    workspaceName,
+}: Props) {
     const router = useRouter()
     const [isPending, startTransition] = useTransition()
     const [templateId, setTemplateId] = useState<string | null>(initial?.id ?? null)
-    const [name, setName] = useState(initial?.name ?? "")
-    const [subject, setSubject] = useState(initial?.subject ?? "")
+    const [name, setName] = useState(initial?.name ?? preselectedStarter?.name ?? "")
+    const [subject, setSubject] = useState(
+        initial?.subject ?? preselectedStarter?.subject ?? "",
+    )
     const [description, setDescription] = useState(initial?.description ?? "")
-    const [html, setHtml] = useState(initial?.renderedHtml ?? "")
+    const [html, setHtml] = useState(
+        initial?.renderedHtml ?? preselectedStarter?.renderedHtml ?? "",
+    )
     const [designJson, setDesignJson] = useState<ProjectData | null>(
         (initial?.designJson as ProjectData | null) ?? null,
     )
 
     // Seed used for first-mount and force-remounts (file imports / starters).
-    const [canvasSeed, setCanvasSeed] = useState<string>(initial?.renderedHtml ?? "")
+    const [canvasSeed, setCanvasSeed] = useState<string>(
+        initial?.renderedHtml ?? preselectedStarter?.renderedHtml ?? "",
+    )
     const [canvasSeedKey, setCanvasSeedKey] = useState(0)
 
     // Save state — drives the "Saved / Saving / Unsaved" indicator
@@ -326,20 +340,41 @@ export function TemplateEditor({ initial, starterTemplates, workspaceName }: Pro
                                         <p className="text-xs text-muted-foreground">
                                             Replaces your current design.
                                         </p>
-                                        <div className="grid grid-cols-1 gap-2">
-                                            {starterTemplates.map((s) => (
-                                                <button
-                                                    key={s.slug}
-                                                    type="button"
-                                                    onClick={() => handleUseStarter(s)}
-                                                    disabled={isPending}
-                                                    className="text-left p-3 border rounded-md hover:bg-muted/50 transition-colors disabled:opacity-50"
-                                                >
-                                                    <div className="text-sm font-medium">{s.name}</div>
-                                                    <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                                        {s.description}
+                                        <div className="space-y-3">
+                                            {Object.entries(
+                                                starterTemplates.reduce<Record<string, StarterOption[]>>(
+                                                    (acc, s) => {
+                                                        const cat = s.category || "Other"
+                                                        if (!acc[cat]) acc[cat] = []
+                                                        acc[cat].push(s)
+                                                        return acc
+                                                    },
+                                                    {},
+                                                ),
+                                            ).map(([category, items]) => (
+                                                <div key={category} className="space-y-1.5">
+                                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold">
+                                                        {category}
                                                     </div>
-                                                </button>
+                                                    <div className="grid grid-cols-1 gap-1.5">
+                                                        {items.map((s) => (
+                                                            <button
+                                                                key={s.slug}
+                                                                type="button"
+                                                                onClick={() => handleUseStarter(s)}
+                                                                disabled={isPending}
+                                                                className="text-left p-3 border rounded-md hover:bg-muted/50 hover:border-primary/30 transition-colors disabled:opacity-50"
+                                                            >
+                                                                <div className="text-sm font-medium">
+                                                                    {s.name}
+                                                                </div>
+                                                                <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                                                    {s.description}
+                                                                </div>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
                                             ))}
                                         </div>
                                     </div>

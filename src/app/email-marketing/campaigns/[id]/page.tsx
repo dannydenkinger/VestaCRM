@@ -46,6 +46,39 @@ export default async function CampaignDetailPage({ params }: PageProps) {
     ])
     const sesReady = identity?.status === "VERIFIED"
 
+    // Resolve list names + exclude-list names for the Audience card.
+    const listIds = new Set<string>()
+    if (campaign.audienceType === "by_list") {
+        for (const id of campaign.audienceValue ?? []) listIds.add(id)
+    }
+    for (const id of campaign.excludeListIds ?? []) listIds.add(id)
+    let listNamesById: Record<string, string> = {}
+    if (listIds.size > 0) {
+        const ids = [...listIds]
+        const chunks: string[][] = []
+        for (let i = 0; i < ids.length; i += 30) chunks.push(ids.slice(i, i + 30))
+        const snaps = await Promise.all(
+            chunks.map((chunk) =>
+                adminDb
+                    .collection("contact_lists")
+                    .where("workspaceId", "==", workspaceId)
+                    .where("__name__", "in", chunk)
+                    .get(),
+            ),
+        )
+        listNamesById = Object.fromEntries(
+            snaps
+                .flatMap((s) => s.docs)
+                .map((d) => [d.id, (d.data().name as string) ?? d.id]),
+        )
+    }
+    const includeListNames = (campaign.audienceValue ?? []).map(
+        (id) => listNamesById[id] ?? id,
+    )
+    const excludeListNames = (campaign.excludeListIds ?? []).map(
+        (id) => listNamesById[id] ?? id,
+    )
+
     // Fetch recent email logs for this campaign
     const logsSnap = await adminDb
         .collection("email_logs")
@@ -140,12 +173,37 @@ export default async function CampaignDetailPage({ params }: PageProps) {
                 <CardHeader>
                     <CardTitle>Audience</CardTitle>
                 </CardHeader>
-                <CardContent className="text-sm">
-                    {campaign.audienceType === "all_contacts" && "All contacts with an email address"}
-                    {campaign.audienceType === "by_tag" &&
-                        `Contacts tagged: ${(campaign.audienceValue ?? []).join(", ") || "(none)"}`}
-                    {campaign.audienceType === "by_ids" &&
-                        `${(campaign.audienceValue ?? []).length} specific contacts`}
+                <CardContent className="text-sm space-y-2">
+                    {campaign.audienceType === "all_contacts" && (
+                        <div>All contacts with an email address</div>
+                    )}
+                    {campaign.audienceType === "by_tag" && (
+                        <div>
+                            Contacts tagged{" "}
+                            <span className="font-medium">
+                                {(campaign.audienceValue ?? []).join(", ") || "(none)"}
+                            </span>
+                        </div>
+                    )}
+                    {campaign.audienceType === "by_list" && (
+                        <div>
+                            Contacts in{" "}
+                            <span className="font-medium">
+                                {includeListNames.join(", ") || "(no lists selected)"}
+                            </span>
+                        </div>
+                    )}
+                    {campaign.audienceType === "by_ids" && (
+                        <div>
+                            {(campaign.audienceValue ?? []).length} specific contacts
+                        </div>
+                    )}
+                    {excludeListNames.length > 0 && (
+                        <div className="text-xs text-muted-foreground">
+                            Excluding contacts in{" "}
+                            <span className="font-medium">{excludeListNames.join(", ")}</span>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 

@@ -13,6 +13,8 @@ export interface StarterTemplate {
     name: string
     subject: string
     description: string
+    /** Used to group templates on the picker. */
+    category: "Onboarding" | "Marketing" | "Transactional" | "Engagement" | "Events"
     renderedHtml: string
 }
 
@@ -49,6 +51,7 @@ export const STARTER_TEMPLATES: StarterTemplate[] = [
         name: "Welcome email",
         subject: "Welcome to {{company}}, {{first_name}}!",
         description: "Greet new contacts and orient them to your product.",
+        category: "Onboarding",
         renderedHtml: wrap(
             "Glad to have you with us. Here's where to start.",
             `<h1 style="margin:0 0 16px 0;font-size:24px;font-weight:600;color:#1a1a1a;">Hi {{first_name}}, welcome aboard 👋</h1>
@@ -74,6 +77,7 @@ Looking forward to working with you.
         name: "Monthly newsletter",
         subject: "{{company}} — what's new this month",
         description: "Round up of updates and stories for your contact list.",
+        category: "Marketing",
         renderedHtml: wrap(
             "Three updates worth your time, plus what's coming next.",
             `<h1 style="margin:0 0 16px 0;font-size:24px;font-weight:600;color:#1a1a1a;">Hey {{first_name}}, here's what's new</h1>
@@ -102,6 +106,7 @@ Thanks for reading.<br>— {{company}}
         name: "Promo / sale",
         subject: "{{first_name}}, your exclusive offer ends Friday",
         description: "Drive a time-limited offer with a clear CTA.",
+        category: "Marketing",
         renderedHtml: wrap(
             "Your exclusive offer is waiting — but not for long.",
             `<div style="text-align:center;margin-bottom:32px;">
@@ -128,6 +133,7 @@ Offer expires Friday at midnight. Reply if you have questions.
         name: "Thank you / follow-up",
         subject: "Quick follow-up, {{first_name}}",
         description: "Personal one-to-one touch after a meeting or signup.",
+        category: "Engagement",
         renderedHtml: wrap(
             "Just wanted to say thanks and share next steps.",
             `<p style="margin:0 0 16px 0;font-size:16px;line-height:1.7;color:#1a1a1a;">
@@ -151,10 +157,252 @@ Talk soon,<br>
         ),
     },
     {
+        slug: "product-launch",
+        name: "Product launch",
+        subject: "Introducing our biggest update yet",
+        description: "Announce a launch with a hero, three benefits, and a CTA.",
+        category: "Marketing",
+        renderedHtml: wrap(
+            "Something we've been working on for months — finally here.",
+            `<div style="text-align:center;margin-bottom:32px;">
+<span style="display:inline-block;background:#ede9fe;color:#5b46f6;font-size:11px;font-weight:600;padding:6px 12px;border-radius:999px;text-transform:uppercase;letter-spacing:0.08em;">Just launched</span>
+</div>
+<h1 style="margin:0 0 16px 0;font-size:30px;font-weight:700;color:#1a1a1a;text-align:center;line-height:1.2;letter-spacing:-0.02em;">A bold new way to {{company}}</h1>
+<p style="margin:0 0 32px 0;font-size:17px;line-height:1.55;color:#444;text-align:center;">
+Hi {{first_name}}, here's what we've been quietly building. Three things you'll notice right away:
+</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 32px 0;">
+<tr><td style="padding:14px 0;border-bottom:1px solid #eef0f3;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+<td style="width:36px;vertical-align:top;font-size:22px;line-height:1;">⚡</td>
+<td style="vertical-align:top;">
+<div style="font-weight:600;font-size:15px;color:#1a1a1a;margin-bottom:4px;">Faster than ever</div>
+<div style="font-size:14px;color:#666;line-height:1.55;">Specific, concrete benefit. One sentence is plenty.</div>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:14px 0;border-bottom:1px solid #eef0f3;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+<td style="width:36px;vertical-align:top;font-size:22px;line-height:1;">🎯</td>
+<td style="vertical-align:top;">
+<div style="font-weight:600;font-size:15px;color:#1a1a1a;margin-bottom:4px;">Designed for your workflow</div>
+<div style="font-size:14px;color:#666;line-height:1.55;">Specific, concrete benefit. Make it real.</div>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:14px 0;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+<td style="width:36px;vertical-align:top;font-size:22px;line-height:1;">🔒</td>
+<td style="vertical-align:top;">
+<div style="font-weight:600;font-size:15px;color:#1a1a1a;margin-bottom:4px;">Built for the long haul</div>
+<div style="font-size:14px;color:#666;line-height:1.55;">Specific, concrete benefit. Why it matters.</div>
+</td></tr></table>
+</td></tr>
+</table>
+<div style="text-align:center;">
+<a href="#" style="display:inline-block;background:#5b46f6;color:#ffffff;text-decoration:none;font-weight:600;padding:14px 32px;border-radius:8px;font-size:16px;">See what's new</a>
+</div>
+<p style="margin:32px 0 0 0;font-size:14px;color:#888;text-align:center;">
+Already a customer? It's live in your account. <a href="#" style="color:#5b46f6;">Try it now →</a>
+</p>`,
+        ),
+    },
+    {
+        slug: "event-invite",
+        name: "Event invitation",
+        subject: "You're invited: {{company}} live event",
+        description: "Drive RSVPs to a webinar, workshop, or in-person event.",
+        category: "Events",
+        renderedHtml: wrap(
+            "Save your spot — limited capacity.",
+            `<div style="text-align:center;margin-bottom:24px;">
+<span style="display:inline-block;background:#fff4cc;color:#7a5b00;font-size:11px;font-weight:700;padding:6px 14px;border-radius:999px;text-transform:uppercase;letter-spacing:0.08em;">You're invited</span>
+</div>
+<h1 style="margin:0 0 12px 0;font-size:28px;font-weight:700;color:#1a1a1a;text-align:center;line-height:1.2;letter-spacing:-0.02em;">Join us for an exclusive session</h1>
+<p style="margin:0 0 28px 0;font-size:16px;line-height:1.6;color:#444;text-align:center;">
+Hi {{first_name}}, we'd love to have you at our upcoming event with founders, customers, and special guests.
+</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8f8fb;border-radius:12px;margin:0 0 28px 0;">
+<tr><td style="padding:24px;text-align:center;">
+<div style="font-size:13px;color:#888;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:6px;">When</div>
+<div style="font-size:20px;font-weight:700;color:#1a1a1a;margin-bottom:18px;">Thursday, April 18 · 2:00 PM EST</div>
+<div style="font-size:13px;color:#888;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:6px;">Where</div>
+<div style="font-size:16px;color:#1a1a1a;">Live online — link emailed after RSVP</div>
+</td></tr>
+</table>
+<div style="text-align:center;">
+<a href="#" style="display:inline-block;background:#5b46f6;color:#ffffff;text-decoration:none;font-weight:600;padding:14px 36px;border-radius:8px;font-size:16px;">RSVP — save my spot</a>
+</div>
+<p style="margin:24px 0 0 0;font-size:13px;color:#888;text-align:center;">
+Can't make it? <a href="#" style="color:#5b46f6;">Add to calendar</a> &middot; <a href="#" style="color:#5b46f6;">Share with a friend</a>
+</p>`,
+        ),
+    },
+    {
+        slug: "abandoned-cart",
+        name: "Abandoned cart",
+        subject: "{{first_name}}, you left something behind",
+        description: "Win back shoppers who left items in their cart.",
+        category: "Marketing",
+        renderedHtml: wrap(
+            "Your cart is still here. Don't worry — we saved it for you.",
+            `<h1 style="margin:0 0 12px 0;font-size:24px;font-weight:600;color:#1a1a1a;">Forget something, {{first_name}}?</h1>
+<p style="margin:0 0 24px 0;font-size:16px;line-height:1.6;color:#444;">
+Looks like you left a few items in your cart. We held onto them for you — but they're going fast.
+</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #eef0f3;border-radius:12px;margin:0 0 24px 0;">
+<tr><td style="padding:18px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+<td style="width:80px;vertical-align:top;">
+<img src="https://placehold.co/72x72?bg=eef2ff&fg=5b46f6&font=raleway" alt="" width="72" style="border-radius:8px;display:block;" />
+</td>
+<td style="vertical-align:top;padding-left:14px;">
+<div style="font-weight:600;font-size:15px;color:#1a1a1a;margin-bottom:4px;">Product name</div>
+<div style="font-size:13px;color:#888;margin-bottom:8px;">Variant or size</div>
+<div style="font-size:15px;font-weight:700;color:#1a1a1a;">$49.00</div>
+</td>
+</tr></table>
+</td></tr>
+</table>
+<div style="text-align:center;margin-bottom:24px;">
+<a href="#" style="display:inline-block;background:#5b46f6;color:#ffffff;text-decoration:none;font-weight:600;padding:13px 32px;border-radius:8px;font-size:16px;">Complete checkout</a>
+</div>
+<div style="background:#fff8e1;border:1px dashed #d4a017;border-radius:10px;padding:16px;text-align:center;margin:0 0 24px 0;">
+<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#7a5b00;font-weight:700;margin-bottom:4px;">As a thank-you</div>
+<div style="font-size:14px;color:#1a1a1a;">Use code <strong style="letter-spacing:0.1em;">COMEBACK10</strong> for 10% off</div>
+</div>
+<p style="margin:24px 0 0 0;font-size:13px;color:#888;text-align:center;">
+Questions? Just reply — we'll help.
+</p>`,
+        ),
+    },
+    {
+        slug: "survey",
+        name: "Customer survey",
+        subject: "Quick favor, {{first_name}}? (2 minutes)",
+        description: "Gather customer feedback with a low-friction CTA.",
+        category: "Engagement",
+        renderedHtml: wrap(
+            "Help us understand how to make {{company}} better for you.",
+            `<h1 style="margin:0 0 16px 0;font-size:24px;font-weight:600;color:#1a1a1a;">We'd love your honest take, {{first_name}} 💭</h1>
+<p style="margin:0 0 16px 0;font-size:16px;line-height:1.65;color:#333;">
+You've been using {{company}} for a while now, and we're working on what comes next. We have a quick survey — 6 questions, ~2 minutes — and your answers shape what we build.
+</p>
+<p style="margin:0 0 24px 0;font-size:16px;line-height:1.65;color:#333;">
+The first 50 responders get a free month on us.
+</p>
+<div style="text-align:center;margin:0 0 24px 0;">
+<a href="#" style="display:inline-block;background:#5b46f6;color:#ffffff;text-decoration:none;font-weight:600;padding:14px 32px;border-radius:8px;font-size:16px;">Take the 2-minute survey</a>
+</div>
+<p style="margin:0 0 0 0;font-size:14px;color:#666;line-height:1.6;">
+Or just hit reply with your thoughts — I read every one.
+</p>
+<p style="margin:24px 0 0 0;font-size:14px;color:#888;line-height:1.6;">
+Thanks for being part of {{company}},<br>
+The team
+</p>`,
+        ),
+    },
+    {
+        slug: "receipt",
+        name: "Order receipt",
+        subject: "Your {{company}} order #1042",
+        description: "Transactional confirmation after purchase.",
+        category: "Transactional",
+        renderedHtml: wrap(
+            "Order confirmed — here's your receipt.",
+            `<h1 style="margin:0 0 8px 0;font-size:22px;font-weight:600;color:#1a1a1a;">Thanks for your order, {{first_name}}</h1>
+<p style="margin:0 0 24px 0;font-size:14px;color:#666;">
+Order <strong style="color:#1a1a1a;">#1042</strong> &middot; placed on Apr 12, 2026
+</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #eef0f3;margin:0 0 0 0;">
+<tr><td style="padding:14px 0;border-bottom:1px solid #eef0f3;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+<td><div style="font-weight:500;color:#1a1a1a;font-size:15px;">Product name</div><div style="font-size:13px;color:#888;margin-top:2px;">Qty 1</div></td>
+<td align="right" style="font-weight:600;color:#1a1a1a;font-size:15px;">$49.00</td>
+</tr></table>
+</td></tr>
+<tr><td style="padding:14px 0;border-bottom:1px solid #eef0f3;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+<td><div style="font-weight:500;color:#1a1a1a;font-size:15px;">Another item</div><div style="font-size:13px;color:#888;margin-top:2px;">Qty 2</div></td>
+<td align="right" style="font-weight:600;color:#1a1a1a;font-size:15px;">$30.00</td>
+</tr></table>
+</td></tr>
+<tr><td style="padding:14px 0;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+<td style="color:#666;font-size:14px;">Shipping</td>
+<td align="right" style="color:#666;font-size:14px;">$5.00</td>
+</tr><tr>
+<td style="color:#666;font-size:14px;padding-top:6px;">Tax</td>
+<td align="right" style="color:#666;font-size:14px;padding-top:6px;">$5.95</td>
+</tr><tr>
+<td style="font-weight:700;color:#1a1a1a;font-size:17px;padding-top:14px;border-top:2px solid #eef0f3;">Total</td>
+<td align="right" style="font-weight:700;color:#1a1a1a;font-size:17px;padding-top:14px;border-top:2px solid #eef0f3;">$89.95</td>
+</tr></table>
+</td></tr>
+</table>
+<div style="text-align:center;margin:28px 0 0 0;">
+<a href="#" style="display:inline-block;background:#1a1a1a;color:#ffffff;text-decoration:none;font-weight:500;padding:12px 28px;border-radius:8px;font-size:15px;">View order details</a>
+</div>
+<p style="margin:32px 0 0 0;font-size:13px;color:#888;line-height:1.6;text-align:center;">
+Questions about your order? <a href="#" style="color:#5b46f6;">Contact support</a>
+</p>`,
+        ),
+    },
+    {
+        slug: "feature-spotlight",
+        name: "Feature spotlight",
+        subject: "Did you know about {{company}}'s {{feature}}?",
+        description: "Educate users on a feature they may not have discovered.",
+        category: "Engagement",
+        renderedHtml: wrap(
+            "A short walkthrough of one feature most people miss.",
+            `<div style="margin-bottom:24px;text-align:center;">
+<img src="https://placehold.co/520x280?bg=eef2ff&fg=5b46f6&font=raleway" alt="" width="520" style="max-width:100%;height:auto;display:block;border-radius:12px;margin:0 auto;" />
+</div>
+<h1 style="margin:0 0 12px 0;font-size:24px;font-weight:600;color:#1a1a1a;">The one feature most people miss</h1>
+<p style="margin:0 0 16px 0;font-size:16px;line-height:1.65;color:#333;">
+Hey {{first_name}} — quick one. We noticed many customers haven't tried <strong>this feature</strong> yet, and we think you'll like it.
+</p>
+<p style="margin:0 0 16px 0;font-size:16px;line-height:1.65;color:#333;">
+In one sentence: <em>describe the value here</em>. The kind of thing that saves an hour a week if you set it up once.
+</p>
+<p style="margin:0 0 24px 0;font-size:16px;line-height:1.65;color:#333;">
+We made a 90-second walkthrough so you can decide if it's worth turning on:
+</p>
+<div style="text-align:center;margin:0 0 24px 0;">
+<a href="#" style="display:inline-block;background:#5b46f6;color:#ffffff;text-decoration:none;font-weight:600;padding:13px 28px;border-radius:8px;font-size:15px;">Watch the 90-second demo</a>
+</div>
+<p style="margin:0 0 0 0;font-size:14px;color:#666;line-height:1.6;text-align:center;">
+Or skip the video — <a href="#" style="color:#5b46f6;">read how to set it up</a>.
+</p>`,
+        ),
+    },
+    {
+        slug: "holiday-greeting",
+        name: "Holiday greeting",
+        subject: "From all of us at {{company}} — thank you, {{first_name}}",
+        description: "A warm seasonal note — no sales push.",
+        category: "Engagement",
+        renderedHtml: wrap(
+            "A small thank-you from the team.",
+            `<div style="text-align:center;margin-bottom:24px;font-size:48px;line-height:1;">🎉</div>
+<h1 style="margin:0 0 16px 0;font-size:26px;font-weight:600;color:#1a1a1a;text-align:center;line-height:1.3;">Thank you for being part of {{company}}</h1>
+<p style="margin:0 0 16px 0;font-size:16px;line-height:1.7;color:#333;text-align:center;">
+{{first_name}}, this is just a quick note from the whole team to say thanks. People like you — who try the product, give feedback, and reply to our emails — are why we get to do this work.
+</p>
+<p style="margin:0 0 24px 0;font-size:16px;line-height:1.7;color:#333;text-align:center;">
+Wishing you a great rest of the year. We can't wait to share what's coming.
+</p>
+<p style="margin:32px 0 0 0;font-size:14px;color:#666;line-height:1.6;text-align:center;font-style:italic;">
+— The {{company}} team
+</p>`,
+        ),
+    },
+    {
         slug: "re-engage",
         name: "Re-engagement (we miss you)",
         subject: "We've missed you, {{first_name}}",
         description: "Win back contacts who haven't been active in a while.",
+        category: "Engagement",
         renderedHtml: wrap(
             "Here's what's changed since you've been away.",
             `<h1 style="margin:0 0 16px 0;font-size:24px;font-weight:600;color:#1a1a1a;">It's been a minute, {{first_name}} 👋</h1>

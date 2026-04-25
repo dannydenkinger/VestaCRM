@@ -250,20 +250,94 @@ export interface SendCampaignResult {
     error?: string
 }
 
+/** Number of recipients sent in parallel within a single campaign. */
+const SEND_CONCURRENCY = 5
+
+/** Retry transient SES failures (network blips, throttle) up to this many times. */
+const SEND_MAX_ATTEMPTS = 3
+
+/** Backoff between retries. */
+const SEND_RETRY_BASE_MS = 250
+
+function isTransientError(err: unknown): boolean {
+    if (err instanceof SesIdentityNotReadyError) return false
+    if (err instanceof InsufficientCreditsError) return false
+    const message = err instanceof Error ? err.message : String(err)
+    // Treat AWS throttles, 5xx, and network errors as transient. Anything that
+    // looks like a permanent bounce / config issue is left alone.
+    return /(throttl|timeout|temporar|service unavailable|internal server|ECONN|ETIMEDOUT|ENETUNREACH|fetch failed)/i.test(
+        message,
+    )
+}
+
+async function sendOneWithRetry(
+    args: Parameters<typeof sendEmail>[0],
+): Promise<{ ok: boolean; fatal?: Error }> {
+    let lastError: unknown
+    for (let attempt = 1; attempt <= SEND_MAX_ATTEMPTS; attempt++) {
+        try {
+            const result = await sendEmail(args)
+            if (result.ok) return { ok: true }
+            // Soft-fail (e.g. invalid recipient) — don't retry.
+            return { ok: false }
+        } catch (err) {
+            lastError = err
+            if (
+                err instanceof SesIdentityNotReadyError ||
+                err instanceof InsufficientCreditsError
+            ) {
+                return { ok: false, fatal: err }
+            }
+            if (attempt < SEND_MAX_ATTEMPTS && isTransientError(err)) {
+                await new Promise((r) => setTimeout(r, SEND_RETRY_BASE_MS * 2 ** (attempt - 1)))
+                continue
+            }
+            return { ok: false }
+        }
+    }
+    // Shouldn't get here, but TypeScript wants a return.
+    void lastError
+    return { ok: false }
+}
+
 export async function sendCampaign(
     workspaceId: string,
     campaignId: string,
 ): Promise<SendCampaignResult> {
     const ref = adminDb.collection("email_campaigns").doc(campaignId)
-    const doc = await ref.get()
-    if (!doc.exists) throw new Error("Campaign not found")
-    const data = doc.data()!
-    if (data.workspaceId !== workspaceId) throw new Error("Forbidden")
-    if (data.status !== "draft" && data.status !== "scheduled") {
-        throw new Error(`Cannot send campaign in status '${data.status}'`)
+
+    // Race-safe claim: atomically transition status (draft|scheduled) → sending.
+    // Prevents double-sends if the cron fires twice or a manual send overlaps
+    // a scheduled tick.
+    const claimResult = await adminDb.runTransaction(async (tx) => {
+        const snap = await tx.get(ref)
+        if (!snap.exists) throw new Error("Campaign not found")
+        const data = snap.data()!
+        if (data.workspaceId !== workspaceId) throw new Error("Forbidden")
+        if (data.status !== "draft" && data.status !== "scheduled") {
+            return {
+                claimed: false as const,
+                status: data.status as CampaignStatus,
+                data,
+            }
+        }
+        tx.update(ref, { status: "sending", updatedAt: new Date() })
+        return { claimed: true as const, status: data.status, data }
+    })
+
+    if (!claimResult.claimed) {
+        return {
+            ok: false,
+            campaignId,
+            targeted: 0,
+            sent: 0,
+            failed: 0,
+            skipped: 0,
+            error: `Cannot send campaign in status '${claimResult.status}'`,
+        }
     }
 
-    await ref.update({ status: "sending", updatedAt: new Date() })
+    const data = claimResult.data
 
     let sent = 0
     let failed = 0
@@ -280,38 +354,39 @@ export async function sendCampaign(
         )
         targeted = audience.length
 
-        for (const contact of audience) {
-            try {
-                const result = await sendEmail({
-                    workspaceId,
-                    to: contact.email,
-                    subject: data.subject,
-                    html: data.renderedHtml,
-                    contactId: contact.id,
-                    campaignId,
-                    autoResolveContact: false,
-                })
-                if (result.ok) sent += 1
+        // Send in parallel chunks. Stops fast if we hit a fatal error
+        // (SES not ready / out of credits) — skip remainder of audience.
+        for (let i = 0; i < audience.length; i += SEND_CONCURRENCY) {
+            if (fatalError) break
+            const chunk = audience.slice(i, i + SEND_CONCURRENCY)
+            const results = await Promise.all(
+                chunk.map((contact) =>
+                    sendOneWithRetry({
+                        workspaceId,
+                        to: contact.email,
+                        subject: data.subject,
+                        html: data.renderedHtml,
+                        contactId: contact.id,
+                        campaignId,
+                        autoResolveContact: false,
+                    }),
+                ),
+            )
+            for (const r of results) {
+                if (r.fatal) {
+                    fatalError = r.fatal.message
+                    if (r.fatal instanceof InsufficientCreditsError) {
+                        skipped = audience.length - sent - failed - 1
+                    }
+                    break
+                }
+                if (r.ok) sent += 1
                 else failed += 1
-            } catch (err) {
-                if (err instanceof SesIdentityNotReadyError) {
-                    fatalError = err.message
-                    break
-                }
-                if (err instanceof InsufficientCreditsError) {
-                    skipped = audience.length - sent - failed
-                    fatalError = err.message
-                    break
-                }
-                failed += 1
             }
         }
 
-        const finalStatus: CampaignStatus = fatalError
-            ? "sent_with_errors"
-            : failed > 0
-              ? "sent_with_errors"
-              : "sent"
+        const finalStatus: CampaignStatus =
+            fatalError || failed > 0 ? "sent_with_errors" : "sent"
 
         await ref.update({
             status: finalStatus,
