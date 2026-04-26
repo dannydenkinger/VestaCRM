@@ -3,9 +3,10 @@ import { requireAuth } from "@/lib/auth-guard"
 import { listTemplates } from "@/lib/campaigns/templates"
 import { STARTER_TEMPLATES } from "@/lib/campaigns/starter-templates"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Plus, Sparkles, ArrowRight } from "lucide-react"
 import { TemplateTile } from "./TemplateTile"
+import { TemplatePreview } from "./TemplatePreview"
 
 export const dynamic = "force-dynamic"
 
@@ -15,7 +16,7 @@ export default async function TemplatesListPage() {
     const templates = await listTemplates(workspaceId)
 
     return (
-        <div className="container mx-auto max-w-6xl py-10 px-4 space-y-8">
+        <div className="container mx-auto max-w-6xl py-10 px-4 space-y-10">
             <div className="flex items-center justify-between">
                 <div>
                     <div className="text-xs text-muted-foreground mb-1">
@@ -55,6 +56,7 @@ export default async function TemplatesListPage() {
                                     name: t.name,
                                     subject: t.subject,
                                     description: t.description,
+                                    renderedHtml: t.renderedHtml,
                                     updatedAt: t.updatedAt,
                                 }}
                             />
@@ -74,33 +76,32 @@ export default async function TemplatesListPage() {
                     </span>
                 </div>
                 {templates.length === 0 && (
-                    <Card>
-                        <CardContent className="py-6 text-sm text-muted-foreground">
-                            You don&apos;t have any templates yet. Pick a starter below to get
-                            going in seconds — every starter is fully editable.
-                        </CardContent>
+                    <Card className="p-6 text-sm text-muted-foreground">
+                        You don&apos;t have any templates yet. Pick a starter below to get
+                        going in seconds — every starter is fully editable.
                     </Card>
                 )}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {STARTER_TEMPLATES.map((s) => (
                         <Link
                             key={s.slug}
                             href={`/email-marketing/templates/new?starter=${s.slug}`}
                             className="group"
                         >
-                            <Card className="h-full hover:bg-muted/40 hover:border-primary/30 transition-colors cursor-pointer">
-                                <CardContent className="py-4 space-y-2">
+                            <Card className="h-full p-0 overflow-hidden hover:shadow-lg hover:-translate-y-0.5 hover:border-primary/40 transition-all duration-150">
+                                <TemplatePreview html={s.renderedHtml} height={180} />
+                                <div className="p-4 space-y-1.5">
                                     <div className="flex items-center justify-between gap-2">
-                                        <span className="text-[10px] uppercase tracking-wider font-semibold text-primary/70 bg-primary/5 px-1.5 py-0.5 rounded">
+                                        <span className="text-[10px] uppercase tracking-wider font-semibold text-primary/80 bg-primary/10 px-1.5 py-0.5 rounded">
                                             {s.category}
                                         </span>
                                         <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/40 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                                     </div>
-                                    <div className="font-medium text-sm">{s.name}</div>
+                                    <div className="font-semibold text-sm">{s.name}</div>
                                     <div className="text-xs text-muted-foreground line-clamp-2 leading-snug">
                                         {s.description}
                                     </div>
-                                </CardContent>
+                                </div>
                             </Card>
                         </Link>
                     ))}

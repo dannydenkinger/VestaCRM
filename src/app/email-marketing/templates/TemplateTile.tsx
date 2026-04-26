@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useTransition, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
     DropdownMenu,
@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner"
 import { MoreHorizontal, Pencil, Trash2, Loader2 } from "lucide-react"
 import { deleteTemplateAction } from "../actions"
+import { TemplatePreview } from "./TemplatePreview"
 
 interface Props {
     template: {
@@ -21,6 +22,7 @@ interface Props {
         name: string
         subject: string
         description?: string
+        renderedHtml: string
         updatedAt: string
     }
 }
@@ -54,29 +56,33 @@ export function TemplateTile({ template }: Props) {
 
     return (
         <Card
-            className={`relative group transition-all duration-150 h-full overflow-hidden ${
+            className={`relative group transition-all duration-150 h-full overflow-hidden p-0 ${
                 isPending
                     ? "opacity-60"
-                    : "hover:shadow-md hover:-translate-y-0.5 hover:border-primary/40"
+                    : "hover:shadow-lg hover:-translate-y-0.5 hover:border-primary/40"
             }`}
         >
-            <Link href={`/email-marketing/templates/${template.id}`} className="block">
-                <CardHeader className="pb-2 pr-12">
-                    <CardTitle className="text-base truncate">{template.name}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="text-sm text-muted-foreground truncate">
+            <Link
+                href={`/email-marketing/templates/${template.id}`}
+                className="block"
+            >
+                <TemplatePreview html={template.renderedHtml} height={180} />
+                <div className="p-4 pr-12 space-y-1">
+                    <div className="font-semibold text-sm truncate">
+                        {template.name}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">
                         {template.subject || "(no subject)"}
                     </div>
                     {template.description && (
-                        <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                        <div className="text-xs text-muted-foreground/80 line-clamp-1 pt-0.5">
                             {template.description}
                         </div>
                     )}
-                    <div className="mt-3 text-[11px] text-muted-foreground">
+                    <div className="text-[10px] text-muted-foreground/70 pt-1.5">
                         Updated {new Date(template.updatedAt).toLocaleDateString()}
                     </div>
-                </CardContent>
+                </div>
             </Link>
 
             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -85,7 +91,7 @@ export function TemplateTile({ template }: Props) {
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 bg-background/80 backdrop-blur"
+                            className="h-8 w-8 bg-background/90 backdrop-blur shadow-sm"
                             onClick={(e) => e.stopPropagation()}
                             disabled={isPending}
                         >

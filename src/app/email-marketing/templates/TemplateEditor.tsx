@@ -32,6 +32,7 @@ import {
 import { TokenInserter, insertAtCursor } from "@/components/email/TokenInserter"
 import { buildContactContext, renderTokens } from "@/lib/templating/tokens"
 import { saveTemplateAction, sendTemplateTestAction } from "../actions"
+import { TemplatePreview } from "./TemplatePreview"
 
 // Lazy-load GrapesJS — heavy bundle (~300 KB).
 const GrapesEmailEditor = dynamic(
@@ -356,20 +357,26 @@ export function TemplateEditor({
                                                     <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold">
                                                         {category}
                                                     </div>
-                                                    <div className="grid grid-cols-1 gap-1.5">
+                                                    <div className="grid grid-cols-2 gap-2">
                                                         {items.map((s) => (
                                                             <button
                                                                 key={s.slug}
                                                                 type="button"
                                                                 onClick={() => handleUseStarter(s)}
                                                                 disabled={isPending}
-                                                                className="text-left p-3 border rounded-md hover:bg-muted/50 hover:border-primary/30 transition-colors disabled:opacity-50"
+                                                                className="text-left border rounded-md overflow-hidden hover:border-primary/40 hover:shadow-sm transition-all disabled:opacity-50 group"
                                                             >
-                                                                <div className="text-sm font-medium">
-                                                                    {s.name}
-                                                                </div>
-                                                                <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                                                    {s.description}
+                                                                <TemplatePreview
+                                                                    html={s.renderedHtml}
+                                                                    height={120}
+                                                                />
+                                                                <div className="p-2 space-y-0.5">
+                                                                    <div className="text-xs font-medium leading-tight group-hover:text-primary transition-colors">
+                                                                        {s.name}
+                                                                    </div>
+                                                                    <div className="text-[10px] text-muted-foreground line-clamp-2 leading-snug">
+                                                                        {s.description}
+                                                                    </div>
                                                                 </div>
                                                             </button>
                                                         ))}
