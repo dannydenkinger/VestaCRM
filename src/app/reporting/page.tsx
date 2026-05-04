@@ -23,6 +23,12 @@ export default async function ReportingPage() {
                         <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Reporting & Analytics</h2>
                         <p className="text-sm sm:text-base text-muted-foreground mt-0.5">Track your performance across profit margins, conversion rates, and lead sources.</p>
                     </div>
+                    <a
+                        href="/reporting/marketing"
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline shrink-0"
+                    >
+                        Marketing analytics →
+                    </a>
                 </div>
 
                 <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
