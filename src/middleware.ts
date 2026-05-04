@@ -21,6 +21,7 @@ const publicPrefixes = [
     "/invite/",  // Invitation acceptance pages are public
     "/form/",    // Hosted lead forms are public
     "/unsub/",   // One-click unsubscribe pages are public (HMAC-signed token)
+    "/book/",    // Public booking pages + cancellation links
 ]
 
 // API route prefixes that skip CSRF checking (they use their own auth mechanisms)
