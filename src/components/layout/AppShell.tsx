@@ -18,6 +18,7 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts"
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts"
 import { SessionTimeoutWarning } from "@/components/SessionTimeoutWarning"
 import { QuickAddFAB } from "@/components/QuickAddFAB"
+import { AssistantWidget } from "@/components/assistant/AssistantWidget"
 import { OnboardingWizard } from "@/components/OnboardingWizard"
 import { Breadcrumbs } from "@/components/Breadcrumbs"
 import { useIsMobile } from "@/hooks/useIsMobile"
@@ -128,6 +129,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <SessionTimeoutWarning />
             <QuickAddFAB />
             <OnboardingWizard />
+            <AssistantWidget />
         </div>
     )
 }
