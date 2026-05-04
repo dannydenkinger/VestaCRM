@@ -437,6 +437,14 @@
         { "fieldPath": "workspaceId", "order": "ASCENDING" },
         { "fieldPath": "contactId", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "email_suppressions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "workspaceId", "order": "ASCENDING" },
+        { "fieldPath": "addedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

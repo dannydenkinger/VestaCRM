@@ -20,6 +20,7 @@ const publicPrefixes = [
     "/sign/",    // E-signature signing pages are public by design
     "/invite/",  // Invitation acceptance pages are public
     "/form/",    // Hosted lead forms are public
+    "/unsub/",   // One-click unsubscribe pages are public (HMAC-signed token)
 ]
 
 // API route prefixes that skip CSRF checking (they use their own auth mechanisms)

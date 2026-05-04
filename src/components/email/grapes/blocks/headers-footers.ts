@@ -93,7 +93,7 @@ export const FOOTER_BLOCKS: VestaBlock[] = [
 <div style="font-size:14px;font-weight:700;color:${COLORS.text};margin-bottom:6px;letter-spacing:-0.01em;">{{company}}</div>
 <div style="color:${COLORS.textMuted};">123 Main Street · City, State 12345 · United States</div>
 <div style="margin:14px 0;">
-<a href="#" style="color:${COLORS.textMuted};text-decoration:underline;margin:0 8px;">Unsubscribe</a> ·
+<a href="{{unsubscribe_url}}" style="color:${COLORS.textMuted};text-decoration:underline;margin:0 8px;">Unsubscribe</a> ·
 <a href="#" style="color:${COLORS.textMuted};text-decoration:underline;margin:0 8px;">View in browser</a> ·
 <a href="#" style="color:${COLORS.textMuted};text-decoration:underline;margin:0 8px;">Privacy policy</a>
 </div>

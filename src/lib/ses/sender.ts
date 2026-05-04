@@ -13,6 +13,8 @@ import {
 } from "@/lib/templating/tokens"
 import { inlineCss } from "@/lib/email/inline-css"
 import { injectOpenPixel, rewriteLinks } from "@/lib/email/tracking"
+import { isSuppressed } from "@/lib/email/suppressions"
+import { unsubscribeUrlFor } from "@/lib/email/unsubscribe"
 import type { EmailLogStatus } from "@/types"
 
 export interface SendEmailInput {
@@ -134,6 +136,29 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
     if (!input.subject) throw new Error("subject required")
     if (!input.html) throw new Error("html body required")
 
+    // Suppression check: short-circuit before any SES/credit work. Prevents
+    // re-sending to addresses that bounced, complained, or unsubscribed.
+    if (await isSuppressed(workspaceId, to)) {
+        const emailLogRef = adminDb.collection("email_logs").doc()
+        await writeEmailLog(emailLogRef.id, {
+            workspaceId,
+            to,
+            fromAddress: "(suppressed)",
+            subject: input.subject,
+            status: "failed",
+            contactId: input.contactId ?? null,
+            campaignId,
+            errorMessage: "Recipient is on the workspace suppression list",
+        })
+        return {
+            ok: false,
+            emailLogId: emailLogRef.id,
+            error: "suppressed",
+            creditsDeducted: 0,
+            balanceAfter: 0,
+        }
+    }
+
     let contactId = input.contactId ?? null
     if (!contactId && autoResolveContact) {
         contactId = await resolveContactIdByEmail(workspaceId, to)
@@ -150,9 +175,17 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
             loadWorkspace(workspaceId),
         ])
         const ctx = buildContactContext(contact ?? { email: to }, workspace)
-        subject = renderTokens(subject, ctx)
-        html = renderTokens(html, ctx)
-        text = text ? renderTokens(text, ctx) : text
+        // Inject {{unsubscribe_url}} so templates can include a real one-click
+        // link. The token is HMAC-signed and unique per (workspace, recipient).
+        const unsubUrl = unsubscribeUrlFor(workspaceId, to, campaignId ?? undefined)
+        const ctxWithUnsub = {
+            ...ctx,
+            unsubscribe_url: unsubUrl,
+            unsubscribeUrl: unsubUrl,
+        } as typeof ctx & { unsubscribe_url: string; unsubscribeUrl: string }
+        subject = renderTokens(subject, ctxWithUnsub)
+        html = renderTokens(html, ctxWithUnsub)
+        text = text ? renderTokens(text, ctxWithUnsub) : text
     }
 
     const identity = await getIdentity(workspaceId)

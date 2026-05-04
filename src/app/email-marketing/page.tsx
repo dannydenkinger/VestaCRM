@@ -7,7 +7,7 @@ import { getIdentity } from "@/lib/ses/identities"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Mail, Plus, FileText, Send, AlertCircle, Users } from "lucide-react"
+import { Mail, Plus, FileText, Send, AlertCircle, Users, ShieldOff } from "lucide-react"
 
 export const dynamic = "force-dynamic"
 
@@ -58,6 +58,12 @@ export default async function EmailMarketingPage() {
                         <Button variant="outline">
                             <Users className="w-4 h-4 mr-2" />
                             Lists
+                        </Button>
+                    </Link>
+                    <Link href="/email-marketing/suppressions">
+                        <Button variant="outline">
+                            <ShieldOff className="w-4 h-4 mr-2" />
+                            Suppressions
                         </Button>
                     </Link>
                     <Link href="/email-marketing/templates/new">

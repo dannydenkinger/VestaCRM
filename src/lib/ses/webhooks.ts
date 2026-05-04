@@ -16,6 +16,7 @@
 
 import { adminDb } from "@/lib/firebase-admin"
 import { logActivity } from "@/lib/activities/timeline"
+import { addSuppression } from "@/lib/email/suppressions"
 import type { EmailLogStatus } from "@/types"
 
 // sns-validator has no TS types — narrow wrapper below.
@@ -155,6 +156,23 @@ export async function handleSesEvent(body: SesEventBody): Promise<void> {
                 bouncedAt: new Date(),
                 errorMessage: `${bounce.bounceType} bounce (${bounce.bounceSubType ?? "General"}): ${recipients}`,
             })
+            // Suppress permanent bounces only — transients (mailbox full,
+            // greylisting) might recover. SES will eventually flip
+            // hard-bouncing transients to Permanent if they keep failing.
+            if (workspaceId && permanent) {
+                await Promise.all(
+                    bounce.bouncedRecipients.map((r) =>
+                        addSuppression({
+                            workspaceId,
+                            email: r.emailAddress,
+                            reason: "bounce",
+                            source: bounce.bounceSubType ?? "Permanent",
+                            sourceCampaignId: (log.data.campaignId as string | null) ?? undefined,
+                            sourceMessageId: messageId,
+                        }),
+                    ),
+                )
+            }
             if (workspaceId) {
                 await logActivity({
                     workspaceId,
@@ -169,6 +187,7 @@ export async function handleSesEvent(body: SesEventBody): Promise<void> {
                         messageId,
                         bounceType: bounce.bounceType,
                         bounceSubType: bounce.bounceSubType,
+                        suppressed: permanent,
                     },
                     sourceRef: log.id,
                 })
@@ -180,6 +199,22 @@ export async function handleSesEvent(body: SesEventBody): Promise<void> {
             await updateLog(log.id, "complained", {
                 errorMessage: `Recipient complaint (${complaint.complaintFeedbackType ?? "unknown"})`,
             })
+            // Always suppress complaints — they signal "this is spam to me"
+            // and continuing to send risks SES throttling/banning the account.
+            if (workspaceId) {
+                await Promise.all(
+                    complaint.complainedRecipients.map((r) =>
+                        addSuppression({
+                            workspaceId,
+                            email: r.emailAddress,
+                            reason: "complaint",
+                            source: complaint.complaintFeedbackType ?? "abuse",
+                            sourceCampaignId: (log.data.campaignId as string | null) ?? undefined,
+                            sourceMessageId: messageId,
+                        }),
+                    ),
+                )
+            }
             if (workspaceId) {
                 await logActivity({
                     workspaceId,
@@ -188,7 +223,11 @@ export async function handleSesEvent(body: SesEventBody): Promise<void> {
                     contactId,
                     subject: "Recipient marked as spam",
                     body: complaint.complainedRecipients.map((r) => r.emailAddress).join(", "),
-                    metadata: { messageId, complaintFeedbackType: complaint.complaintFeedbackType },
+                    metadata: {
+                        messageId,
+                        complaintFeedbackType: complaint.complaintFeedbackType,
+                        suppressed: true,
+                    },
                     sourceRef: log.id,
                 })
             }

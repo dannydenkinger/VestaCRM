@@ -32,6 +32,9 @@ export interface TokenWorkspace {
 export interface TokenContext {
     contact?: TokenContact
     workspace?: TokenWorkspace
+    /** One-click unsubscribe URL injected by the sender per recipient. */
+    unsubscribe_url?: string
+    unsubscribeUrl?: string
 }
 
 const ALIASES: Record<string, string> = {
@@ -46,6 +49,10 @@ const ALIASES: Record<string, string> = {
     phone: "contact.phone",
     company: "workspace.name",
     workspace_name: "workspace.name",
+    unsubscribe_url: "unsubscribe_url",
+    unsubscribeUrl: "unsubscribe_url",
+    unsubscribe: "unsubscribe_url",
+    unsub_url: "unsubscribe_url",
 }
 
 function lookup(path: string, ctx: TokenContext): string {

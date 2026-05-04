@@ -57,7 +57,7 @@ ${body}
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;margin-top:20px;">
 <tr><td style="padding:0 24px;text-align:center;font-size:12px;color:${C.textMuted};line-height:1.7;">
 <strong style="color:${C.text};font-weight:600;">{{company}}</strong> &middot; You received this because you opted in.<br>
-<a href="#" style="color:${C.textMuted};text-decoration:underline;margin:0 6px;">Unsubscribe</a>
+<a href="{{unsubscribe_url}}" style="color:${C.textMuted};text-decoration:underline;margin:0 6px;">Unsubscribe</a>
 <a href="#" style="color:${C.textMuted};text-decoration:underline;margin:0 6px;">View in browser</a>
 <a href="#" style="color:${C.textMuted};text-decoration:underline;margin:0 6px;">Privacy</a>
 </td></tr>
