@@ -32,6 +32,7 @@ import {
     Pencil,
     Plus,
     Save,
+    Sparkles,
     StopCircle,
     Tag,
     Target,
@@ -105,6 +106,7 @@ const ACTION_PALETTE: Array<{
     Icon: React.ComponentType<{ className?: string }>
 }> = [
     { type: "send_email", label: "Send email", description: "Email the contact with custom subject + body.", Icon: Mail },
+    { type: "ai_send_email", label: "AI email", description: "Claude writes a personalized body per recipient, then sends.", Icon: Sparkles },
     { type: "wait", label: "Wait", description: "Pause for a number of minutes / hours / days.", Icon: Clock },
     { type: "wait_until", label: "Wait until date", description: "Pause until a specific calendar time.", Icon: CalendarClock },
     { type: "wait_until_business_hours", label: "Wait for business hours", description: "Pause until the next business window opens.", Icon: Coffee },
@@ -133,6 +135,16 @@ function defaultNodeFor(type: AutomationNode["type"]): AutomationNode {
     switch (type) {
         case "send_email":
             return { id, type, subject: "", html: "" }
+        case "ai_send_email":
+            return {
+                id,
+                type,
+                subject: "Following up, {{first_name}}",
+                prompt:
+                    "Write a friendly, personal follow-up email referencing that they recently signed up. Mention one specific way our product can help. Keep it short — 3 short paragraphs. Sign off as 'Sam from {{company}}'.",
+                model: "claude-haiku-4-5",
+                maxOutputTokens: 600,
+            }
         case "wait":
             return { id, type, delayMinutes: 60 }
         case "add_tag":
@@ -752,6 +764,84 @@ function NodeBody({
                         <code>{`{{unsubscribe_url}}`}</code> render per recipient.
                     </p>
                 </div>
+            </div>
+        )
+    }
+
+    if (node.type === "ai_send_email") {
+        return (
+            <div className="space-y-2">
+                <div className="space-y-1">
+                    <Label className="text-xs">Subject (tokens supported)</Label>
+                    <Input
+                        value={node.subject}
+                        onChange={(e) => onChange({ subject: e.target.value })}
+                        placeholder="Following up, {{first_name}}"
+                    />
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-xs flex items-center gap-1.5">
+                        <Sparkles className="w-3 h-3 text-primary" />
+                        Tell Claude what to write
+                    </Label>
+                    <textarea
+                        value={node.prompt}
+                        onChange={(e) => onChange({ prompt: e.target.value })}
+                        rows={6}
+                        placeholder="Write a friendly follow-up about… Mention X. Sign off as Sam."
+                        className="w-full px-2.5 py-2 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary/20"
+                    />
+                    <p className="text-[10px] text-muted-foreground/70 leading-snug">
+                        Recipient name + email are auto-injected. Don&apos;t use
+                        <code> {"{{first_name}}"}</code> in the body — Claude
+                        addresses them by name directly.
+                    </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                        <Label className="text-xs">Model</Label>
+                        <Select
+                            value={node.model || "claude-haiku-4-5"}
+                            onValueChange={(v) =>
+                                onChange({ model: v as "claude-haiku-4-5" | "claude-sonnet-4-6" | "claude-opus-4-7" })
+                            }
+                        >
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="claude-haiku-4-5">
+                                    Haiku 4.5 — fastest, cheapest
+                                </SelectItem>
+                                <SelectItem value="claude-sonnet-4-6">
+                                    Sonnet 4.6 — better quality
+                                </SelectItem>
+                                <SelectItem value="claude-opus-4-7">
+                                    Opus 4.7 — best quality
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-xs">Max output tokens</Label>
+                        <Input
+                            type="number"
+                            min={100}
+                            max={2000}
+                            step={100}
+                            value={node.maxOutputTokens ?? 600}
+                            onChange={(e) =>
+                                onChange({
+                                    maxOutputTokens: parseInt(e.target.value) || 600,
+                                })
+                            }
+                        />
+                    </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground/70 leading-snug">
+                    Costs Anthropic API tokens per recipient on top of the standard email
+                    credit. The system prompt is cached so high-volume drips reuse it.
+                </p>
             </div>
         )
     }

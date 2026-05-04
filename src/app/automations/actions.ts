@@ -82,6 +82,7 @@ const nodeSchema = z
         id: z.string().min(1),
         type: z.enum([
             "send_email",
+            "ai_send_email",
             "wait",
             "wait_until",
             "wait_until_business_hours",

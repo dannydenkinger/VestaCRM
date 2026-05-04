@@ -328,6 +328,27 @@ ${cta("Read it")}`,
             { id: newId(), type: "end" },
         ],
     },
+    {
+        slug: "ai-personal-followup",
+        name: "AI personal follow-up",
+        description:
+            "Use Claude to write a one-off personalized follow-up to every new contact — short, specific, no template feel.",
+        category: "Onboarding",
+        trigger: { type: "contact_created" as TriggerType, config: {} },
+        buildNodes: (newId) => [
+            { id: newId(), type: "wait", delayMinutes: 60 },
+            {
+                id: newId(),
+                type: "ai_send_email",
+                subject: "Welcome — quick note from {{company}}",
+                prompt:
+                    "Write a warm, personal welcome email — the kind a founder would send themselves. Reference that they just signed up. Mention briefly what {{company}} helps people do (use the recipient's name), and invite a reply if they have any questions. Keep it short — 3 short paragraphs max. Sign off as 'The {{company}} team'.",
+                model: "claude-haiku-4-5",
+                maxOutputTokens: 600,
+            },
+            { id: newId(), type: "end" },
+        ],
+    },
 ]
 
 export function getStarter(slug: string): AutomationStarter | undefined {

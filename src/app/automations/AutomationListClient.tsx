@@ -29,6 +29,7 @@ import {
     Briefcase,
     CalendarClock,
     Coffee,
+    Sparkles,
     TrendingUp,
     UserCheck,
 } from "lucide-react"
@@ -55,6 +56,7 @@ const TRIGGER_LABELS: Record<TriggerType, string> = {
 
 const ACTION_ICONS: Record<ActionType, React.ComponentType<{ className?: string }>> = {
     send_email: Mail,
+    ai_send_email: Sparkles,
     wait: Clock,
     wait_until: CalendarClock,
     wait_until_business_hours: Coffee,

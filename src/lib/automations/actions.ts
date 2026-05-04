@@ -21,6 +21,7 @@ import type {
     ActionType,
     AddTagNode,
     AddToListNode,
+    AiSendEmailNode,
     AssignUserNode,
     AutomationNode,
     AutomationRun,
@@ -106,6 +107,115 @@ async function handleSendEmail(
         const message = err instanceof Error ? err.message : "send_email failed"
         // Hard errors (SES misconfigured, credits) are NOT skipped silently
         // anymore. Surface them so the run history shows what's wrong.
+        return { advance: true, error: message }
+    }
+}
+
+// ── AI-generated email ─────────────────────────────────────────────────
+
+const AI_SYSTEM_PROMPT = `You write personalized marketing/transactional emails on behalf of small-business operators using Vesta CRM.
+
+Output rules (strict):
+- Output ONLY the email body as clean inline-styled HTML. No subject line, no preamble, no "Sure, here's…", no markdown fences.
+- Wrap text in <p> tags with this style: style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#0f172a;"
+- For the closing, use a single <p> with no inline signature image — just the sender's first name on its own line.
+- Keep it short (3-5 short paragraphs max). Concrete, specific, conversational. Avoid filler like "I hope this email finds you well."
+- Personalize using the recipient details given to you. Don't fabricate facts; if a detail isn't supplied, write around it.
+- Never include {{ }} template syntax in the output — the recipient's name is already filled in for you.`
+
+async function handleAiSendEmail(
+    node: AiSendEmailNode,
+    ctx: ActionContext,
+): Promise<ActionResult> {
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) {
+        return { advance: true, error: "ANTHROPIC_API_KEY not configured" }
+    }
+
+    const to = ctx.contact?.email ?? (ctx.run.contactEmail || "")
+    if (!to || !to.includes("@")) {
+        return { advance: true, error: "no recipient email" }
+    }
+
+    const promptText = (node.prompt || "").trim()
+    if (!promptText) {
+        return { advance: true, error: "ai prompt empty" }
+    }
+
+    const subject = node.subject || "From your team"
+    const model = node.model || "claude-haiku-4-5"
+    const maxTokens = Math.min(2000, Math.max(100, node.maxOutputTokens ?? 600))
+
+    // Build a recipient context block from contact + run payload
+    const firstName = ctx.contact?.firstName || ctx.contact?.name?.split(" ")[0] || ""
+    const fullName = ctx.contact?.name || ""
+    const email = ctx.contact?.email || ctx.run.contactEmail || ""
+
+    const recipientBlock = [
+        firstName ? `Recipient first name: ${firstName}` : "",
+        fullName && fullName !== firstName ? `Full name: ${fullName}` : "",
+        email ? `Email: ${email}` : "",
+    ]
+        .filter(Boolean)
+        .join("\n")
+
+    let html: string
+    try {
+        const Anthropic = (await import("@anthropic-ai/sdk")).default
+        const client = new Anthropic({ apiKey })
+        const msg = await client.messages.create({
+            model,
+            max_tokens: maxTokens,
+            // Cache the system prompt so repeated runs in the same automation
+            // reuse the cached prefix — meaningful cost savings on drips that
+            // fire to many recipients.
+            system: [
+                {
+                    type: "text",
+                    text: AI_SYSTEM_PROMPT,
+                    cache_control: { type: "ephemeral" },
+                },
+            ],
+            messages: [
+                {
+                    role: "user",
+                    content: `${recipientBlock}\n\nWriting instructions:\n${promptText}\n\nWrite the email body now.`,
+                },
+            ],
+        })
+        const text = msg.content
+            .filter((b) => b.type === "text")
+            .map((b) => (b as { type: "text"; text: string }).text)
+            .join("")
+            .trim()
+        if (!text) {
+            return { advance: true, error: "ai returned empty body" }
+        }
+        // Strip stray markdown fences if model misbehaves
+        html = text
+            .replace(/^```(?:html)?\s*/i, "")
+            .replace(/\s*```\s*$/, "")
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "ai generation failed"
+        return { advance: true, error: message }
+    }
+
+    try {
+        const result = await sendEmail({
+            workspaceId: ctx.workspaceId,
+            to,
+            subject,
+            html,
+            contactId: ctx.contact?.id || undefined,
+            campaignId: `automation:${ctx.automationId}:ai`,
+            autoResolveContact: false,
+        })
+        if (!result.ok) {
+            return { advance: true, error: result.error || "send skipped" }
+        }
+        return { advance: true }
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "ai send failed"
         return { advance: true, error: message }
     }
 }
@@ -530,6 +640,7 @@ async function evaluateCondition(
 
 const HANDLERS: Record<ActionType, (node: AutomationNode, ctx: ActionContext) => Promise<ActionResult>> = {
     send_email: (n, c) => handleSendEmail(n as SendEmailNode, c),
+    ai_send_email: (n, c) => handleAiSendEmail(n as AiSendEmailNode, c),
     wait: (n) => handleWait(n as WaitNode),
     wait_until: (n) => handleWaitUntil(n as WaitUntilNode),
     wait_until_business_hours: (n) =>

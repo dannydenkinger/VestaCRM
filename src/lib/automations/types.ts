@@ -64,6 +64,7 @@ export interface Trigger {
 
 export type ActionType =
     | "send_email"
+    | "ai_send_email"
     | "wait"
     | "wait_until"
     | "wait_until_business_hours"
@@ -95,6 +96,26 @@ export interface SendEmailNode extends BaseNode {
     html: string
     /** Optional: source template id (UI-only — full HTML is denormalized into html). */
     templateId?: string | null
+}
+
+/**
+ * AI-generated email: Claude writes the body per recipient using the prompt,
+ * then sends. Subject is fixed (tokens supported); the body is whatever the
+ * model generates.
+ *
+ * Costs Anthropic API tokens per send (in addition to one email credit).
+ * Use Haiku for high-volume / cost-sensitive flows; Sonnet for higher quality.
+ */
+export interface AiSendEmailNode extends BaseNode {
+    type: "ai_send_email"
+    /** Subject line (tokens supported, no AI). */
+    subject: string
+    /** What you want the AI to write. Includes contact context automatically. */
+    prompt: string
+    /** Anthropic model id. Defaults to claude-haiku-4-5 if omitted. */
+    model?: "claude-haiku-4-5" | "claude-sonnet-4-6" | "claude-opus-4-7"
+    /** Max tokens in the AI's response. Default 600. */
+    maxOutputTokens?: number
 }
 
 export interface WaitNode extends BaseNode {
@@ -233,6 +254,7 @@ export interface EndNode extends BaseNode {
 
 export type AutomationNode =
     | SendEmailNode
+    | AiSendEmailNode
     | WaitNode
     | WaitUntilNode
     | WaitUntilBusinessHoursNode
