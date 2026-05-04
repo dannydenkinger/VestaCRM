@@ -346,8 +346,31 @@ export async function listRunsByAutomation(
         .where("automationId", "==", automationId)
         .orderBy("startedAt", "desc")
         .limit(limit)
-    const snap = await q.get()
-    return snap.docs.map((d) => mapRun(d.id, d.data()))
+    try {
+        const snap = await q.get()
+        return snap.docs.map((d) => mapRun(d.id, d.data()))
+    } catch (err) {
+        // Composite index not deployed yet — fall back to a non-ordered scan
+        // so the page still loads. Sort in memory; this is bounded by `limit`.
+        const message = err instanceof Error ? err.message : String(err)
+        if (message.includes("FAILED_PRECONDITION") || message.includes("requires an index")) {
+            console.warn(
+                "[listRunsByAutomation] composite index not deployed; falling back to in-memory sort",
+            )
+            const fallbackSnap = await adminDb
+                .collection(RUNS)
+                .where("automationId", "==", automationId)
+                .limit(limit * 2)
+                .get()
+            const rows = fallbackSnap.docs
+                .map((d) => mapRun(d.id, d.data()))
+                .filter((r) => r.workspaceId === workspaceId)
+                .sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+                .slice(0, limit)
+            return rows
+        }
+        throw err
+    }
 }
 
 export async function bumpAutomationStat(
