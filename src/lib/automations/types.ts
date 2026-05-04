@@ -41,6 +41,7 @@ export type TriggerType =
     | "email_opened"
     | "email_clicked"
     | "contact_field_updated"
+    | "sms_replied"
     | "webhook_in"
     | "manual"
 
@@ -65,6 +66,7 @@ export interface Trigger {
 export type ActionType =
     | "send_email"
     | "ai_send_email"
+    | "send_sms"
     | "wait"
     | "wait_until"
     | "wait_until_business_hours"
@@ -116,6 +118,13 @@ export interface AiSendEmailNode extends BaseNode {
     model?: "claude-haiku-4-5" | "claude-sonnet-4-6" | "claude-opus-4-7"
     /** Max tokens in the AI's response. Default 600. */
     maxOutputTokens?: number
+}
+
+/** SMS via Twilio. Workspace must have Twilio creds in Settings. */
+export interface SendSmsNode extends BaseNode {
+    type: "send_sms"
+    /** Message body. Tokens supported. Capped at 1600 chars on send. */
+    body: string
 }
 
 export interface WaitNode extends BaseNode {
@@ -255,6 +264,7 @@ export interface EndNode extends BaseNode {
 export type AutomationNode =
     | SendEmailNode
     | AiSendEmailNode
+    | SendSmsNode
     | WaitNode
     | WaitUntilNode
     | WaitUntilBusinessHoursNode

@@ -21,6 +21,7 @@ interface IntegrationStatus {
     gmail: { connected: boolean; email: string | null }
     resend: { connected: boolean }
     ses: { connected: boolean; status: string | null; identity: string | null }
+    twilio: { connected: boolean; fromNumber: string | null }
     zernio: { connected: boolean; accountCount: number }
     anthropic: { connected: boolean }
     serper: { connected: boolean }
@@ -281,6 +282,25 @@ export function IntegrationsTab({
                         <a href="/settings/integrations/ses">
                             <Button variant="outline" size="sm">
                                 {status.ses.identity ? "Manage" : "Set up"}
+                                <ExternalLink className="h-3.5 w-3.5 ml-1.5" />
+                            </Button>
+                        </a>
+                    }
+                />
+
+                <IntegrationRow
+                    icon={<MessageSquare className="h-4.5 w-4.5 text-muted-foreground" />}
+                    name="Twilio (SMS)"
+                    description={
+                        status.twilio.fromNumber
+                            ? `SMS delivery from ${status.twilio.fromNumber}.`
+                            : "Send SMS from automations. Pay-as-you-go to Twilio (~$0.0079/text)."
+                    }
+                    connected={status.twilio.connected}
+                    action={
+                        <a href="/settings/integrations/twilio">
+                            <Button variant="outline" size="sm">
+                                {status.twilio.connected ? "Manage" : "Set up"}
                                 <ExternalLink className="h-3.5 w-3.5 ml-1.5" />
                             </Button>
                         </a>

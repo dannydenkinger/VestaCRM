@@ -58,6 +58,7 @@ const TRIGGER_TYPES: TriggerType[] = [
     "email_opened",
     "email_clicked",
     "contact_field_updated",
+    "sms_replied",
     "webhook_in",
     "manual",
 ]
@@ -83,6 +84,7 @@ const nodeSchema = z
         type: z.enum([
             "send_email",
             "ai_send_email",
+            "send_sms",
             "wait",
             "wait_until",
             "wait_until_business_hours",

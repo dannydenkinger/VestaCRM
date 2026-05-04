@@ -29,6 +29,7 @@ import {
     Briefcase,
     CalendarClock,
     Coffee,
+    MessageSquare,
     Sparkles,
     TrendingUp,
     UserCheck,
@@ -50,6 +51,7 @@ const TRIGGER_LABELS: Record<TriggerType, string> = {
     email_opened: "Email opened",
     email_clicked: "Email clicked",
     contact_field_updated: "Contact field updated",
+    sms_replied: "SMS replied",
     webhook_in: "Webhook (external)",
     manual: "Manual / API",
 }
@@ -57,6 +59,7 @@ const TRIGGER_LABELS: Record<TriggerType, string> = {
 const ACTION_ICONS: Record<ActionType, React.ComponentType<{ className?: string }>> = {
     send_email: Mail,
     ai_send_email: Sparkles,
+    send_sms: MessageSquare,
     wait: Clock,
     wait_until: CalendarClock,
     wait_until_business_hours: Coffee,

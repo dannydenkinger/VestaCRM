@@ -15,6 +15,7 @@
 
 import { adminDb } from "@/lib/firebase-admin"
 import { sendEmail } from "@/lib/ses/sender"
+import { sendSms, TwilioNotConfiguredError } from "@/lib/sms/sender"
 import { addContactsToList, removeContactsFromList } from "@/lib/lists/contact-lists"
 import { renderTokens, buildContactContext } from "@/lib/templating/tokens"
 import type {
@@ -32,6 +33,7 @@ import type {
     RemoveTagNode,
     SendEmailNode,
     SendInternalEmailNode,
+    SendSmsNode,
     StopIfNode,
     UpdateContactFieldNode,
     WaitNode,
@@ -56,6 +58,7 @@ export interface ActionContact {
     firstName: string | null
     lastName: string | null
     email: string | null
+    phone: string | null
     tags: Array<{ tagId: string; name?: string; color?: string }>
 }
 
@@ -216,6 +219,40 @@ async function handleAiSendEmail(
         return { advance: true }
     } catch (err) {
         const message = err instanceof Error ? err.message : "ai send failed"
+        return { advance: true, error: message }
+    }
+}
+
+async function handleSendSms(
+    node: SendSmsNode,
+    ctx: ActionContext,
+): Promise<ActionResult> {
+    const phone = ctx.contact?.phone ?? ""
+    if (!phone) {
+        return { advance: true, error: "no contact phone number" }
+    }
+    if (!node.body?.trim()) {
+        return { advance: true, error: "sms body empty" }
+    }
+    try {
+        const result = await sendSms({
+            workspaceId: ctx.workspaceId,
+            to: phone,
+            body: node.body,
+            contactId: ctx.contact?.id || undefined,
+        })
+        if (!result.ok) {
+            return { advance: true, error: result.error || "sms skipped" }
+        }
+        return { advance: true }
+    } catch (err) {
+        if (err instanceof TwilioNotConfiguredError) {
+            return {
+                advance: true,
+                error: "Twilio not configured. Add credentials in Settings → Integrations → Twilio.",
+            }
+        }
+        const message = err instanceof Error ? err.message : "sms failed"
         return { advance: true, error: message }
     }
 }
@@ -641,6 +678,7 @@ async function evaluateCondition(
 const HANDLERS: Record<ActionType, (node: AutomationNode, ctx: ActionContext) => Promise<ActionResult>> = {
     send_email: (n, c) => handleSendEmail(n as SendEmailNode, c),
     ai_send_email: (n, c) => handleAiSendEmail(n as AiSendEmailNode, c),
+    send_sms: (n, c) => handleSendSms(n as SendSmsNode, c),
     wait: (n) => handleWait(n as WaitNode),
     wait_until: (n) => handleWaitUntil(n as WaitUntilNode),
     wait_until_business_hours: (n) =>
@@ -690,6 +728,7 @@ export async function loadActionContact(
         firstName: (data.firstName as string) ?? null,
         lastName: (data.lastName as string) ?? null,
         email: (data.email as string) ?? null,
+        phone: (data.phone as string) ?? null,
         tags: ((data.tags as ActionContact["tags"]) ?? []) as ActionContact["tags"],
     }
 }

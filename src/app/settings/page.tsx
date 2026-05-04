@@ -78,6 +78,11 @@ export default async function SettingsPage() {
     const zernioConnected = !zernioSnap.empty && !!zernioSnap.docs[0].data()?.zernioAccountId
     const zernioAccountCount = zernioSnap.empty ? 0 : (zernioSnap.docs[0].data()?.accounts?.length || 0)
 
+    // Twilio (SMS) credentials live on the workspace doc
+    const wsDoc = await adminDb.collection('workspaces').doc(workspaceId).get()
+    const twilio = (wsDoc.data()?.twilio as { accountSid?: string; authToken?: string; fromNumber?: string } | undefined) ?? {}
+    const twilioConnected = !!twilio.accountSid && !!twilio.authToken && !!twilio.fromNumber
+
     const integrationStatus = {
         google: {
             connected: !!intData?.google?.refreshToken,
@@ -90,6 +95,10 @@ export default async function SettingsPage() {
             connected: intData?.ses?.status === "VERIFIED",
             status: (intData?.ses?.status as string) || null,
             identity: (intData?.ses?.identity as string) || null,
+        },
+        twilio: {
+            connected: twilioConnected,
+            fromNumber: twilio.fromNumber || null,
         },
         zernio: {
             connected: zernioConnected,

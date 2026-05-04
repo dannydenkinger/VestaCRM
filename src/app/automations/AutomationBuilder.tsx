@@ -29,6 +29,7 @@ import {
     Globe,
     Loader2,
     Mail,
+    MessageSquare,
     Pencil,
     Plus,
     Save,
@@ -96,6 +97,7 @@ const TRIGGER_OPTIONS: Array<{ value: TriggerType; label: string; description: s
     { value: "email_opened", label: "Email opened", description: "When a recipient opens a campaign email." },
     { value: "email_clicked", label: "Email clicked", description: "When a recipient clicks a link in a campaign email." },
     { value: "contact_field_updated", label: "Contact field updated", description: "When a specific field on the contact changes." },
+    { value: "sms_replied", label: "SMS replied", description: "When a contact sends an SMS to your Twilio number." },
     { value: "webhook_in", label: "Webhook (external)", description: "External system POSTs to a unique URL to enroll a contact." },
     { value: "manual", label: "Manual / API", description: "Only triggered explicitly via an API call." },
 ]
@@ -108,6 +110,7 @@ const ACTION_PALETTE: Array<{
 }> = [
     { type: "send_email", label: "Send email", description: "Email the contact with custom subject + body.", Icon: Mail },
     { type: "ai_send_email", label: "AI email", description: "Claude writes a personalized body per recipient, then sends.", Icon: Sparkles },
+    { type: "send_sms", label: "Send SMS", description: "Text the contact via Twilio. Requires Twilio credentials in Settings.", Icon: MessageSquare },
     { type: "wait", label: "Wait", description: "Pause for a number of minutes / hours / days.", Icon: Clock },
     { type: "wait_until", label: "Wait until date", description: "Pause until a specific calendar time.", Icon: CalendarClock },
     { type: "wait_until_business_hours", label: "Wait for business hours", description: "Pause until the next business window opens.", Icon: Coffee },
@@ -145,6 +148,12 @@ function defaultNodeFor(type: AutomationNode["type"]): AutomationNode {
                     "Write a friendly, personal follow-up email referencing that they recently signed up. Mention one specific way our product can help. Keep it short — 3 short paragraphs. Sign off as 'Sam from {{company}}'.",
                 model: "claude-haiku-4-5",
                 maxOutputTokens: 600,
+            }
+        case "send_sms":
+            return {
+                id,
+                type,
+                body: "Hey {{first_name}}, quick note from {{company}} — reply STOP to opt out.",
             }
         case "wait":
             return { id, type, delayMinutes: 60 }
@@ -1057,6 +1066,36 @@ function NodeBody({
                 <p className="text-[10px] text-muted-foreground/70 leading-snug">
                     Costs Anthropic API tokens per recipient on top of the standard email
                     credit. The system prompt is cached so high-volume drips reuse it.
+                </p>
+            </div>
+        )
+    }
+
+    if (node.type === "send_sms") {
+        const len = node.body?.length ?? 0
+        const segments = len === 0 ? 0 : Math.ceil(len / 160)
+        return (
+            <div className="space-y-1">
+                <Label className="text-xs">Message body</Label>
+                <textarea
+                    value={node.body}
+                    onChange={(e) => onChange({ body: e.target.value })}
+                    rows={4}
+                    placeholder="Hey {{first_name}}, …"
+                    maxLength={1600}
+                    className="w-full px-2.5 py-2 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary/20"
+                />
+                <div className="flex items-center justify-between text-[10px] text-muted-foreground/70">
+                    <span>
+                        Tokens like <code>{"{{first_name}}"}</code> are rendered per recipient.
+                    </span>
+                    <span className="tabular-nums">
+                        {len} chars · {segments} segment{segments === 1 ? "" : "s"}
+                    </span>
+                </div>
+                <p className="text-[10px] text-amber-700/80 leading-snug">
+                    Compliance: include an opt-out (e.g. &ldquo;Reply STOP&rdquo;) on first
+                    contact and avoid sending outside business hours.
                 </p>
             </div>
         )
