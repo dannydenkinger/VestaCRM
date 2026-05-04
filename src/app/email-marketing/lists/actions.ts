@@ -22,10 +22,23 @@ async function resolveContext() {
     return { workspaceId: user.workspaceId, userId: user.id }
 }
 
+// Loose passthrough for rules — the lib + UI know the discriminated union;
+// the action just trusts the client and the lib re-validates on read.
+const ruleSchema = z.object({
+    field: z.enum(["tag", "list", "status", "email", "engagement", "created"]),
+    op: z.string(),
+    value: z.string().optional(),
+    daysWindow: z.number().int().positive().optional(),
+}).passthrough()
+
 const saveListSchema = z.object({
     id: z.string().optional(),
-    name: z.string().min(1).max(120),
+    /** Required on create, optional on update. The lib enforces non-empty on create. */
+    name: z.string().max(120).optional(),
     description: z.string().max(500).optional(),
+    type: z.enum(["static", "smart"]).optional(),
+    rules: z.array(ruleSchema).max(20).optional(),
+    combinator: z.enum(["and", "or"]).optional(),
 })
 
 export async function saveListAction(input: z.infer<typeof saveListSchema>) {
@@ -40,15 +53,23 @@ export async function saveListAction(input: z.infer<typeof saveListSchema>) {
             const updated = await updateList(workspaceId, parsed.data.id, {
                 name: parsed.data.name,
                 description: parsed.data.description,
+                rules: parsed.data.rules as Parameters<typeof updateList>[2]["rules"],
+                combinator: parsed.data.combinator,
             })
             revalidatePath("/email-marketing/lists")
             revalidatePath(`/email-marketing/lists/${updated.id}`)
             return { success: true, list: updated }
         }
+        if (!parsed.data.name?.trim()) {
+            return { success: false, error: "Name is required" }
+        }
         const created = await createList({
             workspaceId,
             name: parsed.data.name,
             description: parsed.data.description,
+            type: parsed.data.type,
+            rules: parsed.data.rules as Parameters<typeof createList>[0]["rules"],
+            combinator: parsed.data.combinator,
             createdBy: userId,
         })
         revalidatePath("/email-marketing/lists")

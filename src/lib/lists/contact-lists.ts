@@ -20,7 +20,8 @@
 import crypto from "node:crypto"
 import { adminDb } from "@/lib/firebase-admin"
 import { FieldValue } from "firebase-admin/firestore"
-import type { ContactList } from "@/types"
+import type { ContactList, SegmentRule } from "@/types"
+import { resolveSegmentMembers } from "./segments"
 
 export const EXTERNAL_PREFIX = "ext_"
 
@@ -68,6 +69,8 @@ function mapList(id: string, data: Record<string, unknown>): ContactList {
         description: (data.description as string) ?? undefined,
         type: ((data.type as string) ?? "static") as "static" | "smart",
         contactCount: (data.contactCount as number) ?? 0,
+        rules: (data.rules as SegmentRule[]) ?? undefined,
+        combinator: (data.combinator as "and" | "or") ?? undefined,
         createdBy: (data.createdBy as string) ?? null,
         createdAt: tsToISO(data.createdAt),
         updatedAt: tsToISO(data.updatedAt),
@@ -101,6 +104,9 @@ export interface CreateListInput {
     workspaceId: string
     name: string
     description?: string
+    type?: "static" | "smart"
+    rules?: SegmentRule[]
+    combinator?: "and" | "or"
     createdBy?: string | null
 }
 
@@ -108,16 +114,21 @@ export async function createList(input: CreateListInput): Promise<ContactList> {
     if (!input.workspaceId) throw new Error("workspaceId required")
     if (!input.name?.trim()) throw new Error("name required")
     const now = new Date()
-    const ref = await adminDb.collection("contact_lists").add({
+    const data: Record<string, unknown> = {
         workspaceId: input.workspaceId,
         name: input.name.trim(),
         description: input.description?.trim() || null,
-        type: "static",
+        type: input.type ?? "static",
         contactCount: 0,
         createdBy: input.createdBy ?? null,
         createdAt: now,
         updatedAt: now,
-    })
+    }
+    if (input.type === "smart") {
+        data.rules = input.rules ?? []
+        data.combinator = input.combinator ?? "and"
+    }
+    const ref = await adminDb.collection("contact_lists").add(data)
     const snap = await ref.get()
     return mapList(ref.id, snap.data()!)
 }
@@ -125,7 +136,12 @@ export async function createList(input: CreateListInput): Promise<ContactList> {
 export async function updateList(
     workspaceId: string,
     listId: string,
-    patch: { name?: string; description?: string },
+    patch: {
+        name?: string
+        description?: string
+        rules?: SegmentRule[]
+        combinator?: "and" | "or"
+    },
 ): Promise<ContactList> {
     const ref = adminDb.collection("contact_lists").doc(listId)
     const doc = await ref.get()
@@ -135,6 +151,8 @@ export async function updateList(
     if (patch.name !== undefined) updates.name = patch.name.trim()
     if (patch.description !== undefined)
         updates.description = patch.description.trim() || null
+    if (patch.rules !== undefined) updates.rules = patch.rules
+    if (patch.combinator !== undefined) updates.combinator = patch.combinator
     await ref.update(updates)
     const updated = await ref.get()
     return mapList(ref.id, updated.data()!)
@@ -387,7 +405,9 @@ function mapMember(id: string, data: Record<string, unknown>): ListMember {
     }
 }
 
-/** Rich member listing — returns both CRM and external members. */
+/** Rich member listing — returns both CRM and external members.
+ *  For smart segments, evaluates rules live and returns the matching CRM
+ *  contacts (no external members in smart segments by definition). */
 export async function listMembers(
     workspaceId: string,
     listId: string,
@@ -396,7 +416,22 @@ export async function listMembers(
     const listRef = adminDb.collection("contact_lists").doc(listId)
     const listDoc = await listRef.get()
     if (!listDoc.exists) return []
-    if (listDoc.data()?.workspaceId !== workspaceId) return []
+    const data = listDoc.data()
+    if (data?.workspaceId !== workspaceId) return []
+
+    if (data.type === "smart") {
+        const rules = (data.rules as SegmentRule[]) ?? []
+        const combinator = (data.combinator as "and" | "or") ?? "and"
+        const ids = await resolveSegmentMembers({ workspaceId, rules, combinator })
+        const now = new Date().toISOString()
+        return ids.slice(0, limit).map((id) => ({
+            kind: "crm" as const,
+            memberId: id,
+            contactId: id,
+            addedAt: now,
+        }))
+    }
+
     const snap = await listRef.collection("members").limit(limit).get()
     return snap.docs.map((d) => mapMember(d.id, d.data()))
 }

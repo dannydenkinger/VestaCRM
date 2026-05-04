@@ -17,8 +17,9 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { toast } from "sonner"
-import { Loader2, Send, Save, AlertTriangle, Clock } from "lucide-react"
+import { Loader2, Send, Save, AlertTriangle, Clock, FlaskConical } from "lucide-react"
 import { saveCampaignAction, sendCampaignAction } from "./actions"
+import type { CampaignABTest } from "@/types"
 
 interface TemplateSummary {
     id: string
@@ -45,6 +46,7 @@ interface Props {
         audienceType: AudienceType
         audienceValue: string[] | null
         excludeListIds?: string[] | null
+        abTest?: CampaignABTest | null
         scheduledAt?: string | null
     }
     templates: TemplateSummary[]
@@ -96,6 +98,16 @@ export function CampaignBuilder({
         const pad = (n: number) => String(n).padStart(2, "0")
         return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
     })
+
+    const [abTest, setAbTest] = useState<CampaignABTest>(() =>
+        initialCampaign?.abTest ?? {
+            enabled: false,
+            variants: ["", ""],
+            metric: "opens",
+            testPercentage: 20,
+            testDurationHours: 4,
+        },
+    )
 
     const subjectInputRef = useRef<HTMLInputElement | null>(null)
     const htmlTextareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -164,6 +176,7 @@ export function CampaignBuilder({
             audienceType,
             audienceValue: audienceValueOut,
             excludeListIds: excludeListIds.length > 0 ? excludeListIds : null,
+            abTest: abTest.enabled ? abTest : null,
             scheduledAt: opts.scheduledAt ?? null,
         })
         if (!result.success || !result.campaign) {
@@ -453,6 +466,128 @@ export function CampaignBuilder({
                             </div>
                         )}
                     </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader className="flex-row items-center justify-between">
+                        <CardTitle className="flex items-center gap-2">
+                            <FlaskConical className="w-4 h-4 text-primary" />
+                            A/B subject test
+                        </CardTitle>
+                        <label className="flex items-center gap-2 text-xs cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={abTest.enabled}
+                                onChange={(e) =>
+                                    setAbTest((prev) => ({
+                                        ...prev,
+                                        enabled: e.target.checked,
+                                        variants: e.target.checked && !prev.variants[0]
+                                            ? [subject, ""]
+                                            : prev.variants,
+                                    }))
+                                }
+                                disabled={isPending}
+                            />
+                            Enable
+                        </label>
+                    </CardHeader>
+                    {abTest.enabled && (
+                        <CardContent className="space-y-3">
+                            <div className="space-y-1.5">
+                                <Label className="text-xs">Subject A</Label>
+                                <Input
+                                    value={abTest.variants[0]}
+                                    onChange={(e) =>
+                                        setAbTest((p) => ({
+                                            ...p,
+                                            variants: [e.target.value, p.variants[1]],
+                                        }))
+                                    }
+                                    placeholder="First subject line"
+                                    disabled={isPending}
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label className="text-xs">Subject B</Label>
+                                <Input
+                                    value={abTest.variants[1]}
+                                    onChange={(e) =>
+                                        setAbTest((p) => ({
+                                            ...p,
+                                            variants: [p.variants[0], e.target.value],
+                                        }))
+                                    }
+                                    placeholder="Second subject line — try a different angle"
+                                    disabled={isPending}
+                                />
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                                <div className="space-y-1">
+                                    <Label className="text-xs">Test pool %</Label>
+                                    <Input
+                                        type="number"
+                                        min={10}
+                                        max={50}
+                                        value={abTest.testPercentage}
+                                        onChange={(e) =>
+                                            setAbTest((p) => ({
+                                                ...p,
+                                                testPercentage: Math.max(
+                                                    10,
+                                                    Math.min(50, parseInt(e.target.value) || 20),
+                                                ),
+                                            }))
+                                        }
+                                        disabled={isPending}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs">Wait (hrs)</Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        max={168}
+                                        value={abTest.testDurationHours}
+                                        onChange={(e) =>
+                                            setAbTest((p) => ({
+                                                ...p,
+                                                testDurationHours: parseInt(e.target.value) || 4,
+                                            }))
+                                        }
+                                        disabled={isPending}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs">Pick by</Label>
+                                    <Select
+                                        value={abTest.metric}
+                                        onValueChange={(v) =>
+                                            setAbTest((p) => ({
+                                                ...p,
+                                                metric: v as "opens" | "clicks",
+                                            }))
+                                        }
+                                        disabled={isPending}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="opens">Opens</SelectItem>
+                                            <SelectItem value="clicks">Clicks</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground/70 leading-snug">
+                                {abTest.testPercentage}% of the audience gets split between
+                                the two subjects. After {abTest.testDurationHours}h, the
+                                winning subject (by {abTest.metric}) is sent to the rest.
+                                Cron picks winners every 30 min.
+                            </p>
+                        </CardContent>
+                    )}
                 </Card>
 
                 <Card>

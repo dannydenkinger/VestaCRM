@@ -118,6 +118,19 @@ export async function deleteTemplateAction(id: string) {
     }
 }
 
+const abTestSchema = z
+    .object({
+        enabled: z.boolean(),
+        variants: z.tuple([z.string().max(200), z.string().max(200)]),
+        metric: z.enum(["opens", "clicks"]),
+        testPercentage: z.number().int().min(10).max(50),
+        testDurationHours: z.number().int().min(1).max(168),
+        winnerVariant: z.union([z.literal(0), z.literal(1)]).optional(),
+        winnerSelectedAt: z.string().optional(),
+    })
+    .nullable()
+    .optional()
+
 const saveCampaignSchema = z.object({
     id: z.string().optional(),
     name: z.string().min(1).max(120),
@@ -127,6 +140,7 @@ const saveCampaignSchema = z.object({
     audienceType: z.enum(["all_contacts", "by_tag", "by_ids", "by_list"]),
     audienceValue: z.array(z.string()).nullable().optional(),
     excludeListIds: z.array(z.string()).nullable().optional(),
+    abTest: abTestSchema,
     scheduledAt: z.string().datetime().nullable().optional(),
 })
 
@@ -149,6 +163,7 @@ export async function saveCampaignAction(input: z.infer<typeof saveCampaignSchem
                 audienceType: parsed.data.audienceType,
                 audienceValue: parsed.data.audienceValue ?? null,
                 excludeListIds: parsed.data.excludeListIds ?? null,
+                abTest: parsed.data.abTest ?? null,
                 scheduledAt: scheduledAtDate,
             })
             revalidatePath("/email-marketing")
@@ -164,6 +179,7 @@ export async function saveCampaignAction(input: z.infer<typeof saveCampaignSchem
             audienceType: parsed.data.audienceType,
             audienceValue: parsed.data.audienceValue ?? null,
             excludeListIds: parsed.data.excludeListIds ?? null,
+            abTest: parsed.data.abTest ?? null,
             createdBy: userId,
             scheduledAt: scheduledAtDate,
         })

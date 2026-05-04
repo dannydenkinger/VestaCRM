@@ -55,6 +55,8 @@ interface Props {
     listName: string
     initialMembers: ListMemberRow[]
     initialCount: number
+    /** Smart segments: hide the manual-add + CSV-import cards (membership is rule-driven). */
+    isSmart?: boolean
 }
 
 export function ListDetailClient({
@@ -62,6 +64,7 @@ export function ListDetailClient({
     listName,
     initialMembers,
     initialCount,
+    isSmart = false,
 }: Props) {
     const router = useRouter()
     const [isPending, startTransition] = useTransition()
@@ -219,6 +222,7 @@ export function ListDetailClient({
 
     return (
         <div className="space-y-4">
+            {!isSmart && (
             <Card>
                 <CardHeader className="flex-row items-center justify-between">
                     <CardTitle className="text-base">Add members</CardTitle>
@@ -328,6 +332,24 @@ export function ListDetailClient({
                     )}
                 </CardContent>
             </Card>
+            )}
+
+            {isSmart && (
+                <Card>
+                    <CardHeader className="flex-row items-center justify-between">
+                        <CardTitle className="text-base">Segment</CardTitle>
+                        <Button
+                            onClick={handleDeleteList}
+                            disabled={isPending}
+                            variant="ghost"
+                            size="sm"
+                        >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete segment
+                        </Button>
+                    </CardHeader>
+                </Card>
+            )}
 
             <Card>
                 <CardHeader>
@@ -370,15 +392,17 @@ export function ListDetailClient({
                                             )}
                                         </div>
                                     </div>
-                                    <Button
-                                        onClick={() => handleRemove(m.memberId)}
-                                        disabled={isPending}
-                                        variant="ghost"
-                                        size="icon"
-                                        className="shrink-0"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </Button>
+                                    {!isSmart && (
+                                        <Button
+                                            onClick={() => handleRemove(m.memberId)}
+                                            disabled={isPending}
+                                            variant="ghost"
+                                            size="icon"
+                                            className="shrink-0"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </Button>
+                                    )}
                                 </div>
                             ))}
                             {memberCount > members.length && (

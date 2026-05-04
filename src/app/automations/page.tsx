@@ -1,10 +1,11 @@
 import Link from "next/link"
 import { requireAuth } from "@/lib/auth-guard"
 import { listAutomations } from "@/lib/automations/store"
+import { STARTER_AUTOMATIONS } from "@/lib/automations/starters"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Plus, Workflow } from "lucide-react"
 import { AutomationListClient } from "./AutomationListClient"
+import { StarterGrid } from "./StarterGrid"
 
 export const dynamic = "force-dynamic"
 
@@ -14,7 +15,7 @@ export default async function AutomationsPage() {
     const automations = await listAutomations(workspaceId)
 
     return (
-        <div className="container mx-auto max-w-5xl py-10 px-4 space-y-6">
+        <div className="container mx-auto max-w-5xl py-10 px-4 space-y-10">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-semibold flex items-center gap-2">
@@ -35,29 +36,37 @@ export default async function AutomationsPage() {
                 </Link>
             </div>
 
-            {automations.length === 0 ? (
-                <Card>
-                    <CardContent className="py-16 text-center space-y-4">
-                        <Workflow className="w-12 h-12 mx-auto opacity-30" />
-                        <div className="space-y-1">
-                            <div className="font-semibold">No automations yet</div>
-                            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                                Build a welcome series, abandoned-cart drip, or
-                                pipeline-stage follow-up. Pick a trigger, drop
-                                some steps, and Vesta runs it for you.
-                            </p>
-                        </div>
-                        <Link href="/automations/new">
-                            <Button>
-                                <Plus className="w-4 h-4 mr-2" />
-                                Build your first automation
-                            </Button>
-                        </Link>
-                    </CardContent>
-                </Card>
-            ) : (
-                <AutomationListClient initialAutomations={automations} />
+            {automations.length > 0 && (
+                <section className="space-y-3">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                            Your automations
+                        </h2>
+                        <span className="text-xs text-muted-foreground">
+                            {automations.length} total
+                        </span>
+                    </div>
+                    <AutomationListClient initialAutomations={automations} />
+                </section>
             )}
+
+            <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                        Start from a template
+                    </h2>
+                    <span className="text-xs text-muted-foreground">
+                        {STARTER_AUTOMATIONS.length} starters
+                    </span>
+                </div>
+                {automations.length === 0 && (
+                    <p className="text-sm text-muted-foreground max-w-2xl">
+                        Pick a battle-tested flow to fork. Each starter creates a
+                        paused copy you can edit before going live.
+                    </p>
+                )}
+                <StarterGrid starters={STARTER_AUTOMATIONS} />
+            </section>
         </div>
     )
 }

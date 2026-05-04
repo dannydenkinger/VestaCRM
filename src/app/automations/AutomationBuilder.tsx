@@ -274,20 +274,41 @@ export function AutomationBuilder({
                     {nodes.length > 0 && <Connector />}
 
                     {/* Nodes */}
-                    {nodes.map((node, idx) => (
-                        <div key={node.id} className="space-y-3">
-                            <NodeCard
-                                node={node}
-                                lists={lists}
-                                tags={tags}
-                                templates={templates}
-                                onChange={(patch) => updateNode(node.id, patch)}
-                                onRemove={() => removeNode(node.id)}
-                                stepNumber={idx + 1}
-                            />
-                            {idx < nodes.length - 1 && <Connector />}
-                        </div>
-                    ))}
+                    {nodes.map((node, idx) => {
+                        // For each node, find any branch_if nodes that target it
+                        const sources: BranchSource[] = []
+                        nodes.forEach((other, otherIdx) => {
+                            if (other.type !== "branch_if") return
+                            if (other.trueNext === node.id) {
+                                sources.push({
+                                    sourceStepNumber: otherIdx + 1,
+                                    branchType: "true",
+                                })
+                            }
+                            if (other.falseNext === node.id) {
+                                sources.push({
+                                    sourceStepNumber: otherIdx + 1,
+                                    branchType: "false",
+                                })
+                            }
+                        })
+                        return (
+                            <div key={node.id} className="space-y-3">
+                                <NodeCard
+                                    node={node}
+                                    lists={lists}
+                                    tags={tags}
+                                    templates={templates}
+                                    onChange={(patch) => updateNode(node.id, patch)}
+                                    onRemove={() => removeNode(node.id)}
+                                    stepNumber={idx + 1}
+                                    allNodes={nodes}
+                                    branchSources={sources}
+                                />
+                                {idx < nodes.length - 1 && <Connector />}
+                            </div>
+                        )
+                    })}
 
                     {nodes.length > 0 && <Connector />}
 
@@ -475,6 +496,11 @@ function Connector() {
 
 // ── Node cards ───────────────────────────────────────────────────────────
 
+interface BranchSource {
+    sourceStepNumber: number
+    branchType: "true" | "false"
+}
+
 function NodeCard({
     node,
     lists,
@@ -483,6 +509,8 @@ function NodeCard({
     onChange,
     onRemove,
     stepNumber,
+    allNodes,
+    branchSources,
 }: {
     node: AutomationNode
     lists: ListOpt[]
@@ -491,12 +519,31 @@ function NodeCard({
     onChange: (patch: Partial<AutomationNode>) => void
     onRemove: () => void
     stepNumber: number
+    allNodes: AutomationNode[]
+    /** Other nodes that branch INTO this node (so we can show "← branch in from step N"). */
+    branchSources?: BranchSource[]
 }) {
     const meta = ACTION_PALETTE.find((a) => a.type === node.type)
     const Icon = meta?.Icon ?? Workflow
     return (
         <Card>
             <CardContent className="py-4 space-y-3">
+                {branchSources && branchSources.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        {branchSources.map((src, i) => (
+                            <span
+                                key={i}
+                                className={`text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded ${
+                                    src.branchType === "true"
+                                        ? "bg-emerald-500/10 text-emerald-700"
+                                        : "bg-red-500/10 text-red-700"
+                                }`}
+                            >
+                                ← {src.branchType.toUpperCase()} from step {src.sourceStepNumber}
+                            </span>
+                        ))}
+                    </div>
+                )}
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                         <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground tabular-nums">
@@ -532,6 +579,7 @@ function NodeCard({
                     tags={tags}
                     templates={templates}
                     onChange={onChange}
+                    allNodes={allNodes}
                 />
             </CardContent>
         </Card>
@@ -544,12 +592,14 @@ function NodeBody({
     tags,
     templates,
     onChange,
+    allNodes,
 }: {
     node: AutomationNode
     lists: ListOpt[]
     tags: TagOpt[]
     templates: TemplateOpt[]
     onChange: (patch: Partial<AutomationNode>) => void
+    allNodes?: AutomationNode[]
 }) {
     if (node.type === "send_email") {
         return (
@@ -733,6 +783,8 @@ function NodeBody({
                 lists={lists}
                 tags={tags}
                 onChange={onChange}
+                allNodes={allNodes ?? []}
+                currentNodeId={node.id}
             />
         )
     }
@@ -814,13 +866,21 @@ function BranchEditor({
     lists,
     tags,
     onChange,
+    allNodes,
+    currentNodeId,
 }: {
     node: import("@/lib/automations/types").BranchIfNode | import("@/lib/automations/types").StopIfNode
     lists: ListOpt[]
     tags: TagOpt[]
     onChange: (patch: Partial<AutomationNode>) => void
+    allNodes: AutomationNode[]
+    currentNodeId: string
 }) {
     const c = node.condition
+    // Step options for branch targets — exclude self
+    const stepOptions = allNodes
+        .map((n, idx) => ({ id: n.id, label: stepLabel(n, idx + 1) }))
+        .filter((o) => o.id !== currentNodeId)
     return (
         <div className="space-y-2">
             <div className="space-y-1">
@@ -907,35 +967,60 @@ function BranchEditor({
             {node.type === "branch_if" && (
                 <div className="grid grid-cols-2 gap-2 pt-1">
                     <div className="space-y-1">
-                        <Label className="text-xs text-emerald-700">If TRUE → step id</Label>
-                        <Input
-                            value={node.trueNext}
-                            onChange={(e) =>
-                                onChange({ trueNext: e.target.value } as Partial<AutomationNode>)
+                        <Label className="text-xs text-emerald-700">If TRUE → jump to</Label>
+                        <Select
+                            value={node.trueNext || "__fall"}
+                            onValueChange={(v) =>
+                                onChange({
+                                    trueNext: v === "__fall" ? "" : v,
+                                } as Partial<AutomationNode>)
                             }
-                            placeholder="n…"
-                            className="font-mono text-xs"
-                        />
+                        >
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="__fall">→ next step</SelectItem>
+                                {stepOptions.map((o) => (
+                                    <SelectItem key={o.id} value={o.id}>
+                                        {o.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs text-red-700">If FALSE → step id</Label>
-                        <Input
-                            value={node.falseNext}
-                            onChange={(e) =>
-                                onChange({ falseNext: e.target.value } as Partial<AutomationNode>)
+                        <Label className="text-xs text-red-700">If FALSE → jump to</Label>
+                        <Select
+                            value={node.falseNext || "__fall"}
+                            onValueChange={(v) =>
+                                onChange({
+                                    falseNext: v === "__fall" ? "" : v,
+                                } as Partial<AutomationNode>)
                             }
-                            placeholder="n…"
-                            className="font-mono text-xs"
-                        />
+                        >
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="__fall">→ next step</SelectItem>
+                                {stepOptions.map((o) => (
+                                    <SelectItem key={o.id} value={o.id}>
+                                        {o.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
-                    <p className="col-span-2 text-[10px] text-muted-foreground/70 leading-snug">
-                        Each step has an id shown on its card (e.g. <code className="font-mono">n5xy3</code>). Paste it here to
-                        jump there. Leave blank to fall through to the next step.
-                    </p>
                 </div>
             )}
         </div>
     )
+}
+
+function stepLabel(node: AutomationNode, stepNumber: number): string {
+    const meta = ACTION_PALETTE.find((a) => a.type === node.type)
+    return `Step ${stepNumber} · ${meta?.label ?? node.type}`
 }
 
 // ── Test enrollment ─────────────────────────────────────────────────────

@@ -12,6 +12,7 @@ import {
     updateAutomation,
 } from "@/lib/automations/store"
 import { advanceRun } from "@/lib/automations/engine"
+import { getStarter } from "@/lib/automations/starters"
 import type {
     AutomationNode,
     Trigger,
@@ -151,6 +152,38 @@ export async function deleteAutomationAction(id: string) {
         return { success: true }
     } catch (err) {
         const message = err instanceof Error ? err.message : "Failed to delete"
+        return { success: false, error: message }
+    }
+}
+
+let _starterIdCounter = 1
+function newStarterId(): string {
+    return `n${Date.now().toString(36)}${(_starterIdCounter++).toString(36)}`
+}
+
+/**
+ * Fork a starter template into a new (paused) automation in this workspace.
+ * Users edit it from there. Always created `enabled: false` so they can't
+ * accidentally fire half-configured drips.
+ */
+export async function forkStarterAction(slug: string) {
+    const { workspaceId, userId } = await ws()
+    const starter = getStarter(slug)
+    if (!starter) return { success: false, error: "Starter not found" }
+    try {
+        const created = await createAutomation({
+            workspaceId,
+            name: starter.name,
+            description: starter.description,
+            enabled: false,
+            trigger: starter.trigger,
+            nodes: starter.buildNodes(newStarterId),
+            createdBy: userId,
+        })
+        revalidatePath("/automations")
+        return { success: true, automation: created }
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to fork"
         return { success: false, error: message }
     }
 }

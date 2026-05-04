@@ -184,14 +184,38 @@ export interface ContactList {
     workspaceId: string
     name: string
     description?: string
-    /** Static = manual member management. Smart = filter-based (future). */
+    /** Static = manual member management. Smart = rules evaluated live. */
     type: "static" | "smart"
     /** Cached count updated on add/remove. Refreshed via countMembers() when needed. */
     contactCount: number
+    /** For smart segments: rules to evaluate at read time. */
+    rules?: SegmentRule[]
+    /** "and" = all rules must match. "or" = any rule matches. */
+    combinator?: "and" | "or"
     createdBy: string | null
     createdAt: string
     updatedAt: string
 }
+
+/**
+ * One condition in a smart segment. Rules are AND-combined by default.
+ * The evaluator handles each `field` type separately — see
+ * src/lib/lists/segments.ts.
+ */
+export type SegmentRule =
+    | { field: "tag"; op: "has" | "not_has"; value: string /* tagId */ }
+    | { field: "list"; op: "on" | "not_on"; value: string /* listId */ }
+    | { field: "status"; op: "is" | "is_not"; value: string }
+    | { field: "email"; op: "exists" | "not_exists" }
+    | {
+          field: "engagement"
+          op: "opened" | "clicked" | "not_opened"
+          /** Campaign id, or "any" for any campaign. */
+          value: string
+          /** Look-back window in days. Defaults to 90. */
+          daysWindow?: number
+      }
+    | { field: "created"; op: "before" | "after"; value: string /* ISO date */ }
 
 export type CampaignStatus =
     | "draft"
@@ -201,6 +225,33 @@ export type CampaignStatus =
     | "sent_with_errors"
     | "failed"
     | "canceled"
+
+/**
+ * A/B test configuration for a campaign. Splits the audience into a small
+ * test pool, sends each subject variant to half of it, picks a winner based
+ * on `metric` after `testDurationHours`, then sends the winner to the rest.
+ */
+export interface CampaignABTest {
+    enabled: boolean
+    /** Two subject lines to test. Body is identical. */
+    variants: [string, string]
+    /** Pick winner by which metric. */
+    metric: "opens" | "clicks"
+    /** Percent of audience used for the test pool (10-50). The remainder gets the winner. */
+    testPercentage: number
+    /** Hours to wait after the initial send before measuring + sending winner. */
+    testDurationHours: number
+    /** Set when the winner has been picked + the remainder sent. */
+    winnerVariant?: 0 | 1
+    /** When the winner was selected. */
+    winnerSelectedAt?: string
+    /** Per-variant counters captured at winner-selection time. */
+    variantStats?: Array<{
+        sent: number
+        opens: number
+        clicks: number
+    }>
+}
 
 export interface EmailCampaign {
     id: string
@@ -226,6 +277,8 @@ export interface EmailCampaign {
         failed: number
         skipped: number
     }
+    /** Optional A/B subject test config. */
+    abTest?: CampaignABTest
     createdBy: string | null
     createdAt: string
     updatedAt: string

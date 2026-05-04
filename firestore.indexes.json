@@ -487,6 +487,15 @@
         { "fieldPath": "automationId", "order": "ASCENDING" },
         { "fieldPath": "startedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "email_campaigns",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "abTest.enabled", "order": "ASCENDING" },
+        { "fieldPath": "abTest.testWindowEndsAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

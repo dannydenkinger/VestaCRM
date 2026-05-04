@@ -4,6 +4,7 @@ import { InsufficientCreditsError } from "@/lib/credits/email-credits"
 import { logActivity } from "@/lib/activities/timeline"
 import { unionMembers } from "@/lib/lists/contact-lists"
 import type {
+    CampaignABTest,
     CampaignAudienceType,
     CampaignStatus,
     EmailCampaign,
@@ -38,6 +39,7 @@ function mapCampaign(id: string, data: Record<string, unknown>): EmailCampaign {
         status: (data.status as CampaignStatus) ?? "draft",
         scheduledAt: data.scheduledAt ? tsToISO(data.scheduledAt) : undefined,
         stats,
+        abTest: (data.abTest as CampaignABTest) ?? undefined,
         createdBy: (data.createdBy as string) ?? null,
         createdAt: tsToISO(data.createdAt),
         updatedAt: tsToISO(data.updatedAt),
@@ -76,6 +78,7 @@ export interface CreateCampaignInput {
     audienceType: CampaignAudienceType
     audienceValue?: string[] | null
     excludeListIds?: string[] | null
+    abTest?: CampaignABTest | null
     createdBy?: string | null
     scheduledAt?: Date | null
 }
@@ -100,6 +103,7 @@ export async function createCampaign(input: CreateCampaignInput): Promise<EmailC
         status,
         scheduledAt: input.scheduledAt ?? null,
         stats: { targeted: 0, sent: 0, failed: 0, skipped: 0 },
+        abTest: input.abTest ?? null,
         createdBy: input.createdBy ?? null,
         createdAt: now,
         updatedAt: now,
@@ -116,6 +120,7 @@ export interface UpdateCampaignInput {
     audienceType?: CampaignAudienceType
     audienceValue?: string[] | null
     excludeListIds?: string[] | null
+    abTest?: CampaignABTest | null
     scheduledAt?: Date | null
 }
 
@@ -141,6 +146,7 @@ export async function updateCampaign(
     if (patch.audienceType !== undefined) updates.audienceType = patch.audienceType
     if (patch.audienceValue !== undefined) updates.audienceValue = patch.audienceValue
     if (patch.excludeListIds !== undefined) updates.excludeListIds = patch.excludeListIds
+    if (patch.abTest !== undefined) updates.abTest = patch.abTest
     if (patch.scheduledAt !== undefined) {
         updates.scheduledAt = patch.scheduledAt
         // Status follows the schedule: presence of a date = scheduled, absence = draft
@@ -281,6 +287,16 @@ export interface SendCampaignResult {
     error?: string
 }
 
+/** Stable hash for shuffling — keeps the A/B split idempotent across retries. */
+function stableHash(s: string): number {
+    let h = 2166136261
+    for (let i = 0; i < s.length; i++) {
+        h ^= s.charCodeAt(i)
+        h = Math.imul(h, 16777619)
+    }
+    return h >>> 0
+}
+
 /** Number of recipients sent in parallel within a single campaign. */
 const SEND_CONCURRENCY = 5
 
@@ -385,36 +401,114 @@ export async function sendCampaign(
         )
         targeted = audience.length
 
+        // A/B test: pick a test pool of `testPercentage`% of the audience,
+        // split it 50/50 between the two subject variants, leave the
+        // remainder for the cron to fire later with the winning subject.
+        const abTest = (data.abTest as CampaignABTest | null) ?? null
+        const isABInitialSend =
+            !!abTest?.enabled &&
+            abTest.variants?.length === 2 &&
+            !abTest.winnerVariant
+
+        let sendList = audience
+        let abVariantPerRecipient: Array<0 | 1> | null = null
+
+        if (isABInitialSend) {
+            const pct = Math.min(50, Math.max(10, abTest.testPercentage))
+            // Use a stable, content-derived shuffle seed so the same audience
+            // always splits the same way (idempotency for retries)
+            const shuffled = [...audience].sort((a, b) =>
+                stableHash(a.email + ":" + campaignId) -
+                stableHash(b.email + ":" + campaignId),
+            )
+            const poolSize = Math.max(2, Math.floor((shuffled.length * pct) / 100))
+            const pool = shuffled.slice(0, poolSize)
+            sendList = pool
+            // Alternate variant assignment 0,1,0,1...
+            abVariantPerRecipient = pool.map((_, i) => (i % 2 === 0 ? 0 : 1) as 0 | 1)
+        }
+
         // Send in parallel chunks. Stops fast if we hit a fatal error
         // (SES not ready / out of credits) — skip remainder of audience.
-        for (let i = 0; i < audience.length; i += SEND_CONCURRENCY) {
+        for (let i = 0; i < sendList.length; i += SEND_CONCURRENCY) {
             if (fatalError) break
-            const chunk = audience.slice(i, i + SEND_CONCURRENCY)
+            const chunk = sendList.slice(i, i + SEND_CONCURRENCY)
             const results = await Promise.all(
-                chunk.map((contact) =>
-                    sendOneWithRetry({
+                chunk.map((contact, j) => {
+                    const variantIdx = abVariantPerRecipient
+                        ? abVariantPerRecipient[i + j]
+                        : null
+                    const subject =
+                        variantIdx !== null && abTest
+                            ? abTest.variants[variantIdx]
+                            : data.subject
+                    // Append "::ab=0|1" to campaignId so we can compute
+                    // per-variant open/click stats from email_logs later.
+                    const campaignKey =
+                        variantIdx !== null
+                            ? `${campaignId}::ab=${variantIdx}`
+                            : campaignId
+                    return sendOneWithRetry({
                         workspaceId,
                         to: contact.email,
-                        subject: data.subject,
+                        subject,
                         html: data.renderedHtml,
-                        // External (CSV) members have no contact doc — pass
-                        // undefined so email_logs doesn't get a fake contactId.
                         contactId: contact.external ? undefined : contact.id,
-                        campaignId,
+                        campaignId: campaignKey,
                         autoResolveContact: false,
-                    }),
-                ),
+                    })
+                }),
             )
             for (const r of results) {
                 if (r.fatal) {
                     fatalError = r.fatal.message
                     if (r.fatal instanceof InsufficientCreditsError) {
-                        skipped = audience.length - sent - failed - 1
+                        skipped = sendList.length - sent - failed - 1
                     }
                     break
                 }
                 if (r.ok) sent += 1
                 else failed += 1
+            }
+        }
+
+        // For A/B initial send, leave campaign in a special "test in flight"
+        // state so the winner-picker cron can find it. We piggyback on the
+        // existing status field plus an abTest marker.
+        if (isABInitialSend && !fatalError) {
+            const winnerEligibleAt = new Date(
+                Date.now() + abTest.testDurationHours * 60 * 60 * 1000,
+            )
+            await ref.update({
+                status: "sending",
+                stats: { targeted, sent, failed, skipped },
+                abTest: {
+                    ...abTest,
+                    // Reuse winnerSelectedAt slot? No — we store the eligibility
+                    // window separately so the cron can query for it.
+                    testWindowEndsAt: winnerEligibleAt,
+                },
+                updatedAt: new Date(),
+            })
+
+            await logActivity({
+                workspaceId,
+                type: "email_sent",
+                source: "ses",
+                subject: `Campaign "${data.name}" — A/B test sent`,
+                body: `Test pool: ${sent}/${sendList.length} delivered. Winner picks at ${winnerEligibleAt.toISOString()}.`,
+                metadata: { campaignId, abTest: true },
+                sourceRef: campaignId,
+            })
+
+            return {
+                ok: true,
+                campaignId,
+                targeted,
+                sent,
+                failed,
+                skipped,
+                error: undefined,
             }
         }
 
@@ -464,4 +558,176 @@ export async function sendCampaign(
             error: message,
         }
     }
+}
+
+// ── A/B test winner finalization ──────────────────────────────────────────
+
+interface VariantStats {
+    sent: number
+    opens: number
+    clicks: number
+}
+
+async function variantStatsFor(
+    workspaceId: string,
+    campaignId: string,
+    variant: 0 | 1,
+): Promise<VariantStats> {
+    const snap = await adminDb
+        .collection("email_logs")
+        .where("workspaceId", "==", workspaceId)
+        .where("campaignId", "==", `${campaignId}::ab=${variant}`)
+        .limit(10_000)
+        .get()
+    let opens = 0
+    let clicks = 0
+    for (const d of snap.docs) {
+        const data = d.data()
+        if (data.openedAt) opens += 1
+        if (data.clickedAt) clicks += 1
+    }
+    return { sent: snap.size, opens, clicks }
+}
+
+/**
+ * Pick the winning variant for an A/B campaign whose test window has
+ * elapsed, then send the winning subject to the rest of the audience.
+ * Idempotent — bails if winnerVariant is already set.
+ */
+export async function finalizeABTest(
+    workspaceId: string,
+    campaignId: string,
+): Promise<{ ok: boolean; winnerVariant?: 0 | 1; sent?: number; error?: string }> {
+    const ref = adminDb.collection("email_campaigns").doc(campaignId)
+    const doc = await ref.get()
+    if (!doc.exists) return { ok: false, error: "Campaign not found" }
+    const data = doc.data()!
+    if (data.workspaceId !== workspaceId) return { ok: false, error: "Forbidden" }
+
+    const ab = (data.abTest as CampaignABTest | null) ?? null
+    if (!ab?.enabled) return { ok: false, error: "Not an A/B campaign" }
+    if (ab.winnerVariant !== undefined) {
+        return { ok: false, error: "Winner already picked" }
+    }
+
+    const [v0, v1] = await Promise.all([
+        variantStatsFor(workspaceId, campaignId, 0),
+        variantStatsFor(workspaceId, campaignId, 1),
+    ])
+
+    const metric = ab.metric ?? "opens"
+    const score = (v: VariantStats) => (metric === "clicks" ? v.clicks : v.opens)
+    // Tie-break: pick variant 0 (first one)
+    const winner: 0 | 1 = score(v1) > score(v0) ? 1 : 0
+    const winningSubject = ab.variants[winner]
+
+    // Send winning subject to the audience MINUS recipients who already
+    // received the test (by email).
+    const audience = await resolveAudience(
+        workspaceId,
+        data.audienceType as CampaignAudienceType,
+        (data.audienceValue as string[] | null) ?? null,
+        (data.excludeListIds as string[] | null) ?? null,
+    )
+    const alreadyEmailed = new Set<string>()
+    const testLogsSnap = await adminDb
+        .collection("email_logs")
+        .where("workspaceId", "==", workspaceId)
+        .where("campaignId", "in", [`${campaignId}::ab=0`, `${campaignId}::ab=1`])
+        .limit(10_000)
+        .get()
+    for (const d of testLogsSnap.docs) {
+        const e = ((d.data().to as string) ?? "").toLowerCase()
+        if (e) alreadyEmailed.add(e)
+    }
+
+    const remainder = audience.filter(
+        (c) => !alreadyEmailed.has(c.email.toLowerCase()),
+    )
+
+    let sent = 0
+    let failed = 0
+    let fatal: string | undefined
+
+    for (let i = 0; i < remainder.length; i += SEND_CONCURRENCY) {
+        if (fatal) break
+        const chunk = remainder.slice(i, i + SEND_CONCURRENCY)
+        const results = await Promise.all(
+            chunk.map((c) =>
+                sendOneWithRetry({
+                    workspaceId,
+                    to: c.email,
+                    subject: winningSubject,
+                    html: data.renderedHtml,
+                    contactId: c.external ? undefined : c.id,
+                    campaignId, // winner send uses bare campaignId, no ::ab=N
+                    autoResolveContact: false,
+                }),
+            ),
+        )
+        for (const r of results) {
+            if (r.fatal) {
+                fatal = r.fatal.message
+                break
+            }
+            if (r.ok) sent += 1
+            else failed += 1
+        }
+    }
+
+    const totalSent = (data.stats?.sent ?? 0) + sent
+    const totalFailed = (data.stats?.failed ?? 0) + failed
+    const finalStatus: CampaignStatus =
+        fatal || totalFailed > 0 ? "sent_with_errors" : "sent"
+
+    await ref.update({
+        status: finalStatus,
+        stats: {
+            targeted: data.stats?.targeted ?? audience.length,
+            sent: totalSent,
+            failed: totalFailed,
+            skipped: data.stats?.skipped ?? 0,
+        },
+        abTest: {
+            ...ab,
+            winnerVariant: winner,
+            winnerSelectedAt: new Date(),
+            variantStats: [v0, v1],
+        },
+        sentAt: new Date(),
+        updatedAt: new Date(),
+    })
+
+    await logActivity({
+        workspaceId,
+        type: "email_sent",
+        source: "ses",
+        subject: `Campaign "${data.name}" — winner picked`,
+        body: `Variant ${winner} won (${score(winner === 0 ? v0 : v1)} ${metric} vs ${score(winner === 0 ? v1 : v0)}). Sent winning subject to ${sent} more recipients.`,
+        metadata: { campaignId, winner, abTest: true },
+        sourceRef: campaignId,
+    })
+
+    return { ok: true, winnerVariant: winner, sent }
+}
+
+/**
+ * Find A/B campaigns whose test window has elapsed and are awaiting winner
+ * selection. Used by the cron to drive finalizeABTest.
+ */
+export async function findDueABCampaigns(
+    limit = 20,
+): Promise<Array<{ id: string; workspaceId: string }>> {
+    const now = new Date()
+    // Status="sending" + abTest.enabled + winnerVariant unset + testWindowEndsAt <= now
+    const snap = await adminDb
+        .collection("email_campaigns")
+        .where("status", "==", "sending")
+        .where("abTest.enabled", "==", true)
+        .where("abTest.testWindowEndsAt", "<=", now)
+        .limit(limit)
+        .get()
+    return snap.docs
+        .filter((d) => d.data().abTest?.winnerVariant === undefined)
+        .map((d) => ({ id: d.id, workspaceId: d.data().workspaceId as string }))
 }

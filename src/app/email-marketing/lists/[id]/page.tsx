@@ -2,8 +2,9 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { requireAuth } from "@/lib/auth-guard"
 import { adminDb } from "@/lib/firebase-admin"
-import { getList, listMembers } from "@/lib/lists/contact-lists"
+import { getList, listLists, listMembers } from "@/lib/lists/contact-lists"
 import { ListDetailClient, type ListMemberRow } from "./ListDetailClient"
+import { SmartSegmentEditor } from "./SmartSegmentEditor"
 
 export const dynamic = "force-dynamic"
 
@@ -19,8 +20,11 @@ export default async function ListDetailPage({ params }: PageProps) {
     const list = await getList(workspaceId, id)
     if (!list) notFound()
 
-    // Load first page of members — both CRM-linked and CSV-imported externals.
+    const isSmart = list.type === "smart"
+
+    // Members: live evaluation for smart segments, stored membership for static.
     const members = await listMembers(workspaceId, id, 200)
+    const liveCount = isSmart ? members.length : list.contactCount
 
     // Hydrate CRM members with name/email from the contacts collection.
     const crmContactIds = members
@@ -47,12 +51,33 @@ export default async function ListDetailPage({ params }: PageProps) {
         }
     })
 
-    // Sort: name (or email) ascending
     memberRows.sort((a, b) =>
         (a.name || a.email).toLowerCase().localeCompare(
             (b.name || b.email).toLowerCase(),
         ),
     )
+
+    // Smart-segment editor needs tags + other lists for rule pickers.
+    const [tagsSnap, allLists] = isSmart
+        ? await Promise.all([
+              adminDb
+                  .collection("tags")
+                  .where("workspaceId", "==", workspaceId)
+                  .limit(200)
+                  .get(),
+              listLists(workspaceId),
+          ])
+        : [null, []]
+    const tags = tagsSnap
+        ? tagsSnap.docs.map((d) => ({
+              id: d.id,
+              name: (d.data().name as string) ?? "(untitled)",
+              color: (d.data().color as string) ?? "#94a3b8",
+          }))
+        : []
+    const otherLists = allLists
+        .filter((l) => l.id !== id && l.type !== "smart")
+        .map((l) => ({ id: l.id, name: l.name }))
 
     return (
         <div className="container mx-auto max-w-5xl py-10 px-4 space-y-6">
@@ -62,20 +87,44 @@ export default async function ListDetailPage({ params }: PageProps) {
                         ← Contact lists
                     </Link>
                 </div>
-                <h1 className="text-2xl font-semibold">{list.name}</h1>
+                <div className="flex items-center gap-2 mt-0.5">
+                    <h1 className="text-2xl font-semibold">{list.name}</h1>
+                    {isSmart && (
+                        <span className="text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                            Smart segment
+                        </span>
+                    )}
+                </div>
                 {list.description && (
                     <p className="text-sm text-muted-foreground mt-1">{list.description}</p>
                 )}
                 <p className="text-xs text-muted-foreground mt-2 tabular-nums">
-                    {list.contactCount.toLocaleString()}{" "}
-                    {list.contactCount === 1 ? "member" : "members"}
+                    {liveCount.toLocaleString()}{" "}
+                    {liveCount === 1 ? "member" : "members"}
+                    {isSmart && (
+                        <span className="ml-1.5 text-muted-foreground/70">
+                            (live · re-evaluates on every load)
+                        </span>
+                    )}
                 </p>
             </div>
+
+            {isSmart && (
+                <SmartSegmentEditor
+                    listId={list.id}
+                    initialRules={list.rules ?? []}
+                    initialCombinator={list.combinator ?? "and"}
+                    tags={tags}
+                    otherLists={otherLists}
+                />
+            )}
+
             <ListDetailClient
                 listId={list.id}
                 listName={list.name}
                 initialMembers={memberRows}
-                initialCount={list.contactCount}
+                initialCount={liveCount}
+                isSmart={isSmart}
             />
         </div>
     )
