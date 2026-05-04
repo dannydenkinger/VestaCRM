@@ -40,6 +40,7 @@ export interface FireTriggerInput {
         formId?: string
         stageId?: string
         campaignId?: string
+        pipelineId?: string
         fieldPath?: string
     }
     /** Extra payload merged into the run's contextData. */
@@ -151,11 +152,11 @@ async function evaluateGoals(input: FireTriggerInput): Promise<void> {
 }
 
 function matchesTriggerConfig(
-    config: { listId?: string; tagId?: string; formId?: string; stageId?: string; campaignId?: string; fieldPath?: string },
+    config: { listId?: string; tagId?: string; formId?: string; stageId?: string; campaignId?: string; pipelineId?: string; fieldPath?: string },
     match?: FireTriggerInput["match"],
 ): boolean {
     if (!config) return true
-    const fields = ["listId", "tagId", "formId", "stageId", "campaignId", "fieldPath"] as const
+    const fields = ["listId", "tagId", "formId", "stageId", "campaignId", "pipelineId", "fieldPath"] as const
     for (const f of fields) {
         const expected = config[f]
         if (expected) {

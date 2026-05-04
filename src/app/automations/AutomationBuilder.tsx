@@ -93,7 +93,11 @@ const TRIGGER_OPTIONS: Array<{ value: TriggerType; label: string; description: s
     { value: "tag_added", label: "Tag added", description: "When a tag is added to a contact." },
     { value: "form_submitted", label: "Form submitted", description: "When someone submits one of your forms." },
     { value: "pipeline_stage_entered", label: "Pipeline stage entered", description: "When an opportunity moves into a stage." },
+    { value: "opportunity_created", label: "Opportunity created", description: "When a new deal/opportunity is created." },
     { value: "opportunity_won", label: "Opportunity won", description: "When an opportunity is marked as won." },
+    { value: "opportunity_lost", label: "Opportunity lost", description: "When an opportunity is marked as closed_lost." },
+    { value: "opportunity_value_changed", label: "Opportunity value changed", description: "When an opportunity's deal value changes." },
+    { value: "opportunity_stale", label: "Opportunity stale", description: "Daily check: open opportunity hasn't moved in N days." },
     { value: "email_opened", label: "Email opened", description: "When a recipient opens a campaign email." },
     { value: "email_clicked", label: "Email clicked", description: "When a recipient clicks a link in a campaign email." },
     { value: "contact_field_updated", label: "Contact field updated", description: "When a specific field on the contact changes." },
@@ -128,6 +132,7 @@ const ACTION_PALETTE: Array<{
     { type: "assign_user", label: "Assign user", description: "Set the contact's owner.", Icon: UserCheck },
     { type: "create_task", label: "Create task", description: "Create a follow-up task linked to the contact.", Icon: Briefcase },
     { type: "send_internal_email", label: "Internal email", description: "Email a teammate (lead notification).", Icon: Mail },
+    { type: "update_opportunity", label: "Update opportunity", description: "Set a field on the trigger's opportunity (status, stage, etc.).", Icon: Pencil },
     { type: "webhook", label: "Webhook", description: "POST run context to an external URL.", Icon: Globe },
     { type: "end", label: "End", description: "Stop the automation here.", Icon: Workflow },
 ]
@@ -194,6 +199,8 @@ function defaultNodeFor(type: AutomationNode["type"]): AutomationNode {
             return { id, type, title: "Follow up with {{first_name}}", dueOffsetDays: 1 }
         case "send_internal_email":
             return { id, type, to: "", subject: "New lead: {{first_name}}", body: "" }
+        case "update_opportunity":
+            return { id, type, fieldPath: "status", value: "closed_won" }
         case "webhook":
             return { id, type, url: "" }
         case "wait_until":
@@ -812,6 +819,33 @@ function TriggerCard({
                         </p>
                     </div>
                 )}
+
+                {trigger.type === "opportunity_stale" && (
+                    <div className="space-y-1">
+                        <Label className="text-xs">
+                            Inactive for how many days?
+                        </Label>
+                        <Input
+                            type="number"
+                            min={1}
+                            max={365}
+                            value={trigger.config.staleDays ?? 14}
+                            onChange={(e) =>
+                                onChange({
+                                    ...trigger,
+                                    config: {
+                                        ...trigger.config,
+                                        staleDays: parseInt(e.target.value) || 14,
+                                    },
+                                })
+                            }
+                        />
+                        <p className="text-[10px] text-muted-foreground/70">
+                            Daily check at 14:00 UTC. Open opportunities not updated
+                            in this many days fire the trigger.
+                        </p>
+                    </div>
+                )}
             </CardContent>
         </Card>
     )
@@ -1260,6 +1294,39 @@ function NodeBody({
                         Strings & numbers only in v1.
                     </p>
                 </div>
+            </div>
+        )
+    }
+
+    if (node.type === "update_opportunity") {
+        return (
+            <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                        <Label className="text-xs">Field path</Label>
+                        <Input
+                            value={node.fieldPath}
+                            onChange={(e) => onChange({ fieldPath: e.target.value })}
+                            placeholder="status"
+                        />
+                        <p className="text-[10px] text-muted-foreground/70">
+                            e.g. <code>status</code>, <code>priority</code>,{" "}
+                            <code>opportunityValue</code>
+                        </p>
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-xs">Value</Label>
+                        <Input
+                            value={String(node.value ?? "")}
+                            onChange={(e) => onChange({ value: e.target.value })}
+                            placeholder="closed_won"
+                        />
+                    </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground/70 leading-snug">
+                    Only fires when the trigger has an opportunityId in its payload —
+                    pipeline_stage_entered, opportunity_*, etc.
+                </p>
             </div>
         )
     }

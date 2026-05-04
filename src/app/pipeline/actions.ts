@@ -741,7 +741,7 @@ export async function createNewDeal(data: any, pipelineId?: string) {
             linkUrl: `/pipeline?deal=${oppRef.id}`
         });
 
-        // Trigger workflow automations for new deal
+        // Trigger workflow automations for new deal (legacy)
         triggerWorkflows(workspaceId, {
             type: "deal_created",
             data: {
@@ -752,6 +752,19 @@ export async function createNewDeal(data: any, pipelineId?: string) {
                 dealName: `${data.name || "New Lead"} - Deal`,
                 opportunityValue: Number(data.value) || 0,
                 userId: (session.user as any).id || "",
+            },
+        }).catch(() => {});
+
+        // Fire unified-engine "opportunity_created" trigger
+        fireTrigger({
+            workspaceId,
+            type: "opportunity_created",
+            contactId: contactId || "",
+            contactEmail: data.email || undefined,
+            payload: {
+                opportunityId: oppRef.id,
+                opportunityValue: Number(data.value) || 0,
+                pipelineId: targetPipelineId,
             },
         }).catch(() => {});
 
@@ -972,6 +985,42 @@ export async function updateOpportunity(id: string, data: {
                 payload: {
                     opportunityId: oppId,
                     opportunityValue: Number(updateData.opportunityValue ?? beforeData.opportunityValue) || 0,
+                },
+            }).catch(() => {});
+        }
+
+        // Fire "opportunity_lost" when status flips to closed_lost
+        if (
+            data.status === "closed_lost" &&
+            beforeData.status !== "closed_lost"
+        ) {
+            fireTrigger({
+                workspaceId,
+                type: "opportunity_lost",
+                contactId: beforeData.contactId || data.contactId || "",
+                contactEmail: beforeData.email || undefined,
+                payload: {
+                    opportunityId: oppId,
+                    opportunityValue: Number(updateData.opportunityValue ?? beforeData.opportunityValue) || 0,
+                    previousStatus: beforeData.status,
+                },
+            }).catch(() => {});
+        }
+
+        // Fire "opportunity_value_changed" when value changes (and isn't trivially identical)
+        if (
+            data.value !== undefined &&
+            Number(updateData.opportunityValue) !== Number(beforeData.opportunityValue)
+        ) {
+            fireTrigger({
+                workspaceId,
+                type: "opportunity_value_changed",
+                contactId: beforeData.contactId || data.contactId || "",
+                contactEmail: beforeData.email || undefined,
+                payload: {
+                    opportunityId: oppId,
+                    previousValue: Number(beforeData.opportunityValue) || 0,
+                    newValue: Number(updateData.opportunityValue) || 0,
                 },
             }).catch(() => {});
         }

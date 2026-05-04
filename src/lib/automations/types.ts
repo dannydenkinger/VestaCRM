@@ -37,7 +37,11 @@ export type TriggerType =
     | "tag_removed"
     | "form_submitted"
     | "pipeline_stage_entered"
+    | "opportunity_created"
     | "opportunity_won"
+    | "opportunity_lost"
+    | "opportunity_value_changed"
+    | "opportunity_stale"
     | "email_opened"
     | "email_clicked"
     | "contact_field_updated"
@@ -55,8 +59,11 @@ export interface TriggerConfig {
     formId?: string
     stageId?: string
     campaignId?: string
+    pipelineId?: string
     /** For contact_field_updated: which field path to watch. */
     fieldPath?: string
+    /** For opportunity_stale: how many days of inactivity counts as stale (default 14). */
+    staleDays?: number
 }
 
 export interface Trigger {
@@ -84,6 +91,7 @@ export type ActionType =
     | "assign_user"
     | "create_task"
     | "send_internal_email"
+    | "update_opportunity"
     | "webhook"
     | "end"
 
@@ -248,6 +256,19 @@ export interface CreateTaskNode extends BaseNode {
     dueOffsetDays?: number
 }
 
+/**
+ * Update one or more fields on the opportunity associated with this run's
+ * trigger. Only fires when the trigger payload includes an opportunityId
+ * (pipeline_stage_entered, opportunity_*, etc.). Otherwise no-ops.
+ */
+export interface UpdateOpportunityNode extends BaseNode {
+    type: "update_opportunity"
+    /** Field path on the opportunity doc. */
+    fieldPath: string
+    /** Literal value to write. */
+    value: string | number | null
+}
+
 /** Send an email to a workspace user (e.g. internal lead notification). */
 export interface SendInternalEmailNode extends BaseNode {
     type: "send_internal_email"
@@ -287,6 +308,7 @@ export type AutomationNode =
     | AssignUserNode
     | CreateTaskNode
     | SendInternalEmailNode
+    | UpdateOpportunityNode
     | WebhookNode
     | EndNode
 

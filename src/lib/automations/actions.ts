@@ -36,6 +36,7 @@ import type {
     SendSmsNode,
     StopIfNode,
     UpdateContactFieldNode,
+    UpdateOpportunityNode,
     WaitNode,
     WaitUntilNode,
     WaitUntilBusinessHoursNode,
@@ -547,6 +548,36 @@ async function handleCreateTask(
     return { advance: true }
 }
 
+async function handleUpdateOpportunity(
+    node: UpdateOpportunityNode,
+    ctx: ActionContext,
+): Promise<ActionResult> {
+    const oppId = (ctx.run.contextData?.triggerPayload as { opportunityId?: string } | undefined)
+        ?.opportunityId
+    if (!oppId) {
+        return { advance: true, error: "no opportunityId in trigger payload" }
+    }
+    const path = node.fieldPath?.trim()
+    if (!path) return { advance: true, error: "fieldPath required" }
+    const blocked = ["workspaceId", "id", "createdAt", "createdBy"]
+    if (blocked.includes(path) || blocked.some((b) => path.startsWith(b + "."))) {
+        return { advance: true, error: `cannot update ${path}` }
+    }
+    try {
+        const ref = adminDb.collection("opportunities").doc(oppId)
+        const doc = await ref.get()
+        if (!doc.exists) return { advance: true, error: "opportunity not found" }
+        if (doc.data()?.workspaceId !== ctx.workspaceId) {
+            return { advance: true, error: "opportunity not in workspace" }
+        }
+        await ref.update({ [path]: node.value, updatedAt: new Date() })
+        return { advance: true }
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "update failed"
+        return { advance: true, error: message }
+    }
+}
+
 async function handleSendInternalEmail(
     node: SendInternalEmailNode,
     ctx: ActionContext,
@@ -694,6 +725,7 @@ const HANDLERS: Record<ActionType, (node: AutomationNode, ctx: ActionContext) =>
     assign_user: (n, c) => handleAssignUser(n as AssignUserNode, c),
     create_task: (n, c) => handleCreateTask(n as CreateTaskNode, c),
     send_internal_email: (n, c) => handleSendInternalEmail(n as SendInternalEmailNode, c),
+    update_opportunity: (n, c) => handleUpdateOpportunity(n as UpdateOpportunityNode, c),
     webhook: (n, c) => handleWebhook(n as WebhookNode, c),
     end: async () => ({ advance: true, end: true }),
 }
