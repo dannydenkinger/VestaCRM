@@ -439,7 +439,12 @@ async function handleBranchIf(
     ctx: ActionContext,
 ): Promise<ActionResult> {
     const truthy = await evaluateCondition(node.condition, ctx)
-    return { advance: true, jumpTo: truthy ? node.trueNext : node.falseNext }
+    const target = truthy ? node.trueNext : node.falseNext
+    // null = severed end-of-path on this branch
+    if (target === null) return { advance: true, end: true }
+    // empty/undefined = fall through to linear next (legacy behavior)
+    if (!target) return { advance: true }
+    return { advance: true, jumpTo: target }
 }
 
 async function handleStopIf(

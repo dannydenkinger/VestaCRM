@@ -104,6 +104,15 @@ export interface BaseNode {
      * out by index. Set by drag in canvas view.
      */
     position?: { x: number; y: number }
+    /**
+     * Explicit next-step pointer. Overrides the implicit "fall through to
+     * the next node in the array" behavior.
+     *   undefined → linear fallthrough (default; preserves existing automations)
+     *   null      → end of path (run completes)
+     *   string    → jump to this nodeId
+     * Branch_if uses trueNext/falseNext instead of this field.
+     */
+    next?: string | null
 }
 
 export interface SendEmailNode extends BaseNode {
@@ -208,10 +217,15 @@ export interface BranchCondition {
 export interface BranchIfNode extends BaseNode {
     type: "branch_if"
     condition: BranchCondition
-    /** Node id to jump to when condition is true. */
-    trueNext: string
-    /** Node id to jump to when condition is false. */
-    falseNext: string
+    /**
+     * Node id to jump to when condition is true.
+     *   string    → jump to that node
+     *   ""        → fall through to next-in-array (legacy behavior, preserved)
+     *   null      → severed end-of-path (run completes on this branch)
+     */
+    trueNext: string | null
+    /** Same shape as trueNext for the false branch. */
+    falseNext: string | null
 }
 
 /** Exit the run early if the condition is true. Otherwise continue. */

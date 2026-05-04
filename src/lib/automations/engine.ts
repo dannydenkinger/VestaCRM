@@ -159,7 +159,11 @@ export async function advanceRun(runId: string): Promise<AdvanceResult> {
             return { runId, stepsExecuted: steps, finalStatus: "waiting" }
         }
 
-        // Determine next index
+        // Determine next index. Priority:
+        //   1. Action result.jumpTo (set by branch_if)
+        //   2. node.next === null  → end of path, complete
+        //   3. node.next === string → jump to that nodeId
+        //   4. node.next === undefined → linear fallthrough (legacy default)
         if (result.jumpTo) {
             const nextIdx = automation.nodes.findIndex((n) => n.id === result.jumpTo)
             if (nextIdx === -1) {
@@ -172,6 +176,28 @@ export async function advanceRun(runId: string): Promise<AdvanceResult> {
                 })
                 await bumpAutomationStat(automation.id, "runsErrored")
                 return { runId, stepsExecuted: steps, finalStatus: "errored", error: lastError }
+            }
+            currentIdx = nextIdx
+        } else if (node.next === null) {
+            // Explicit end of path
+            await updateRun(runId, {
+                status: "completed",
+                completedAt: new Date(),
+                contextData: context,
+            })
+            await bumpAutomationStat(automation.id, "runsCompleted")
+            return { runId, stepsExecuted: steps, finalStatus: "completed" }
+        } else if (typeof node.next === "string") {
+            const nextIdx = automation.nodes.findIndex((n) => n.id === node.next)
+            if (nextIdx === -1) {
+                // Severed pointer to a deleted node — treat as end of path
+                await updateRun(runId, {
+                    status: "completed",
+                    completedAt: new Date(),
+                    contextData: context,
+                })
+                await bumpAutomationStat(automation.id, "runsCompleted")
+                return { runId, stepsExecuted: steps, finalStatus: "completed" }
             }
             currentIdx = nextIdx
         } else {
