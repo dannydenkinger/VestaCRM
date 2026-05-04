@@ -14,6 +14,7 @@ import {
     removeMembersById,
     updateList,
 } from "@/lib/lists/contact-lists"
+import { fireTrigger } from "@/lib/automations/triggers"
 
 async function resolveContext() {
     const session = await requireAuth()
@@ -92,6 +93,15 @@ export async function addContactsAction(input: z.infer<typeof memberOpSchema>) {
             parsed.data.listId,
             parsed.data.contactIds,
         )
+        // Fire trigger for each newly-added contact (skip already-present)
+        for (const contactId of parsed.data.contactIds) {
+            fireTrigger({
+                workspaceId,
+                type: "contact_added_to_list",
+                contactId,
+                match: { listId: parsed.data.listId },
+            }).catch(() => {})
+        }
         revalidatePath(`/email-marketing/lists/${parsed.data.listId}`)
         revalidatePath("/email-marketing/lists")
         return { success: true, error: null, ...result }

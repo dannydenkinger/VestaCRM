@@ -7,6 +7,7 @@ import { getAuthSession } from "@/lib/auth-guard";
 import { createNotification } from "@/app/notifications/actions";
 import { logAudit } from "@/lib/audit";
 import { triggerSequence } from "@/lib/email-sequences";
+import { fireTrigger } from "@/lib/automations/triggers";
 import { softDelete, restoreItem, permanentlyDelete } from "@/lib/soft-delete";
 import { captureError } from "@/lib/error-tracking";
 import type { TimelineItem, DuplicateContact, DuplicateGroup } from "./types";
@@ -688,10 +689,22 @@ export async function createContact(data: any) {
             entityName: contactData.name || contactData.email || "",
         }).catch(() => {});
 
-        // Trigger new_contact email sequence
+        // Trigger new_contact email sequence (legacy)
         if (contactData.email) {
             triggerSequence(workspaceId, "new_contact", newContactRef.id, contactData.email, contactData.name).catch(() => {});
         }
+
+        // Fire any unified-engine automations subscribed to "contact_created"
+        fireTrigger({
+            workspaceId,
+            type: "contact_created",
+            contactId: newContactRef.id,
+            contactEmail: contactData.email ?? undefined,
+            payload: {
+                name: contactData.name,
+                source: contactData.source ?? null,
+            },
+        }).catch(() => {});
 
         return { success: true, id: newContactRef.id };
     } catch (error) {

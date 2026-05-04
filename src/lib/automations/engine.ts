@@ -1,0 +1,202 @@
+/**
+ * Automation engine — advances a single run by one or more steps.
+ *
+ *   advanceRun(runId)        — loads the run, runs nodes until the run pauses
+ *                              (wait), completes, errors, or hits a safety cap
+ *   processDueWaitingRuns()  — cron entry point: picks up runs whose wait
+ *                              timer has elapsed and resumes them
+ */
+
+import {
+    bumpAutomationStat,
+    findDueWaitingRuns,
+    getAutomation,
+    getRun,
+    updateRun,
+} from "./store"
+import { loadActionContact, runAction, type ActionContext } from "./actions"
+import type { AutomationRun } from "./types"
+
+/** Hard cap on nodes processed per run-step to prevent runaway loops. */
+const MAX_STEPS_PER_INVOCATION = 20
+
+export interface AdvanceResult {
+    runId: string
+    stepsExecuted: number
+    finalStatus: AutomationRun["status"]
+    error?: string
+}
+
+/**
+ * Advance a single run as far as it can go in this invocation. Stops when:
+ *   - it hits a wait (run becomes "waiting", scheduledFor set)
+ *   - it reaches the end (run becomes "completed")
+ *   - it errors (run becomes "errored")
+ *   - it has executed MAX_STEPS_PER_INVOCATION nodes (run stays "running",
+ *     will be picked up on the next tick)
+ */
+export async function advanceRun(runId: string): Promise<AdvanceResult> {
+    const run = await getRun(runId)
+    if (!run) return { runId, stepsExecuted: 0, finalStatus: "errored", error: "Run not found" }
+    if (run.status !== "running" && run.status !== "waiting") {
+        return { runId, stepsExecuted: 0, finalStatus: run.status }
+    }
+
+    const automation = await getAutomation(run.workspaceId, run.automationId)
+    if (!automation) {
+        await updateRun(runId, {
+            status: "errored",
+            errorMessage: "Automation not found (deleted?)",
+            completedAt: new Date(),
+        })
+        return { runId, stepsExecuted: 0, finalStatus: "errored", error: "Automation not found" }
+    }
+
+    if (!automation.enabled) {
+        await updateRun(runId, {
+            status: "stopped",
+            errorMessage: "Automation disabled",
+            completedAt: new Date(),
+        })
+        return { runId, stepsExecuted: 0, finalStatus: "stopped" }
+    }
+
+    const contact = await loadActionContact(run.contactId)
+    let currentIdx = run.currentNodeIdx
+    let context: Record<string, unknown> = { ...run.contextData }
+    let steps = 0
+    let lastError: string | undefined
+
+    // Lift to "running" if we were "waiting" (cron-resumed)
+    if (run.status === "waiting") {
+        await updateRun(runId, { status: "running", scheduledFor: null })
+    }
+
+    while (steps < MAX_STEPS_PER_INVOCATION) {
+        const node = automation.nodes[currentIdx]
+        if (!node) {
+            // Walked off the end of the node list — treat as completion.
+            await updateRun(runId, {
+                status: "completed",
+                completedAt: new Date(),
+                contextData: context,
+            })
+            await bumpAutomationStat(automation.id, "runsCompleted")
+            return { runId, stepsExecuted: steps, finalStatus: "completed" }
+        }
+
+        const ctx: ActionContext = {
+            workspaceId: run.workspaceId,
+            automationId: run.automationId,
+            run: { ...run, currentNodeIdx: currentIdx, contextData: context },
+            nodes: automation.nodes,
+            contact,
+        }
+        const result = await runAction(node, ctx)
+        steps += 1
+
+        if (result.contextPatch) {
+            context = { ...context, ...result.contextPatch }
+        }
+
+        if (result.error && !result.advance) {
+            lastError = result.error
+            await updateRun(runId, {
+                status: "errored",
+                errorMessage: lastError,
+                completedAt: new Date(),
+                contextData: context,
+            })
+            await bumpAutomationStat(automation.id, "runsErrored")
+            return { runId, stepsExecuted: steps, finalStatus: "errored", error: lastError }
+        }
+
+        if (result.end) {
+            await updateRun(runId, {
+                status: "completed",
+                completedAt: new Date(),
+                contextData: context,
+            })
+            await bumpAutomationStat(automation.id, "runsCompleted")
+            return { runId, stepsExecuted: steps, finalStatus: "completed" }
+        }
+
+        if (result.scheduledFor) {
+            // Wait — pause the run, persist scheduled-for, and bail. Cron
+            // picks it up later. Note: we don't advance currentNodeIdx — the
+            // wait node is "in progress" until its timer fires, then the
+            // engine resumes by re-entering it (which is a no-op for wait,
+            // but conceptually the wait completed). To avoid that re-run we
+            // advance past it now.
+            await updateRun(runId, {
+                status: "waiting",
+                currentNodeIdx: currentIdx + 1,
+                scheduledFor: result.scheduledFor,
+                contextData: context,
+            })
+            return { runId, stepsExecuted: steps, finalStatus: "waiting" }
+        }
+
+        // Determine next index
+        if (result.jumpTo) {
+            const nextIdx = automation.nodes.findIndex((n) => n.id === result.jumpTo)
+            if (nextIdx === -1) {
+                lastError = `Branch target not found: ${result.jumpTo}`
+                await updateRun(runId, {
+                    status: "errored",
+                    errorMessage: lastError,
+                    completedAt: new Date(),
+                    contextData: context,
+                })
+                await bumpAutomationStat(automation.id, "runsErrored")
+                return { runId, stepsExecuted: steps, finalStatus: "errored", error: lastError }
+            }
+            currentIdx = nextIdx
+        } else {
+            currentIdx += 1
+        }
+
+        // Persist progress every step so a crash mid-execution doesn't lose state
+        await updateRun(runId, { currentNodeIdx: currentIdx, contextData: context })
+    }
+
+    // Hit MAX_STEPS_PER_INVOCATION without completing or waiting. Stay in
+    // "running" — the cron will pick it up next tick. (Rare for normal
+    // workflows; matters for branch-heavy or quickly-evaluating chains.)
+    return { runId, stepsExecuted: steps, finalStatus: "running" }
+}
+
+/**
+ * Cron entry point — process a batch of waiting runs whose timers have
+ * elapsed. Returns a summary for logging.
+ */
+export interface ProcessBatchResult {
+    picked: number
+    advanced: number
+    completed: number
+    errored: number
+    waiting: number
+}
+
+export async function processDueWaitingRuns(
+    limit = 25,
+): Promise<ProcessBatchResult> {
+    const due = await findDueWaitingRuns(limit)
+    let advanced = 0
+    let completed = 0
+    let errored = 0
+    let waiting = 0
+
+    // Sequential — keeps DB load predictable. For higher throughput later we
+    // can fan out, but each run involves its own writes so concurrency
+    // amplifies contention.
+    for (const run of due) {
+        const result = await advanceRun(run.id)
+        advanced += 1
+        if (result.finalStatus === "completed") completed += 1
+        else if (result.finalStatus === "errored") errored += 1
+        else if (result.finalStatus === "waiting") waiting += 1
+    }
+
+    return { picked: due.length, advanced, completed, errored, waiting }
+}
