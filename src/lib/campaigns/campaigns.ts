@@ -442,6 +442,12 @@ export async function sendCampaign(
                         variantIdx !== null && abTest
                             ? abTest.variants[variantIdx]
                             : data.subject
+                    // If bodyVariants is set, also swap the body per variant.
+                    // Otherwise both variants share data.renderedHtml.
+                    const html =
+                        variantIdx !== null && abTest?.bodyVariants?.[variantIdx]
+                            ? abTest.bodyVariants[variantIdx]
+                            : data.renderedHtml
                     // Append "::ab=0|1" to campaignId so we can compute
                     // per-variant open/click stats from email_logs later.
                     const campaignKey =
@@ -452,7 +458,7 @@ export async function sendCampaign(
                         workspaceId,
                         to: contact.email,
                         subject,
-                        html: data.renderedHtml,
+                        html,
                         contactId: contact.external ? undefined : contact.id,
                         campaignId: campaignKey,
                         autoResolveContact: false,
@@ -620,6 +626,7 @@ export async function finalizeABTest(
     // Tie-break: pick variant 0 (first one)
     const winner: 0 | 1 = score(v1) > score(v0) ? 1 : 0
     const winningSubject = ab.variants[winner]
+    const winningHtml = ab.bodyVariants?.[winner] ?? (data.renderedHtml as string)
 
     // Send winning subject to the audience MINUS recipients who already
     // received the test (by email).
@@ -658,7 +665,7 @@ export async function finalizeABTest(
                     workspaceId,
                     to: c.email,
                     subject: winningSubject,
-                    html: data.renderedHtml,
+                    html: winningHtml,
                     contactId: c.external ? undefined : c.id,
                     campaignId, // winner send uses bare campaignId, no ::ab=N
                     autoResolveContact: false,

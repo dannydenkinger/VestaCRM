@@ -19,6 +19,7 @@ export type StarterCategory =
     | "Sales"
     | "Retention"
     | "Lifecycle"
+    | "Events"
 
 export interface AutomationStarter {
     slug: string
@@ -325,6 +326,39 @@ ${cta("Read it")}`,
         trigger: { type: "email_clicked" as TriggerType, config: {} },
         buildNodes: (newId) => [
             { id: newId(), type: "add_tag", tagId: "" },
+            { id: newId(), type: "end" },
+        ],
+    },
+    {
+        slug: "appointment-confirmation",
+        name: "Appointment confirmation + reminder",
+        description:
+            "When a contact books a meeting via Calendly/Cal.com, send an immediate confirmation and a 1-hour reminder.",
+        category: "Events",
+        trigger: { type: "appointment_booked" as TriggerType, config: {} },
+        buildNodes: (newId) => [
+            {
+                id: newId(),
+                type: "send_email",
+                subject: "Confirmed — see you at our meeting",
+                html: wrapEmail(
+                    "Your meeting is on the calendar.",
+                    `<p style="margin:0 0 16px 0;font-size:16px;line-height:1.65;">Hi {{first_name}},</p>
+<p style="margin:0 0 16px 0;font-size:16px;line-height:1.65;">Your meeting with {{company}} is confirmed. You should have a calendar invite — if not, reply to this email and we'll resend.</p>
+<p style="margin:0 0 16px 0;font-size:16px;line-height:1.65;">Looking forward to it.</p>`,
+                ),
+            },
+            { id: newId(), type: "wait", delayMinutes: 60 },
+            {
+                id: newId(),
+                type: "send_email",
+                subject: "Quick reminder — we meet in about an hour",
+                html: wrapEmail(
+                    "See you soon.",
+                    `<p style="margin:0 0 16px 0;font-size:16px;line-height:1.65;">Hi {{first_name}}, just a quick heads-up that our meeting starts in about an hour.</p>
+<p style="margin:0 0 16px 0;font-size:16px;line-height:1.65;">Need to reschedule? Reply and we'll find another time.</p>`,
+                ),
+            },
             { id: newId(), type: "end" },
         ],
     },

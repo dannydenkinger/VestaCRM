@@ -14,6 +14,7 @@ const CATEGORY_COLORS: Record<string, string> = {
     Sales: "bg-indigo-500/10 text-indigo-700",
     Retention: "bg-purple-500/10 text-purple-700",
     Lifecycle: "bg-sky-500/10 text-sky-700",
+    Events: "bg-pink-500/10 text-pink-700",
 }
 
 export function StarterGrid({

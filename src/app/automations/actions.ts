@@ -59,6 +59,7 @@ const TRIGGER_TYPES: TriggerType[] = [
     "email_clicked",
     "contact_field_updated",
     "sms_replied",
+    "appointment_booked",
     "webhook_in",
     "manual",
 ]
@@ -153,8 +154,11 @@ export async function createAutomationAction(
             createdBy: userId,
         })
 
-        // Mint the webhook-in token if this trigger uses it (one-time on create)
-        if (parsed.data.trigger.type === "webhook_in") {
+        // Mint a webhook token for any trigger that's webhook-driven
+        if (
+            parsed.data.trigger.type === "webhook_in" ||
+            parsed.data.trigger.type === "appointment_booked"
+        ) {
             const token = mintWebhookToken(workspaceId, created.id)
             await updateAutomation(workspaceId, created.id, {
                 webhookToken: token,
@@ -190,10 +194,13 @@ export async function updateAutomationAction(
         return { success: false, error: parsed.error.issues[0].message }
     }
     try {
-        // Mint webhook token if switching trigger to webhook_in and we don't
-        // have one yet
+        // Mint webhook token if switching trigger to webhook_in or
+        // appointment_booked and we don't have one yet
         let webhookToken: string | undefined = undefined
-        if (parsed.data.trigger?.type === "webhook_in") {
+        if (
+            parsed.data.trigger?.type === "webhook_in" ||
+            parsed.data.trigger?.type === "appointment_booked"
+        ) {
             const existing = await getAutomation(workspaceId, parsed.data.id)
             if (existing && !existing.webhookToken) {
                 webhookToken = mintWebhookToken(workspaceId, parsed.data.id)

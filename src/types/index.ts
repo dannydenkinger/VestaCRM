@@ -233,8 +233,14 @@ export type CampaignStatus =
  */
 export interface CampaignABTest {
     enabled: boolean
-    /** Two subject lines to test. Body is identical. */
+    /** Two subject lines to test. */
     variants: [string, string]
+    /**
+     * Optional: two HTML bodies to test alongside the subjects. When omitted,
+     * both variants share the campaign's main `renderedHtml` and only the
+     * subject differs. When provided, variantIdx N uses bodyVariants[N].
+     */
+    bodyVariants?: [string, string]
     /** Pick winner by which metric. */
     metric: "opens" | "clicks"
     /** Percent of audience used for the test pool (10-50). The remainder gets the winner. */

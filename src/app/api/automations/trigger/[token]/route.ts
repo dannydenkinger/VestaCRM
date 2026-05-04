@@ -83,7 +83,20 @@ export async function POST(req: NextRequest, ctx: Ctx) {
         return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
     }
 
-    const email = (body.email || "").toString().trim().toLowerCase()
+    // Pull email from common shapes used by Calendly / Cal.com / Acuity etc.
+    // Top-level wins; fall back to common nested locations.
+    const nestedAttendee = (body.payload as { invitee?: { email?: string } } | undefined)?.invitee
+    const nestedAttendees = (body.payload as { attendees?: Array<{ email?: string }> } | undefined)?.attendees
+    const candidates = [
+        body.email,
+        (body as { invitee_email?: string }).invitee_email,
+        nestedAttendee?.email,
+        nestedAttendees?.[0]?.email,
+    ]
+    const email = (candidates.find((e) => typeof e === "string" && e.includes("@")) ?? "")
+        .toString()
+        .trim()
+        .toLowerCase()
     if (!email || !email.includes("@")) {
         return NextResponse.json({ error: "email required" }, { status: 400 })
     }
@@ -95,9 +108,10 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     if (!automation.enabled) {
         return NextResponse.json({ error: "Automation paused" }, { status: 409 })
     }
-    if (automation.trigger.type !== "webhook_in") {
+    const triggerType = automation.trigger.type
+    if (triggerType !== "webhook_in" && triggerType !== "appointment_booked") {
         return NextResponse.json(
-            { error: "Automation does not accept webhook_in" },
+            { error: `Automation trigger '${triggerType}' does not accept webhook calls` },
             { status: 409 },
         )
     }
@@ -127,7 +141,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
         contactId,
         contactEmail: email,
         contextData: {
-            triggerType: "webhook_in",
+            triggerType,
             triggerMatch: {},
             triggerPayload: body,
             triggeredAt: new Date().toISOString(),

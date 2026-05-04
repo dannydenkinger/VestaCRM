@@ -42,6 +42,7 @@ export type TriggerType =
     | "email_clicked"
     | "contact_field_updated"
     | "sms_replied"
+    | "appointment_booked"
     | "webhook_in"
     | "manual"
 
@@ -88,6 +89,11 @@ export interface BaseNode {
     /** Stable local id, e.g. "n1". Used for branching destinations. */
     id: string
     type: ActionType
+    /**
+     * Optional persisted canvas position. When omitted, the canvas auto-lays
+     * out by index. Set by drag in canvas view.
+     */
+    position?: { x: number; y: number }
 }
 
 export interface SendEmailNode extends BaseNode {

@@ -2,13 +2,16 @@
 
 /**
  * Visual canvas view for an automation. Renders the linear node list as a
- * top-down flow chart with branch_if nodes drawing two outgoing edges. Click
- * a node to edit it in the parent's side panel; click + edges to add steps.
+ * flow chart with branch_if nodes drawing two outgoing edges. Click a node
+ * to edit it in the parent's side panel; click + edges to add steps.
  *
- * Auto-layout only in v1 — node positions are computed from index, not
- * stored. Manual positioning + drag-to-connect can come in v2 if users
- * outgrow this. Everything else (palette, editors, save) is shared with
- * the list view via the parent's callbacks.
+ * v2 capabilities:
+ *   - Nodes are draggable; position persists on the node (via parent's
+ *     onChange) so future loads remember it
+ *   - branch_if nodes' true/false handles support drag-to-connect: drag
+ *     from a green/red dot to another node to set trueNext/falseNext
+ *   - Falls back to auto-layout (vertical) for any node without a saved
+ *     position — typical first-time-on-canvas experience
  */
 
 import { useCallback, useEffect, useMemo } from "react"
@@ -19,8 +22,10 @@ import {
     Handle,
     Position,
     ReactFlow,
+    type Connection,
     type Edge,
     type Node,
+    type NodeChange,
     type NodeProps,
     useEdgesState,
     useNodesState,
@@ -34,6 +39,7 @@ interface CanvasProps {
     selectedNodeId: string | null
     onSelectNode: (id: string | null) => void
     onAddNodeRequest: () => void
+    onUpdateNode: (id: string, patch: Partial<AutomationNode>) => void
     triggerLabel: string
     actionMeta: Record<string, { label: string; Icon: React.ComponentType<{ className?: string }> }>
 }
@@ -48,7 +54,6 @@ interface FlowNodeData extends Record<string, unknown> {
     nodeId: string
 }
 
-/** Node renderers — registered with React Flow once. */
 const nodeTypes = {
     triggerNode: TriggerNode,
     actionNode: ActionNode,
@@ -84,7 +89,11 @@ function ActionNode({ data }: NodeProps<Node<FlowNodeData>>) {
                     : "hover:shadow-md hover:border-primary/40"
             }`}
         >
-            <Handle type="target" position={Position.Top} className="!bg-muted-foreground !w-2 !h-2" />
+            <Handle
+                type="target"
+                position={Position.Top}
+                className="!bg-muted-foreground !w-2 !h-2"
+            />
             <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-[10px] font-semibold text-muted-foreground tabular-nums shrink-0">
                     {data.step}
@@ -99,14 +108,14 @@ function ActionNode({ data }: NodeProps<Node<FlowNodeData>>) {
                         position={Position.Bottom}
                         id="true"
                         style={{ left: "30%" }}
-                        className="!bg-emerald-500 !w-2 !h-2"
+                        className="!bg-emerald-500 !w-3 !h-3"
                     />
                     <Handle
                         type="source"
                         position={Position.Bottom}
                         id="false"
                         style={{ left: "70%" }}
-                        className="!bg-red-500 !w-2 !h-2"
+                        className="!bg-red-500 !w-3 !h-3"
                     />
                 </>
             ) : (
@@ -114,6 +123,7 @@ function ActionNode({ data }: NodeProps<Node<FlowNodeData>>) {
                     type="source"
                     position={Position.Bottom}
                     className="!bg-muted-foreground !w-2 !h-2"
+                    isConnectable={false}
                 />
             )}
         </div>
@@ -133,41 +143,50 @@ function AddNode({ data }: NodeProps<Node<{ onAdd: () => void }>>) {
     )
 }
 
-/** Icon registry passed in from parent (avoids importing all lucide icons here). */
 const ACTION_ICON_REGISTRY: Record<string, React.ComponentType<{ className?: string }>> = {}
+
+const AUTO_LAYOUT_X = 0
+const AUTO_LAYOUT_Y_STEP = 130
+
+function positionFor(node: AutomationNode, idx: number): { x: number; y: number } {
+    return node.position ?? { x: AUTO_LAYOUT_X, y: (idx + 1) * AUTO_LAYOUT_Y_STEP }
+}
 
 export function AutomationCanvas({
     nodes,
     selectedNodeId,
     onSelectNode,
     onAddNodeRequest,
+    onUpdateNode,
     triggerLabel,
     actionMeta,
 }: CanvasProps) {
-    // Register icons globally on every render — cheap; ensures latest icons
-    // from the parent's palette are reflected.
     Object.entries(actionMeta).forEach(([k, m]) => {
         ACTION_ICON_REGISTRY[k] = m.Icon
     })
 
     const flowNodes = useMemo<Node[]>(() => {
         const out: Node[] = []
-        // Trigger pinned at top
         out.push({
             id: "__trigger",
             type: "triggerNode",
             position: { x: 0, y: 0 },
             data: { label: triggerLabel },
             draggable: false,
+            selectable: false,
         })
+
+        // Compute the lowest y to anchor the add-step button below everything
+        let maxY = 0
         nodes.forEach((n, idx) => {
-            const meta = actionMeta[n.type]
+            const pos = positionFor(n, idx)
+            if (pos.y > maxY) maxY = pos.y
             out.push({
                 id: n.id,
                 type: "actionNode",
-                position: { x: 0, y: (idx + 1) * 120 },
+                position: pos,
                 data: {
-                    label: meta?.label ?? n.type,
+                    label: actionMeta[n.type]?.label ?? n.type,
                     step: idx + 1,
                     iconKey: n.type,
                     type: n.type,
@@ -175,14 +194,17 @@ export function AutomationCanvas({
                     isBranch: n.type === "branch_if",
                     nodeId: n.id,
                 } as FlowNodeData,
-                draggable: false,
+                draggable: true,
             })
         })
-        // Add-step button at the bottom
+
         out.push({
             id: "__add",
             type: "addNode",
-            position: { x: 0, y: (nodes.length + 1) * 120 },
+            position: {
+                x: 0,
+                y: nodes.length === 0 ? AUTO_LAYOUT_Y_STEP : maxY + AUTO_LAYOUT_Y_STEP,
+            },
             data: { onAdd: onAddNodeRequest },
             draggable: false,
             selectable: false,
@@ -192,7 +214,6 @@ export function AutomationCanvas({
 
     const flowEdges = useMemo<Edge[]>(() => {
         const out: Edge[] = []
-        // Trigger → first node
         if (nodes.length > 0) {
             out.push({
                 id: "e-trigger",
@@ -214,7 +235,6 @@ export function AutomationCanvas({
             const next = nodes[i + 1]
 
             if (node.type === "branch_if") {
-                // True path
                 if (node.trueNext) {
                     const target = nodes.find((n) => n.id === node.trueNext)
                     if (target) {
@@ -241,7 +261,6 @@ export function AutomationCanvas({
                         style: { stroke: "#16a34a", strokeDasharray: "4 4" },
                     })
                 }
-                // False path
                 if (node.falseNext) {
                     const target = nodes.find((n) => n.id === node.falseNext)
                     if (target) {
@@ -269,7 +288,6 @@ export function AutomationCanvas({
                     })
                 }
             } else {
-                // Plain linear edge to next node
                 const target = next ?? { id: "__add" }
                 out.push({
                     id: `e-${node.id}-next`,
@@ -286,19 +304,52 @@ export function AutomationCanvas({
     const [rfNodes, setRfNodes, onRfNodesChange] = useNodesState(flowNodes)
     const [rfEdges, , onRfEdgesChange] = useEdgesState(flowEdges)
 
-    // Sync internal state when parent regenerates nodes/edges (selection, edits)
     useEffect(() => {
         setRfNodes(flowNodes)
     }, [flowNodes, setRfNodes])
 
+    const handleNodesChange = useCallback(
+        (changes: NodeChange[]) => {
+            // Pass through to react-flow's internal state
+            onRfNodesChange(changes)
+            // Persist position changes back to the parent on drag-end
+            for (const c of changes) {
+                if (c.type === "position" && c.dragging === false && c.position) {
+                    if (c.id === "__trigger" || c.id === "__add") continue
+                    onUpdateNode(c.id, {
+                        position: { x: c.position.x, y: c.position.y },
+                    })
+                }
+            }
+        },
+        [onRfNodesChange, onUpdateNode],
+    )
+
     const handleNodeClick = useCallback(
         (_event: React.MouseEvent, node: Node) => {
-            if (node.id === "__trigger" || node.id === "__add") {
-                return
-            }
+            if (node.id === "__trigger" || node.id === "__add") return
             onSelectNode(node.id)
         },
         [onSelectNode],
+    )
+
+    const handleConnect = useCallback(
+        (conn: Connection) => {
+            // Drag-to-connect: only branch_if true/false handles are connectable.
+            // Map the source handle to trueNext / falseNext on the source node.
+            if (!conn.source || !conn.target) return
+            if (conn.source === "__trigger" || conn.target === "__add") return
+            if (conn.sourceHandle === "true") {
+                onUpdateNode(conn.source, {
+                    trueNext: conn.target,
+                } as Partial<AutomationNode>)
+            } else if (conn.sourceHandle === "false") {
+                onUpdateNode(conn.source, {
+                    falseNext: conn.target,
+                } as Partial<AutomationNode>)
+            }
+        },
+        [onUpdateNode],
     )
 
     return (
@@ -306,10 +357,11 @@ export function AutomationCanvas({
             <ReactFlow
                 nodes={rfNodes}
                 edges={rfEdges}
-                onNodesChange={onRfNodesChange}
+                onNodesChange={handleNodesChange}
                 onEdgesChange={onRfEdgesChange}
                 onNodeClick={handleNodeClick}
                 onPaneClick={() => onSelectNode(null)}
+                onConnect={handleConnect}
                 nodeTypes={nodeTypes}
                 fitView
                 fitViewOptions={{ padding: 0.3, maxZoom: 1.1 }}

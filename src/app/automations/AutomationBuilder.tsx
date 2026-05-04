@@ -98,6 +98,7 @@ const TRIGGER_OPTIONS: Array<{ value: TriggerType; label: string; description: s
     { value: "email_clicked", label: "Email clicked", description: "When a recipient clicks a link in a campaign email." },
     { value: "contact_field_updated", label: "Contact field updated", description: "When a specific field on the contact changes." },
     { value: "sms_replied", label: "SMS replied", description: "When a contact sends an SMS to your Twilio number." },
+    { value: "appointment_booked", label: "Appointment booked", description: "External scheduler (Calendly, Cal.com, Acuity) POSTs when a meeting is booked." },
     { value: "webhook_in", label: "Webhook (external)", description: "External system POSTs to a unique URL to enroll a contact." },
     { value: "manual", label: "Manual / API", description: "Only triggered explicitly via an API call." },
 ]
@@ -400,7 +401,10 @@ export function AutomationBuilder({
                             goal={goal ?? null}
                             onGoalChange={setGoal}
                             webhookUrl={
-                                trigger.type === "webhook_in" && initial.webhookToken && appUrl
+                                (trigger.type === "webhook_in" ||
+                                    trigger.type === "appointment_booked") &&
+                                initial.webhookToken &&
+                                appUrl
                                     ? `${appUrl}/api/automations/trigger/${initial.webhookToken}`
                                     : null
                             }
@@ -578,6 +582,7 @@ function CanvasLayout({
                     selectedNodeId={selectedNodeId}
                     onSelectNode={setSelectedNodeId}
                     onAddNodeRequest={() => setShowPalette(true)}
+                    onUpdateNode={updateNode}
                     triggerLabel={triggerLabel}
                     actionMeta={actionMeta}
                 />

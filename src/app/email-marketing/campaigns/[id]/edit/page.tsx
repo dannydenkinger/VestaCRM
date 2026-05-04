@@ -57,6 +57,7 @@ export default async function EditCampaignPage({ params }: PageProps) {
                     audienceType: allowedAudience,
                     audienceValue: campaign.audienceValue,
                     excludeListIds: campaign.excludeListIds ?? null,
+                    abTest: campaign.abTest ?? null,
                     scheduledAt: campaign.scheduledAt ?? null,
                 }}
                 templates={templates.map((t) => ({

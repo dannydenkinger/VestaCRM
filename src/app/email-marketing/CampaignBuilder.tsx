@@ -522,6 +522,79 @@ export function CampaignBuilder({
                                     disabled={isPending}
                                 />
                             </div>
+
+                            <label className="flex items-center gap-2 text-xs cursor-pointer pt-1 border-t">
+                                <input
+                                    type="checkbox"
+                                    checked={!!abTest.bodyVariants}
+                                    onChange={(e) => {
+                                        if (e.target.checked) {
+                                            // Pre-fill A with current HTML, B blank
+                                            setAbTest((p) => ({
+                                                ...p,
+                                                bodyVariants: [html || "", ""],
+                                            }))
+                                        } else {
+                                            setAbTest((p) => {
+                                                const next = { ...p }
+                                                delete next.bodyVariants
+                                                return next
+                                            })
+                                        }
+                                    }}
+                                    disabled={isPending}
+                                />
+                                Test the body too (not just subject)
+                            </label>
+
+                            {abTest.bodyVariants && (
+                                <>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs">Body A (HTML)</Label>
+                                        <textarea
+                                            value={abTest.bodyVariants[0]}
+                                            onChange={(e) =>
+                                                setAbTest((p) => ({
+                                                    ...p,
+                                                    bodyVariants: [
+                                                        e.target.value,
+                                                        p.bodyVariants?.[1] ?? "",
+                                                    ],
+                                                }))
+                                            }
+                                            rows={4}
+                                            placeholder="<p>Body for variant A…</p>"
+                                            className="w-full px-2.5 py-2 text-xs font-mono border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary/20"
+                                            disabled={isPending}
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs">Body B (HTML)</Label>
+                                        <textarea
+                                            value={abTest.bodyVariants[1]}
+                                            onChange={(e) =>
+                                                setAbTest((p) => ({
+                                                    ...p,
+                                                    bodyVariants: [
+                                                        p.bodyVariants?.[0] ?? "",
+                                                        e.target.value,
+                                                    ],
+                                                }))
+                                            }
+                                            rows={4}
+                                            placeholder="<p>Body for variant B — try a different layout/copy…</p>"
+                                            className="w-full px-2.5 py-2 text-xs font-mono border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary/20"
+                                            disabled={isPending}
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground/70 leading-snug">
+                                        When body testing is on, the &ldquo;HTML body&rdquo; in
+                                        Details is ignored for the test pool — variants A and B
+                                        above are used. The winning body is what gets sent to
+                                        the rest.
+                                    </p>
+                                </>
+                            )}
                             <div className="grid grid-cols-3 gap-2">
                                 <div className="space-y-1">
                                     <Label className="text-xs">Test pool %</Label>

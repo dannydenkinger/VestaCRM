@@ -122,6 +122,9 @@ const abTestSchema = z
     .object({
         enabled: z.boolean(),
         variants: z.tuple([z.string().max(200), z.string().max(200)]),
+        bodyVariants: z
+            .tuple([z.string().max(500_000), z.string().max(500_000)])
+            .optional(),
         metric: z.enum(["opens", "clicks"]),
         testPercentage: z.number().int().min(10).max(50),
         testDurationHours: z.number().int().min(1).max(168),
