@@ -9,7 +9,7 @@ export default async function NewAutomationPage() {
     const session = await requireAuth()
     const workspaceId = (session.user as { workspaceId: string }).workspaceId
 
-    const [lists, tagsSnap, templatesSnap] = await Promise.all([
+    const [lists, tagsSnap, templatesSnap, usersSnap] = await Promise.all([
         listLists(workspaceId),
         adminDb
             .collection("tags")
@@ -21,6 +21,12 @@ export default async function NewAutomationPage() {
             .where("workspaceId", "==", workspaceId)
             .orderBy("updatedAt", "desc")
             .limit(50)
+            .get(),
+        adminDb
+            .collection("workspace_members")
+            .where("workspaceId", "==", workspaceId)
+            .where("status", "==", "active")
+            .limit(100)
             .get(),
     ])
 
@@ -40,12 +46,30 @@ export default async function NewAutomationPage() {
         name: l.name,
     }))
 
+    // Hydrate workspace members → users
+    const userIds = usersSnap.docs
+        .map((d) => (d.data().userId as string) || "")
+        .filter(Boolean)
+    const userDocs = userIds.length > 0
+        ? await Promise.all(
+              userIds.map((uid) => adminDb.collection("users").doc(uid).get()),
+          )
+        : []
+    const users = userDocs
+        .filter((d) => d.exists)
+        .map((d) => ({
+            id: d.id,
+            name: (d.data()?.name as string) ?? "",
+            email: (d.data()?.email as string) ?? "",
+        }))
+
     return (
         <AutomationBuilder
             mode="create"
             lists={listSummaries}
             tags={tags}
             templates={templates}
+            users={users}
         />
     )
 }

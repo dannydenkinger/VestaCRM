@@ -26,6 +26,11 @@ import {
     StopCircle,
     Users,
     Workflow,
+    Briefcase,
+    CalendarClock,
+    Coffee,
+    TrendingUp,
+    UserCheck,
 } from "lucide-react"
 import {
     deleteAutomationAction,
@@ -43,12 +48,16 @@ const TRIGGER_LABELS: Record<TriggerType, string> = {
     opportunity_won: "Opportunity won",
     email_opened: "Email opened",
     email_clicked: "Email clicked",
+    contact_field_updated: "Contact field updated",
+    webhook_in: "Webhook (external)",
     manual: "Manual / API",
 }
 
 const ACTION_ICONS: Record<ActionType, React.ComponentType<{ className?: string }>> = {
     send_email: Mail,
     wait: Clock,
+    wait_until: CalendarClock,
+    wait_until_business_hours: Coffee,
     add_tag: Tag,
     remove_tag: Tag,
     add_to_list: Users,
@@ -56,6 +65,10 @@ const ACTION_ICONS: Record<ActionType, React.ComponentType<{ className?: string 
     branch_if: GitBranch,
     stop_if: StopCircle,
     update_contact_field: Pencil,
+    increment_field: TrendingUp,
+    assign_user: UserCheck,
+    create_task: Briefcase,
+    send_internal_email: Mail,
     webhook: Globe,
     end: Workflow,
 }
@@ -154,6 +167,11 @@ export function AutomationListClient({
                         <div className="text-right text-xs text-muted-foreground tabular-nums shrink-0">
                             <div>{a.stats.runsStarted} runs</div>
                             <div className="text-emerald-600">{a.stats.runsCompleted} completed</div>
+                            {a.stats.goalsReached !== undefined && a.stats.goalsReached > 0 && (
+                                <div className="text-primary">
+                                    🎯 {a.stats.goalsReached} goals
+                                </div>
+                            )}
                         </div>
 
                         <DropdownMenu>

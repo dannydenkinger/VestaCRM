@@ -16,19 +16,26 @@
 import { adminDb } from "@/lib/firebase-admin"
 import { sendEmail } from "@/lib/ses/sender"
 import { addContactsToList, removeContactsFromList } from "@/lib/lists/contact-lists"
+import { renderTokens, buildContactContext } from "@/lib/templating/tokens"
 import type {
     ActionType,
     AddTagNode,
     AddToListNode,
+    AssignUserNode,
     AutomationNode,
     AutomationRun,
     BranchIfNode,
+    CreateTaskNode,
+    IncrementFieldNode,
     RemoveFromListNode,
     RemoveTagNode,
     SendEmailNode,
+    SendInternalEmailNode,
     StopIfNode,
     UpdateContactFieldNode,
     WaitNode,
+    WaitUntilNode,
+    WaitUntilBusinessHoursNode,
     WebhookNode,
 } from "./types"
 
@@ -107,6 +114,120 @@ async function handleWait(node: WaitNode): Promise<ActionResult> {
     const minutes = Math.max(1, Math.floor(node.delayMinutes || 0))
     const scheduledFor = new Date(Date.now() + minutes * 60_000)
     return { advance: false, scheduledFor }
+}
+
+async function handleWaitUntil(node: WaitUntilNode): Promise<ActionResult> {
+    if (!node.until) return { advance: true, error: "wait_until: no date set" }
+    const target = new Date(node.until)
+    if (isNaN(target.getTime())) {
+        return { advance: true, error: "wait_until: invalid date" }
+    }
+    if (target.getTime() <= Date.now()) {
+        // Already in the past — advance immediately
+        return { advance: true }
+    }
+    return { advance: false, scheduledFor: target }
+}
+
+async function handleWaitUntilBusinessHours(
+    node: WaitUntilBusinessHoursNode,
+): Promise<ActionResult> {
+    const startHour = node.startHour ?? 9
+    const endHour = node.endHour ?? 17
+    const businessDays = node.businessDays ?? [1, 2, 3, 4, 5]
+    const tz = node.timezone || "UTC"
+
+    const next = nextBusinessHoursOpen(new Date(), startHour, endHour, businessDays, tz)
+    if (!next) {
+        // Already inside the window — advance now
+        return { advance: true }
+    }
+    return { advance: false, scheduledFor: next }
+}
+
+/**
+ * Returns the next datetime when the run should resume — `null` if already
+ * within the business-hours window. Uses Intl APIs for tz math (no extra
+ * deps needed).
+ */
+function nextBusinessHoursOpen(
+    now: Date,
+    startHour: number,
+    endHour: number,
+    businessDays: number[],
+    tz: string,
+): Date | null {
+    // Get the components of `now` IN the target timezone via Intl
+    const fmt = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        weekday: "short",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    })
+    const parts = fmt.formatToParts(now)
+    const get = (k: string) => parts.find((p) => p.type === k)?.value ?? ""
+    const wkday = get("weekday")
+    const dayOfWeekMap: Record<string, number> = {
+        Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+    }
+    const dow = dayOfWeekMap[wkday] ?? 0
+    const hour = parseInt(get("hour"), 10)
+
+    const inWindow = businessDays.includes(dow) && hour >= startHour && hour < endHour
+    if (inWindow) return null
+
+    // Otherwise, walk forward day-by-day to find the next business day at startHour
+    for (let dayOffset = 0; dayOffset < 8; dayOffset++) {
+        const candidate = new Date(now)
+        candidate.setUTCDate(candidate.getUTCDate() + dayOffset)
+        // Re-evaluate weekday in TZ
+        const candidateParts = fmt.formatToParts(candidate)
+        const candidateWkday = candidateParts.find((p) => p.type === "weekday")?.value ?? ""
+        const candidateDow = dayOfWeekMap[candidateWkday] ?? 0
+        if (!businessDays.includes(candidateDow)) continue
+        // Construct candidate at startHour in target timezone — approximate
+        // via a "set to local startHour in TZ" approach using Intl offset.
+        const candidateAtOpen = atHourInTimezone(candidate, startHour, tz)
+        if (candidateAtOpen.getTime() > now.getTime()) {
+            return candidateAtOpen
+        }
+    }
+    // Fallback — should not hit; if we do, just return 24h from now
+    return new Date(now.getTime() + 24 * 60 * 60 * 1000)
+}
+
+/** Approximate: set the date's hour to `hour` in the target timezone. */
+function atHourInTimezone(d: Date, hour: number, tz: string): Date {
+    // Compute the offset between UTC and tz at this date.
+    const dtf = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        hour: "2-digit",
+        hour12: false,
+        timeZoneName: "shortOffset",
+    })
+    const parts = dtf.formatToParts(d)
+    const offsetPart = parts.find((p) => p.type === "timeZoneName")?.value || "GMT+0"
+    const offsetMatch = /GMT([+-])(\d+)(?::(\d+))?/.exec(offsetPart)
+    let offsetMinutes = 0
+    if (offsetMatch) {
+        const sign = offsetMatch[1] === "+" ? 1 : -1
+        const hh = parseInt(offsetMatch[2], 10) || 0
+        const mm = parseInt(offsetMatch[3] || "0", 10) || 0
+        offsetMinutes = sign * (hh * 60 + mm)
+    }
+    // We want: localTime hour = `hour`, minute = 0 in the target TZ.
+    // localTime = UTC + offset. So UTC = localTime - offset.
+    const yyyy = d.getUTCFullYear()
+    const mo = d.getUTCMonth()
+    const dd = d.getUTCDate()
+    // Build a Date as if the wall-clock in UTC matches local TZ wall-clock,
+    // then subtract offset to convert.
+    const wallClockUTC = Date.UTC(yyyy, mo, dd, hour, 0, 0, 0)
+    return new Date(wallClockUTC - offsetMinutes * 60_000)
 }
 
 async function handleAddTag(
@@ -203,6 +324,131 @@ async function handleUpdateContactField(
     return { advance: true }
 }
 
+async function handleIncrementField(
+    node: IncrementFieldNode,
+    ctx: ActionContext,
+): Promise<ActionResult> {
+    if (!ctx.contact) return { advance: true, error: "no contact" }
+    const path = node.fieldPath?.trim()
+    if (!path) return { advance: true, error: "fieldPath required" }
+    const blocked = ["workspaceId", "id", "createdAt", "createdBy"]
+    if (blocked.includes(path) || blocked.some((b) => path.startsWith(b + "."))) {
+        return { advance: true, error: `cannot increment ${path}` }
+    }
+    // Use FieldValue.increment for atomicity (avoids read-modify-write races)
+    const { FieldValue } = await import("firebase-admin/firestore")
+    await adminDb
+        .collection("contacts")
+        .doc(ctx.contact.id)
+        .update({
+            [path]: FieldValue.increment(node.delta || 0),
+            updatedAt: new Date(),
+        })
+    return { advance: true }
+}
+
+async function handleAssignUser(
+    node: AssignUserNode,
+    ctx: ActionContext,
+): Promise<ActionResult> {
+    if (!ctx.contact) return { advance: true, error: "no contact" }
+    await adminDb
+        .collection("contacts")
+        .doc(ctx.contact.id)
+        .update({
+            assigneeId: node.userId || null,
+            updatedAt: new Date(),
+        })
+    return { advance: true }
+}
+
+async function handleCreateTask(
+    node: CreateTaskNode,
+    ctx: ActionContext,
+): Promise<ActionResult> {
+    if (!node.title?.trim()) return { advance: true, error: "title required" }
+    // Render tokens against contact context
+    const tokenCtx = buildContactContext(
+        ctx.contact
+            ? {
+                  id: ctx.contact.id,
+                  name: ctx.contact.name,
+                  firstName: ctx.contact.firstName,
+                  lastName: ctx.contact.lastName,
+                  email: ctx.contact.email,
+              }
+            : undefined,
+        null,
+    )
+    const title = renderTokens(node.title, tokenCtx)
+    const description = node.description ? renderTokens(node.description, tokenCtx) : ""
+    const dueDate = node.dueOffsetDays
+        ? new Date(Date.now() + node.dueOffsetDays * 24 * 60 * 60 * 1000)
+        : null
+    await adminDb.collection("tasks").add({
+        workspaceId: ctx.workspaceId,
+        title,
+        description,
+        contactId: ctx.contact?.id ?? null,
+        assigneeId: node.assigneeId || null,
+        dueDate,
+        completed: false,
+        source: `automation:${ctx.automationId}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+    })
+    return { advance: true }
+}
+
+async function handleSendInternalEmail(
+    node: SendInternalEmailNode,
+    ctx: ActionContext,
+): Promise<ActionResult> {
+    const recipients = (node.to || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.includes("@"))
+    if (recipients.length === 0) {
+        return { advance: true, error: "no internal recipients" }
+    }
+    const tokenCtx = buildContactContext(
+        ctx.contact
+            ? {
+                  id: ctx.contact.id,
+                  name: ctx.contact.name,
+                  firstName: ctx.contact.firstName,
+                  lastName: ctx.contact.lastName,
+                  email: ctx.contact.email,
+              }
+            : undefined,
+        null,
+    )
+    const subject = renderTokens(node.subject || "Automation update", tokenCtx)
+    const body = renderTokens(node.body || "", tokenCtx)
+    const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;color:#0f172a;">
+<p style="font-size:14px;color:#64748b;margin:0 0 12px 0;">Internal notification from Vesta automation</p>
+<div style="font-size:15px;line-height:1.6;">${body.replace(/\n/g, "<br>")}</div>
+</div>`
+    let any = false
+    for (const to of recipients) {
+        try {
+            await sendEmail({
+                workspaceId: ctx.workspaceId,
+                to,
+                subject,
+                html,
+                campaignId: `automation:${ctx.automationId}:internal`,
+                autoResolveContact: false,
+                renderTokens: false,
+            })
+            any = true
+        } catch (err) {
+            console.warn("[automation] internal email failed:", err)
+        }
+    }
+    return { advance: true, error: any ? undefined : "all internal sends failed" }
+}
+
 async function handleWebhook(
     node: WebhookNode,
     ctx: ActionContext,
@@ -285,6 +531,9 @@ async function evaluateCondition(
 const HANDLERS: Record<ActionType, (node: AutomationNode, ctx: ActionContext) => Promise<ActionResult>> = {
     send_email: (n, c) => handleSendEmail(n as SendEmailNode, c),
     wait: (n) => handleWait(n as WaitNode),
+    wait_until: (n) => handleWaitUntil(n as WaitUntilNode),
+    wait_until_business_hours: (n) =>
+        handleWaitUntilBusinessHours(n as WaitUntilBusinessHoursNode),
     add_tag: (n, c) => handleAddTag(n as AddTagNode, c),
     remove_tag: (n, c) => handleRemoveTag(n as RemoveTagNode, c),
     add_to_list: (n, c) => handleAddToList(n as AddToListNode, c),
@@ -292,6 +541,10 @@ const HANDLERS: Record<ActionType, (node: AutomationNode, ctx: ActionContext) =>
     branch_if: (n, c) => handleBranchIf(n as BranchIfNode, c),
     stop_if: (n, c) => handleStopIf(n as StopIfNode, c),
     update_contact_field: (n, c) => handleUpdateContactField(n as UpdateContactFieldNode, c),
+    increment_field: (n, c) => handleIncrementField(n as IncrementFieldNode, c),
+    assign_user: (n, c) => handleAssignUser(n as AssignUserNode, c),
+    create_task: (n, c) => handleCreateTask(n as CreateTaskNode, c),
+    send_internal_email: (n, c) => handleSendInternalEmail(n as SendInternalEmailNode, c),
     webhook: (n, c) => handleWebhook(n as WebhookNode, c),
     end: async () => ({ advance: true, end: true }),
 }

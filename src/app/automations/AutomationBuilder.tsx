@@ -19,7 +19,12 @@ import { toast } from "sonner"
 import {
     ArrowLeft,
     ArrowRight,
+    Briefcase,
+    CalendarClock,
+    CheckCircle2,
+    ClipboardCopy,
     Clock,
+    Coffee,
     GitBranch,
     Globe,
     Loader2,
@@ -29,13 +34,17 @@ import {
     Save,
     StopCircle,
     Tag,
+    Target,
     TestTube,
     Trash2,
+    TrendingUp,
+    UserCheck,
     Users,
     Workflow,
     Zap,
 } from "lucide-react"
 import {
+    bulkEnrollAction,
     createAutomationAction,
     enrollTestRunAction,
     updateAutomationAction,
@@ -50,6 +59,7 @@ import type {
 interface ListOpt { id: string; name: string }
 interface TagOpt { id: string; name: string; color: string }
 interface TemplateOpt { id: string; name: string; subject: string; renderedHtml: string }
+interface UserOpt { id: string; name: string; email: string }
 
 interface RunSummary {
     id: string
@@ -68,7 +78,10 @@ interface BuilderProps {
     lists: ListOpt[]
     tags: TagOpt[]
     templates: TemplateOpt[]
+    users?: UserOpt[]
     recentRuns?: RunSummary[]
+    /** Public app URL for displaying the webhook-in URL (passed in from server). */
+    appUrl?: string
 }
 
 const TRIGGER_OPTIONS: Array<{ value: TriggerType; label: string; description: string }> = [
@@ -80,6 +93,8 @@ const TRIGGER_OPTIONS: Array<{ value: TriggerType; label: string; description: s
     { value: "opportunity_won", label: "Opportunity won", description: "When an opportunity is marked as won." },
     { value: "email_opened", label: "Email opened", description: "When a recipient opens a campaign email." },
     { value: "email_clicked", label: "Email clicked", description: "When a recipient clicks a link in a campaign email." },
+    { value: "contact_field_updated", label: "Contact field updated", description: "When a specific field on the contact changes." },
+    { value: "webhook_in", label: "Webhook (external)", description: "External system POSTs to a unique URL to enroll a contact." },
     { value: "manual", label: "Manual / API", description: "Only triggered explicitly via an API call." },
 ]
 
@@ -91,13 +106,19 @@ const ACTION_PALETTE: Array<{
 }> = [
     { type: "send_email", label: "Send email", description: "Email the contact with custom subject + body.", Icon: Mail },
     { type: "wait", label: "Wait", description: "Pause for a number of minutes / hours / days.", Icon: Clock },
+    { type: "wait_until", label: "Wait until date", description: "Pause until a specific calendar time.", Icon: CalendarClock },
+    { type: "wait_until_business_hours", label: "Wait for business hours", description: "Pause until the next business window opens.", Icon: Coffee },
     { type: "branch_if", label: "If / then", description: "Take a different path based on a condition.", Icon: GitBranch },
     { type: "stop_if", label: "Stop if", description: "Exit early if a condition is true (e.g. unsubscribed).", Icon: StopCircle },
     { type: "add_tag", label: "Add tag", description: "Add a tag to the contact.", Icon: Tag },
     { type: "remove_tag", label: "Remove tag", description: "Remove a tag from the contact.", Icon: Tag },
     { type: "add_to_list", label: "Add to list", description: "Add the contact to a list.", Icon: Users },
     { type: "remove_from_list", label: "Remove from list", description: "Remove the contact from a list.", Icon: Users },
-    { type: "update_contact_field", label: "Update field", description: "Set a field on the contact (status, score, etc.).", Icon: Pencil },
+    { type: "update_contact_field", label: "Update field", description: "Set a field on the contact (status, etc.).", Icon: Pencil },
+    { type: "increment_field", label: "Increment field", description: "Add to a numeric field (lead score, points).", Icon: TrendingUp },
+    { type: "assign_user", label: "Assign user", description: "Set the contact's owner.", Icon: UserCheck },
+    { type: "create_task", label: "Create task", description: "Create a follow-up task linked to the contact.", Icon: Briefcase },
+    { type: "send_internal_email", label: "Internal email", description: "Email a teammate (lead notification).", Icon: Mail },
     { type: "webhook", label: "Webhook", description: "POST run context to an external URL.", Icon: Globe },
     { type: "end", label: "End", description: "Stop the automation here.", Icon: Workflow },
 ]
@@ -140,8 +161,29 @@ function defaultNodeFor(type: AutomationNode["type"]): AutomationNode {
             }
         case "update_contact_field":
             return { id, type, fieldPath: "", value: "" }
+        case "increment_field":
+            return { id, type, fieldPath: "leadScore", delta: 10 }
+        case "assign_user":
+            return { id, type, userId: "" }
+        case "create_task":
+            return { id, type, title: "Follow up with {{first_name}}", dueOffsetDays: 1 }
+        case "send_internal_email":
+            return { id, type, to: "", subject: "New lead: {{first_name}}", body: "" }
         case "webhook":
             return { id, type, url: "" }
+        case "wait_until":
+            return { id, type, until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() }
+        case "wait_until_business_hours":
+            return {
+                id,
+                type,
+                startHour: 9,
+                endHour: 17,
+                businessDays: [1, 2, 3, 4, 5],
+                timezone: typeof Intl !== "undefined"
+                    ? Intl.DateTimeFormat().resolvedOptions().timeZone
+                    : "UTC",
+            }
     }
 }
 
@@ -151,7 +193,9 @@ export function AutomationBuilder({
     lists,
     tags,
     templates,
+    users = [],
     recentRuns,
+    appUrl,
 }: BuilderProps) {
     const router = useRouter()
     const [isPending, startTransition] = useTransition()
@@ -162,6 +206,8 @@ export function AutomationBuilder({
         initial?.trigger ?? { type: "contact_created", config: {} },
     )
     const [nodes, setNodes] = useState<AutomationNode[]>(initial?.nodes ?? [])
+    const [allowReEnroll, setAllowReEnroll] = useState(initial?.allowReEnroll ?? false)
+    const [goal, setGoal] = useState<Automation["goal"] | null>(initial?.goal ?? null)
     const [showPalette, setShowPalette] = useState(false)
 
     const addNode = (type: AutomationNode["type"]) => {
@@ -195,6 +241,8 @@ export function AutomationBuilder({
                     // its inferred type has an index signature our
                     // discriminated union lacks. Cast at the boundary.
                     nodes: nodes as Parameters<typeof updateAutomationAction>[0]["nodes"],
+                    allowReEnroll,
+                    goal: (goal as Parameters<typeof updateAutomationAction>[0]["goal"]) ?? null,
                 })
                 if (!res.success) {
                     toast.error(res.error || "Failed to save")
@@ -207,6 +255,8 @@ export function AutomationBuilder({
                     enabled,
                     trigger,
                     nodes: nodes as Parameters<typeof createAutomationAction>[0]["nodes"],
+                    allowReEnroll,
+                    goal: (goal as Parameters<typeof createAutomationAction>[0]["goal"]) ?? null,
                 })
                 if (!res.success || !res.automation) {
                     toast.error(res.error || "Failed to create")
@@ -262,7 +312,25 @@ export function AutomationBuilder({
 
             <div className="flex-1 min-h-0 overflow-y-auto">
                 <div className="max-w-2xl mx-auto py-8 px-4 space-y-3">
-                    {/* Trigger card (always first) */}
+                    {/* Settings card — re-enroll, goal, webhook URL, bulk enroll */}
+                    {mode === "edit" && initial && (
+                        <SettingsCard
+                            automationId={initial.id}
+                            allowReEnroll={allowReEnroll}
+                            onAllowReEnrollChange={setAllowReEnroll}
+                            goal={goal ?? null}
+                            onGoalChange={setGoal}
+                            webhookUrl={
+                                trigger.type === "webhook_in" && initial.webhookToken && appUrl
+                                    ? `${appUrl}/api/automations/trigger/${initial.webhookToken}`
+                                    : null
+                            }
+                            lists={lists}
+                            tags={tags}
+                        />
+                    )}
+
+                    {/* Trigger card (always second when settings visible) */}
                     <TriggerCard
                         trigger={trigger}
                         onChange={setTrigger}
@@ -299,6 +367,7 @@ export function AutomationBuilder({
                                     lists={lists}
                                     tags={tags}
                                     templates={templates}
+                                    users={users}
                                     onChange={(patch) => updateNode(node.id, patch)}
                                     onRemove={() => removeNode(node.id)}
                                     stepNumber={idx + 1}
@@ -479,6 +548,26 @@ function TriggerCard({
                         </Select>
                     </div>
                 )}
+
+                {trigger.type === "contact_field_updated" && (
+                    <div className="space-y-1">
+                        <Label className="text-xs">Field path (optional — any field if blank)</Label>
+                        <Input
+                            value={trigger.config.fieldPath ?? ""}
+                            onChange={(e) =>
+                                onChange({
+                                    ...trigger,
+                                    config: { ...trigger.config, fieldPath: e.target.value || undefined },
+                                })
+                            }
+                            placeholder="status"
+                            className="font-mono"
+                        />
+                        <p className="text-[10px] text-muted-foreground/70">
+                            e.g. <code>status</code>, <code>leadScore</code>
+                        </p>
+                    </div>
+                )}
             </CardContent>
         </Card>
     )
@@ -506,6 +595,7 @@ function NodeCard({
     lists,
     tags,
     templates,
+    users,
     onChange,
     onRemove,
     stepNumber,
@@ -516,6 +606,7 @@ function NodeCard({
     lists: ListOpt[]
     tags: TagOpt[]
     templates: TemplateOpt[]
+    users: UserOpt[]
     onChange: (patch: Partial<AutomationNode>) => void
     onRemove: () => void
     stepNumber: number
@@ -578,6 +669,7 @@ function NodeCard({
                     lists={lists}
                     tags={tags}
                     templates={templates}
+                    users={users}
                     onChange={onChange}
                     allNodes={allNodes}
                 />
@@ -591,6 +683,7 @@ function NodeBody({
     lists,
     tags,
     templates,
+    users,
     onChange,
     allNodes,
 }: {
@@ -598,6 +691,7 @@ function NodeBody({
     lists: ListOpt[]
     tags: TagOpt[]
     templates: TemplateOpt[]
+    users: UserOpt[]
     onChange: (patch: Partial<AutomationNode>) => void
     allNodes?: AutomationNode[]
 }) {
@@ -846,7 +940,230 @@ function NodeBody({
         )
     }
 
+    if (node.type === "wait_until") {
+        const local = isoToLocalInput(node.until)
+        return (
+            <div className="space-y-1">
+                <Label className="text-xs">Resume at (your local timezone)</Label>
+                <Input
+                    type="datetime-local"
+                    value={local}
+                    onChange={(e) =>
+                        onChange({ until: localInputToIso(e.target.value) })
+                    }
+                />
+                <p className="text-[10px] text-muted-foreground/70">
+                    Cron checks every 5 min, so actual resume can drift up to 5 min.
+                </p>
+            </div>
+        )
+    }
+
+    if (node.type === "wait_until_business_hours") {
+        return (
+            <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                        <Label className="text-xs">Start hour (0-23)</Label>
+                        <Input
+                            type="number"
+                            min={0}
+                            max={23}
+                            value={node.startHour ?? 9}
+                            onChange={(e) =>
+                                onChange({ startHour: parseInt(e.target.value) || 0 })
+                            }
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-xs">End hour (0-23)</Label>
+                        <Input
+                            type="number"
+                            min={0}
+                            max={23}
+                            value={node.endHour ?? 17}
+                            onChange={(e) =>
+                                onChange({ endHour: parseInt(e.target.value) || 0 })
+                            }
+                        />
+                    </div>
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-xs">Timezone (IANA)</Label>
+                    <Input
+                        value={node.timezone ?? "UTC"}
+                        onChange={(e) => onChange({ timezone: e.target.value })}
+                        placeholder="America/New_York"
+                        className="font-mono"
+                    />
+                </div>
+                <p className="text-[10px] text-muted-foreground/70">
+                    Days: Mon–Fri (weekend skip is built in).
+                </p>
+            </div>
+        )
+    }
+
+    if (node.type === "increment_field") {
+        return (
+            <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                    <Label className="text-xs">Field path</Label>
+                    <Input
+                        value={node.fieldPath}
+                        onChange={(e) => onChange({ fieldPath: e.target.value })}
+                        placeholder="leadScore"
+                    />
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-xs">Delta (negative to subtract)</Label>
+                    <Input
+                        type="number"
+                        value={node.delta}
+                        onChange={(e) =>
+                            onChange({ delta: parseInt(e.target.value) || 0 })
+                        }
+                    />
+                </div>
+            </div>
+        )
+    }
+
+    if (node.type === "assign_user") {
+        return (
+            <div className="space-y-1">
+                <Label className="text-xs">Assign to</Label>
+                <Select
+                    value={node.userId || "__unassign"}
+                    onValueChange={(v) =>
+                        onChange({ userId: v === "__unassign" ? "" : v })
+                    }
+                >
+                    <SelectTrigger>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="__unassign">— Unassign</SelectItem>
+                        {users.map((u) => (
+                            <SelectItem key={u.id} value={u.id}>
+                                {u.name || u.email}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+        )
+    }
+
+    if (node.type === "create_task") {
+        return (
+            <div className="space-y-2">
+                <div className="space-y-1">
+                    <Label className="text-xs">Title (tokens supported)</Label>
+                    <Input
+                        value={node.title}
+                        onChange={(e) => onChange({ title: e.target.value })}
+                        placeholder="Follow up with {{first_name}}"
+                    />
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-xs">Description (optional)</Label>
+                    <textarea
+                        value={node.description ?? ""}
+                        onChange={(e) =>
+                            onChange({ description: e.target.value })
+                        }
+                        rows={3}
+                        className="w-full px-2.5 py-2 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary/20"
+                    />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                        <Label className="text-xs">Assignee (optional)</Label>
+                        <Select
+                            value={node.assigneeId || "__none"}
+                            onValueChange={(v) =>
+                                onChange({ assigneeId: v === "__none" ? "" : v })
+                            }
+                        >
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="__none">No assignee</SelectItem>
+                                {users.map((u) => (
+                                    <SelectItem key={u.id} value={u.id}>
+                                        {u.name || u.email}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-xs">Due in (days)</Label>
+                        <Input
+                            type="number"
+                            min={0}
+                            value={node.dueOffsetDays ?? 1}
+                            onChange={(e) =>
+                                onChange({
+                                    dueOffsetDays: parseInt(e.target.value) || 0,
+                                })
+                            }
+                        />
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    if (node.type === "send_internal_email") {
+        return (
+            <div className="space-y-2">
+                <div className="space-y-1">
+                    <Label className="text-xs">To (comma-separated)</Label>
+                    <Input
+                        value={node.to}
+                        onChange={(e) => onChange({ to: e.target.value })}
+                        placeholder="sales@yourco.com, manager@yourco.com"
+                    />
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-xs">Subject</Label>
+                    <Input
+                        value={node.subject}
+                        onChange={(e) => onChange({ subject: e.target.value })}
+                        placeholder="New lead: {{first_name}}"
+                    />
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-xs">Body (tokens supported)</Label>
+                    <textarea
+                        value={node.body}
+                        onChange={(e) => onChange({ body: e.target.value })}
+                        rows={4}
+                        className="w-full px-2.5 py-2 text-xs border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary/20"
+                    />
+                </div>
+            </div>
+        )
+    }
+
     return null
+}
+
+function isoToLocalInput(iso: string): string {
+    if (!iso) return ""
+    const d = new Date(iso)
+    if (isNaN(d.getTime())) return ""
+    const pad = (n: number) => String(n).padStart(2, "0")
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function localInputToIso(s: string): string {
+    if (!s) return ""
+    const d = new Date(s)
+    return isNaN(d.getTime()) ? "" : d.toISOString()
 }
 
 // ── Branch / stop editor (shared) ───────────────────────────────────────
@@ -1021,6 +1338,298 @@ function BranchEditor({
 function stepLabel(node: AutomationNode, stepNumber: number): string {
     const meta = ACTION_PALETTE.find((a) => a.type === node.type)
     return `Step ${stepNumber} · ${meta?.label ?? node.type}`
+}
+
+// ── Settings card (re-enroll, goal, webhook URL, bulk enroll) ───────────
+
+function SettingsCard({
+    automationId,
+    allowReEnroll,
+    onAllowReEnrollChange,
+    goal,
+    onGoalChange,
+    webhookUrl,
+    lists,
+    tags,
+}: {
+    automationId: string
+    allowReEnroll: boolean
+    onAllowReEnrollChange: (v: boolean) => void
+    goal: Automation["goal"] | null
+    onGoalChange: (g: Automation["goal"] | null) => void
+    webhookUrl: string | null
+    lists: ListOpt[]
+    tags: TagOpt[]
+}) {
+    const [bulkOpen, setBulkOpen] = useState(false)
+    const [copied, setCopied] = useState(false)
+    const goalEnabled = goal !== null
+
+    const copyWebhook = () => {
+        if (!webhookUrl) return
+        navigator.clipboard?.writeText(webhookUrl)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+    }
+
+    return (
+        <Card>
+            <CardContent className="py-3 space-y-3">
+                {webhookUrl && (
+                    <div className="space-y-1.5 pb-2 border-b">
+                        <Label className="text-xs flex items-center gap-1.5">
+                            <Globe className="w-3.5 h-3.5" />
+                            Public webhook URL
+                        </Label>
+                        <div className="flex items-center gap-1.5">
+                            <Input
+                                value={webhookUrl}
+                                readOnly
+                                className="font-mono text-[11px] bg-muted/40"
+                                onClick={(e) => (e.target as HTMLInputElement).select()}
+                            />
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={copyWebhook}
+                                className="shrink-0"
+                            >
+                                {copied ? (
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                    <ClipboardCopy className="w-3.5 h-3.5" />
+                                )}
+                            </Button>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground/70 leading-snug">
+                            POST <code>{`{ email, name? }`}</code> to enroll a contact.
+                            HMAC-signed — only this exact URL works.
+                        </p>
+                    </div>
+                )}
+
+                <div className="flex items-center justify-between gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer text-sm">
+                        <input
+                            type="checkbox"
+                            checked={allowReEnroll}
+                            onChange={(e) => onAllowReEnrollChange(e.target.checked)}
+                        />
+                        <span>Allow re-enrollment when trigger fires again</span>
+                    </label>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBulkOpen((v) => !v)}
+                    >
+                        <Users className="w-3.5 h-3.5 mr-1.5" />
+                        Bulk enroll
+                    </Button>
+                </div>
+
+                {bulkOpen && (
+                    <BulkEnrollPanel
+                        automationId={automationId}
+                        lists={lists}
+                        tags={tags}
+                        onClose={() => setBulkOpen(false)}
+                    />
+                )}
+
+                <div className="pt-2 border-t space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer text-sm">
+                        <input
+                            type="checkbox"
+                            checked={goalEnabled}
+                            onChange={(e) =>
+                                onGoalChange(
+                                    e.target.checked
+                                        ? { type: "opportunity_won", config: {} }
+                                        : null,
+                                )
+                            }
+                        />
+                        <Target className="w-3.5 h-3.5 text-primary" />
+                        <span>Track a conversion goal</span>
+                    </label>
+                    {goal && (
+                        <div className="pl-6 space-y-1">
+                            <Label className="text-xs">Goal trigger</Label>
+                            <Select
+                                value={goal.type}
+                                onValueChange={(v) =>
+                                    onGoalChange({
+                                        type: v as TriggerType,
+                                        config: {},
+                                    })
+                                }
+                            >
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {TRIGGER_OPTIONS.filter(
+                                        (o) =>
+                                            o.value !== "manual" &&
+                                            o.value !== "webhook_in",
+                                    ).map((o) => (
+                                        <SelectItem key={o.value} value={o.value}>
+                                            {o.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <p className="text-[10px] text-muted-foreground/70">
+                                Runs end as <strong>goal_reached</strong> the moment this
+                                event fires for the contact — counts as a conversion in
+                                stats.
+                            </p>
+                        </div>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+    )
+}
+
+function BulkEnrollPanel({
+    automationId,
+    lists,
+    tags,
+    onClose,
+}: {
+    automationId: string
+    lists: ListOpt[]
+    tags: TagOpt[]
+    onClose: () => void
+}) {
+    const [audienceType, setAudienceType] = useState<
+        "all_contacts" | "by_list" | "by_tag"
+    >("all_contacts")
+    const [listId, setListId] = useState("")
+    const [tagId, setTagId] = useState("")
+    const [isPending, startTransition] = useTransition()
+
+    const handleEnroll = () => {
+        if (audienceType === "by_list" && !listId) {
+            toast.error("Pick a list")
+            return
+        }
+        if (audienceType === "by_tag" && !tagId) {
+            toast.error("Pick a tag")
+            return
+        }
+        if (
+            !confirm(
+                "Bulk-enroll up to 1000 contacts now? This is irreversible.",
+            )
+        ) {
+            return
+        }
+        startTransition(async () => {
+            const audience =
+                audienceType === "by_list"
+                    ? { type: "by_list" as const, listId }
+                    : audienceType === "by_tag"
+                      ? { type: "by_tag" as const, tagId }
+                      : { type: "all_contacts" as const }
+            const res = await bulkEnrollAction({ automationId, audience })
+            if (!res.success) {
+                toast.error(res.error || "Failed")
+                return
+            }
+            toast.success(
+                `Enrolled ${res.enrolled} (skipped ${res.skipped} of ${res.attempted})`,
+            )
+            onClose()
+        })
+    }
+
+    return (
+        <div className="p-3 bg-muted/30 rounded-md border border-dashed space-y-2">
+            <div className="grid grid-cols-3 gap-1.5">
+                {(
+                    [
+                        { v: "all_contacts", label: "All contacts" },
+                        { v: "by_list", label: "By list" },
+                        { v: "by_tag", label: "By tag" },
+                    ] as const
+                ).map((opt) => (
+                    <button
+                        key={opt.v}
+                        type="button"
+                        onClick={() => setAudienceType(opt.v)}
+                        disabled={isPending}
+                        className={`text-xs py-1.5 px-2 rounded border transition-colors ${
+                            audienceType === opt.v
+                                ? "border-primary bg-primary/5 text-primary"
+                                : "hover:bg-muted/50"
+                        }`}
+                    >
+                        {opt.label}
+                    </button>
+                ))}
+            </div>
+            {audienceType === "by_list" && (
+                <Select value={listId} onValueChange={setListId} disabled={isPending}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Pick a list" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {lists.map((l) => (
+                            <SelectItem key={l.id} value={l.id}>
+                                {l.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            )}
+            {audienceType === "by_tag" && (
+                <Select value={tagId} onValueChange={setTagId} disabled={isPending}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Pick a tag" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {tags.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                                <span className="flex items-center gap-2">
+                                    <span
+                                        className="w-2 h-2 rounded-full"
+                                        style={{ backgroundColor: t.color }}
+                                    />
+                                    {t.name}
+                                </span>
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            )}
+            <div className="flex justify-end gap-1.5">
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={onClose}
+                    disabled={isPending}
+                >
+                    Cancel
+                </Button>
+                <Button onClick={handleEnroll} disabled={isPending} size="sm">
+                    {isPending ? (
+                        <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    ) : (
+                        <Plus className="w-3.5 h-3.5 mr-1.5" />
+                    )}
+                    Enroll up to 1000
+                </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground/70">
+                Skips contacts already enrolled (unless re-enrollment is on).
+            </p>
+        </div>
+    )
 }
 
 // ── Test enrollment ─────────────────────────────────────────────────────

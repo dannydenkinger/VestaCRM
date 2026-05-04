@@ -40,6 +40,8 @@ export type TriggerType =
     | "opportunity_won"
     | "email_opened"
     | "email_clicked"
+    | "contact_field_updated"
+    | "webhook_in"
     | "manual"
 
 export interface TriggerConfig {
@@ -49,6 +51,8 @@ export interface TriggerConfig {
     formId?: string
     stageId?: string
     campaignId?: string
+    /** For contact_field_updated: which field path to watch. */
+    fieldPath?: string
 }
 
 export interface Trigger {
@@ -61,6 +65,8 @@ export interface Trigger {
 export type ActionType =
     | "send_email"
     | "wait"
+    | "wait_until"
+    | "wait_until_business_hours"
     | "add_tag"
     | "remove_tag"
     | "add_to_list"
@@ -68,6 +74,10 @@ export type ActionType =
     | "branch_if"
     | "stop_if"
     | "update_contact_field"
+    | "increment_field"
+    | "assign_user"
+    | "create_task"
+    | "send_internal_email"
     | "webhook"
     | "end"
 
@@ -91,6 +101,29 @@ export interface WaitNode extends BaseNode {
     type: "wait"
     /** Total minutes to wait. UI lets users enter days/hours/minutes; we store minutes. */
     delayMinutes: number
+}
+
+/** Wait until a specific calendar time (ISO string). */
+export interface WaitUntilNode extends BaseNode {
+    type: "wait_until"
+    /** ISO 8601 datetime — the run resumes at or after this moment. */
+    until: string
+}
+
+/**
+ * Wait until the next business-hours window. If currently inside the window,
+ * the run resumes immediately. Otherwise pauses until the next window open.
+ */
+export interface WaitUntilBusinessHoursNode extends BaseNode {
+    type: "wait_until_business_hours"
+    /** Hour (0-23) when the window opens, in the configured timezone. Default 9. */
+    startHour?: number
+    /** Hour (0-23) when the window closes. Default 17. */
+    endHour?: number
+    /** Days of week considered business days (0 = Sunday). Default [1,2,3,4,5]. */
+    businessDays?: number[]
+    /** IANA timezone name (e.g. "America/New_York"). Default UTC. */
+    timezone?: string
 }
 
 export interface AddTagNode extends BaseNode {
@@ -150,6 +183,42 @@ export interface UpdateContactFieldNode extends BaseNode {
     value: string | number | null
 }
 
+/** Add (or subtract via negative delta) from a numeric contact field. Lead-score style. */
+export interface IncrementFieldNode extends BaseNode {
+    type: "increment_field"
+    fieldPath: string
+    delta: number
+}
+
+/** Set the contact's assigneeId to a specific workspace user. */
+export interface AssignUserNode extends BaseNode {
+    type: "assign_user"
+    /** Workspace user id (member id from workspace_members). Empty = unassign. */
+    userId: string
+}
+
+/** Create a task linked to the contact, optionally assigned to a user. */
+export interface CreateTaskNode extends BaseNode {
+    type: "create_task"
+    /** Task title. Tokens like {{first_name}} are rendered. */
+    title: string
+    /** Optional description (tokens supported). */
+    description?: string
+    /** Optional assignee user id. */
+    assigneeId?: string
+    /** Optional due offset in days from "now" (when the action fires). */
+    dueOffsetDays?: number
+}
+
+/** Send an email to a workspace user (e.g. internal lead notification). */
+export interface SendInternalEmailNode extends BaseNode {
+    type: "send_internal_email"
+    /** Comma-separated email addresses (workspace teammates). Tokens supported. */
+    to: string
+    subject: string
+    body: string
+}
+
 /** POST the run context to an arbitrary URL. The escape hatch for power users. */
 export interface WebhookNode extends BaseNode {
     type: "webhook"
@@ -165,6 +234,8 @@ export interface EndNode extends BaseNode {
 export type AutomationNode =
     | SendEmailNode
     | WaitNode
+    | WaitUntilNode
+    | WaitUntilBusinessHoursNode
     | AddTagNode
     | RemoveTagNode
     | AddToListNode
@@ -172,6 +243,10 @@ export type AutomationNode =
     | BranchIfNode
     | StopIfNode
     | UpdateContactFieldNode
+    | IncrementFieldNode
+    | AssignUserNode
+    | CreateTaskNode
+    | SendInternalEmailNode
     | WebhookNode
     | EndNode
 
@@ -182,6 +257,18 @@ export interface AutomationStats {
     runsCompleted: number
     runsErrored: number
     contactsEnrolled: number
+    /** Runs that hit the goal condition before completion. */
+    goalsReached?: number
+}
+
+/**
+ * A goal: when this trigger fires for a contact in a running automation,
+ * the run is short-circuited as "goal_reached" and counted as a conversion.
+ * Same trigger schema as the main trigger, just used as an end condition.
+ */
+export interface AutomationGoal {
+    type: TriggerType
+    config: TriggerConfig
 }
 
 export interface Automation {
@@ -193,6 +280,12 @@ export interface Automation {
     trigger: Trigger
     nodes: AutomationNode[]
     stats: AutomationStats
+    /** Allow contacts to re-enter when the trigger fires again. Default false. */
+    allowReEnroll?: boolean
+    /** Optional goal — when reached, run terminates early as `goal_reached`. */
+    goal?: AutomationGoal
+    /** Token for webhook_in trigger (set on save when trigger.type === "webhook_in"). */
+    webhookToken?: string
     createdBy: string | null
     createdAt: string
     updatedAt: string
@@ -206,6 +299,7 @@ export type RunStatus =
     | "completed"
     | "errored"
     | "stopped"
+    | "goal_reached"
 
 export interface AutomationRun {
     id: string

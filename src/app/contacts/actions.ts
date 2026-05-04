@@ -765,6 +765,21 @@ export async function updateContact(id: string, data: any) {
             entityName: updateData.name || "",
         }).catch(() => {});
 
+        // Fire contact_field_updated trigger for each updated top-level field.
+        // Automations subscribed to a specific field (config.fieldPath) will
+        // only enroll if their fieldPath matches.
+        for (const k of Object.keys(updateData)) {
+            if (k === "updatedAt") continue
+            fireTrigger({
+                workspaceId,
+                type: "contact_field_updated",
+                contactId: id,
+                contactEmail: typeof updateData.email === "string" ? updateData.email : undefined,
+                match: { fieldPath: k },
+                payload: { fieldPath: k, newValue: updateData[k] },
+            }).catch(() => {});
+        }
+
         revalidatePath("/contacts");
         return { success: true };
     } catch (error) {

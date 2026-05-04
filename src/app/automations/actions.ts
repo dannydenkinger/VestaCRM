@@ -1,5 +1,6 @@
 "use server"
 
+import crypto from "node:crypto"
 import { z } from "zod"
 import { revalidatePath } from "next/cache"
 import { requireAuth } from "@/lib/auth-guard"
@@ -14,10 +15,31 @@ import {
 import { advanceRun } from "@/lib/automations/engine"
 import { getStarter } from "@/lib/automations/starters"
 import type {
+    Automation,
     AutomationNode,
     Trigger,
     TriggerType,
 } from "@/lib/automations/types"
+
+/** Mint the public webhook-in token for an automation (HMAC-signed). */
+function mintWebhookToken(workspaceId: string, automationId: string): string {
+    const secret = process.env.TRACKING_SECRET || "vesta-dev-fallback-secret-do-not-use-in-prod"
+    const payload = `${workspaceId}.${automationId}`
+    const encoded = Buffer.from(payload)
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "")
+    const sig = crypto
+        .createHmac("sha256", secret)
+        .update(payload)
+        .digest("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "")
+        .slice(0, 32)
+    return `${encoded}.${sig}`
+}
 
 async function ws() {
     const session = await requireAuth()
@@ -35,6 +57,8 @@ const TRIGGER_TYPES: TriggerType[] = [
     "opportunity_won",
     "email_opened",
     "email_clicked",
+    "contact_field_updated",
+    "webhook_in",
     "manual",
 ]
 
@@ -59,15 +83,41 @@ const nodeSchema = z
         type: z.enum([
             "send_email",
             "wait",
+            "wait_until",
+            "wait_until_business_hours",
             "add_tag",
             "remove_tag",
             "add_to_list",
             "remove_from_list",
             "branch_if",
+            "stop_if",
+            "update_contact_field",
+            "increment_field",
+            "assign_user",
+            "create_task",
+            "send_internal_email",
+            "webhook",
             "end",
         ]),
     })
     .passthrough()
+
+const goalSchema = z
+    .object({
+        type: z.enum(TRIGGER_TYPES as [TriggerType, ...TriggerType[]]),
+        config: z
+            .object({
+                listId: z.string().optional(),
+                tagId: z.string().optional(),
+                formId: z.string().optional(),
+                stageId: z.string().optional(),
+                campaignId: z.string().optional(),
+                fieldPath: z.string().optional(),
+            })
+            .default({}),
+    })
+    .nullable()
+    .optional()
 
 const createSchema = z.object({
     name: z.string().min(1).max(120),
@@ -75,6 +125,8 @@ const createSchema = z.object({
     enabled: z.boolean().optional(),
     trigger: triggerSchema,
     nodes: z.array(nodeSchema).optional(),
+    allowReEnroll: z.boolean().optional(),
+    goal: goalSchema,
 })
 
 export async function createAutomationAction(
@@ -93,8 +145,20 @@ export async function createAutomationAction(
             enabled: parsed.data.enabled ?? false,
             trigger: parsed.data.trigger as Trigger,
             nodes: (parsed.data.nodes ?? []) as AutomationNode[],
+            allowReEnroll: parsed.data.allowReEnroll,
+            goal: (parsed.data.goal ?? undefined) as Automation["goal"],
             createdBy: userId,
         })
+
+        // Mint the webhook-in token if this trigger uses it (one-time on create)
+        if (parsed.data.trigger.type === "webhook_in") {
+            const token = mintWebhookToken(workspaceId, created.id)
+            await updateAutomation(workspaceId, created.id, {
+                webhookToken: token,
+            })
+            created.webhookToken = token
+        }
+
         revalidatePath("/automations")
         return { success: true, automation: created }
     } catch (err) {
@@ -110,6 +174,8 @@ const updateSchema = z.object({
     enabled: z.boolean().optional(),
     trigger: triggerSchema.optional(),
     nodes: z.array(nodeSchema).optional(),
+    allowReEnroll: z.boolean().optional(),
+    goal: goalSchema,
 })
 
 export async function updateAutomationAction(
@@ -121,12 +187,25 @@ export async function updateAutomationAction(
         return { success: false, error: parsed.error.issues[0].message }
     }
     try {
+        // Mint webhook token if switching trigger to webhook_in and we don't
+        // have one yet
+        let webhookToken: string | undefined = undefined
+        if (parsed.data.trigger?.type === "webhook_in") {
+            const existing = await getAutomation(workspaceId, parsed.data.id)
+            if (existing && !existing.webhookToken) {
+                webhookToken = mintWebhookToken(workspaceId, parsed.data.id)
+            }
+        }
+
         const updated = await updateAutomation(workspaceId, parsed.data.id, {
             name: parsed.data.name,
             description: parsed.data.description,
             enabled: parsed.data.enabled,
             trigger: parsed.data.trigger as Trigger | undefined,
             nodes: parsed.data.nodes as AutomationNode[] | undefined,
+            allowReEnroll: parsed.data.allowReEnroll,
+            goal: parsed.data.goal === undefined ? undefined : (parsed.data.goal as Automation["goal"] | null),
+            webhookToken,
         })
         revalidatePath("/automations")
         revalidatePath(`/automations/${updated.id}`)
@@ -194,6 +273,104 @@ const testEnrollSchema = z.object({
      *  enroll as an external recipient (engine treats as no contact). */
     email: z.string().email(),
 })
+
+const bulkEnrollSchema = z.object({
+    automationId: z.string().min(1),
+    audience: z.discriminatedUnion("type", [
+        z.object({ type: z.literal("all_contacts") }),
+        z.object({ type: z.literal("by_list"), listId: z.string().min(1) }),
+        z.object({ type: z.literal("by_tag"), tagId: z.string().min(1) }),
+    ]),
+})
+
+/**
+ * Manually enroll a batch of contacts into an automation. Honors the
+ * automation's allowReEnroll setting — by default skips contacts that have
+ * an existing run, opts them in if re-enrollment is allowed.
+ *
+ * Capped at 1000 contacts per call; for larger backfills run repeatedly.
+ */
+export async function bulkEnrollAction(
+    input: z.infer<typeof bulkEnrollSchema>,
+) {
+    const { workspaceId } = await ws()
+    const parsed = bulkEnrollSchema.safeParse(input)
+    if (!parsed.success) return { success: false, error: "Invalid input" }
+
+    try {
+        const automation = await getAutomation(workspaceId, parsed.data.automationId)
+        if (!automation) return { success: false, error: "Automation not found" }
+        const allowReEnroll = automation.allowReEnroll ?? false
+
+        // Resolve contacts by audience type
+        let contactIds: string[] = []
+        if (parsed.data.audience.type === "all_contacts") {
+            const snap = await adminDb
+                .collection("contacts")
+                .where("workspaceId", "==", workspaceId)
+                .limit(1000)
+                .get()
+            contactIds = snap.docs.map((d) => d.id)
+        } else if (parsed.data.audience.type === "by_list") {
+            const { listMemberIds } = await import("@/lib/lists/contact-lists")
+            contactIds = await listMemberIds(
+                workspaceId,
+                parsed.data.audience.listId,
+                1000,
+            )
+        } else if (parsed.data.audience.type === "by_tag") {
+            const tagId = parsed.data.audience.tagId
+            const snap = await adminDb
+                .collection("contacts")
+                .where("workspaceId", "==", workspaceId)
+                .limit(1000)
+                .get()
+            contactIds = snap.docs
+                .filter((d) =>
+                    ((d.data().tags as Array<{ tagId: string }>) ?? []).some(
+                        (t) => t.tagId === tagId,
+                    ),
+                )
+                .map((d) => d.id)
+        }
+
+        let enrolled = 0
+        let skipped = 0
+        for (const contactId of contactIds) {
+            if (!allowReEnroll) {
+                const { isContactEnrolled } = await import("@/lib/automations/store")
+                if (await isContactEnrolled(automation.id, contactId)) {
+                    skipped += 1
+                    continue
+                }
+            }
+            const run = await startRun({
+                workspaceId,
+                automationId: automation.id,
+                contactId,
+                contextData: {
+                    triggerType: "manual",
+                    triggerMatch: {},
+                    triggerPayload: { bulkEnroll: true },
+                    triggeredAt: new Date().toISOString(),
+                },
+            })
+            advanceRun(run.id).catch(() => {})
+            enrolled += 1
+        }
+
+        revalidatePath(`/automations/${parsed.data.automationId}`)
+        return {
+            success: true,
+            enrolled,
+            skipped,
+            attempted: contactIds.length,
+        }
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "Bulk enroll failed"
+        return { success: false, error: message }
+    }
+}
 
 /**
  * Manually enroll a single email as a test run. Useful for testing a flow

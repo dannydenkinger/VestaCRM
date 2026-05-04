@@ -496,6 +496,15 @@
         { "fieldPath": "abTest.enabled", "order": "ASCENDING" },
         { "fieldPath": "abTest.testWindowEndsAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "automations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "workspaceId", "order": "ASCENDING" },
+        { "fieldPath": "enabled", "order": "ASCENDING" },
+        { "fieldPath": "goal.type", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

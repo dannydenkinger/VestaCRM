@@ -48,6 +48,9 @@ function mapAutomation(id: string, data: Record<string, unknown>): Automation {
         trigger: (data.trigger as Trigger) ?? { type: "manual", config: {} },
         nodes: (data.nodes as AutomationNode[]) ?? [],
         stats: { ...emptyStats(), ...((data.stats as AutomationStats) ?? {}) },
+        allowReEnroll: (data.allowReEnroll as boolean) ?? false,
+        goal: (data.goal as Automation["goal"]) ?? undefined,
+        webhookToken: (data.webhookToken as string) ?? undefined,
         createdBy: (data.createdBy as string) ?? null,
         createdAt: tsToISO(data.createdAt),
         updatedAt: tsToISO(data.updatedAt),
@@ -81,6 +84,9 @@ export interface CreateAutomationInput {
     enabled?: boolean
     trigger: Trigger
     nodes?: AutomationNode[]
+    allowReEnroll?: boolean
+    goal?: Automation["goal"]
+    webhookToken?: string
     createdBy?: string | null
 }
 
@@ -96,6 +102,9 @@ export async function createAutomation(input: CreateAutomationInput): Promise<Au
         trigger: input.trigger,
         nodes: input.nodes ?? [],
         stats: emptyStats(),
+        allowReEnroll: input.allowReEnroll ?? false,
+        goal: input.goal ?? null,
+        webhookToken: input.webhookToken ?? null,
         createdBy: input.createdBy ?? null,
         createdAt: now,
         updatedAt: now,
@@ -110,6 +119,9 @@ export interface UpdateAutomationInput {
     enabled?: boolean
     trigger?: Trigger
     nodes?: AutomationNode[]
+    allowReEnroll?: boolean
+    goal?: Automation["goal"] | null
+    webhookToken?: string | null
 }
 
 export async function updateAutomation(
@@ -129,6 +141,9 @@ export async function updateAutomation(
     if (patch.enabled !== undefined) updates.enabled = patch.enabled
     if (patch.trigger !== undefined) updates.trigger = patch.trigger
     if (patch.nodes !== undefined) updates.nodes = patch.nodes
+    if (patch.allowReEnroll !== undefined) updates.allowReEnroll = patch.allowReEnroll
+    if (patch.goal !== undefined) updates.goal = patch.goal
+    if (patch.webhookToken !== undefined) updates.webhookToken = patch.webhookToken
 
     await ref.update(updates)
     const updated = await ref.get()
