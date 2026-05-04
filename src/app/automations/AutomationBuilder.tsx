@@ -592,6 +592,7 @@ function CanvasLayout({
                     onSelectNode={setSelectedNodeId}
                     onAddNodeRequest={() => setShowPalette(true)}
                     onUpdateNode={updateNode}
+                    onRemoveNode={removeNode}
                     triggerLabel={triggerLabel}
                     actionMeta={actionMeta}
                 />

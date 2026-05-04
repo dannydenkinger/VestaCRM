@@ -1,20 +1,19 @@
 "use client"
 
 /**
- * Visual canvas view for an automation. Renders the linear node list as a
- * flow chart with branch_if nodes drawing two outgoing edges. Click a node
- * to edit it in the parent's side panel; click + edges to add steps.
+ * Visual canvas view for an automation.
  *
- * v2 capabilities:
- *   - Nodes are draggable; position persists on the node (via parent's
- *     onChange) so future loads remember it
- *   - branch_if nodes' true/false handles support drag-to-connect: drag
- *     from a green/red dot to another node to set trueNext/falseNext
- *   - Falls back to auto-layout (vertical) for any node without a saved
- *     position — typical first-time-on-canvas experience
+ * v3 capabilities:
+ *   - Nodes draggable; position persists via parent's onChange
+ *   - branch_if true/false handles support drag-to-connect — wires
+ *     trueNext / falseNext on the source node
+ *   - Right-click any node → context menu with Delete
+ *   - Drag a node onto the trash zone (bottom-right) → delete
+ *   - Delete / Backspace key when a node is selected → delete
+ *   - Auto-layout fallback for any node without a saved position
  */
 
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
     Background,
     BackgroundVariant,
@@ -31,7 +30,7 @@ import {
     useNodesState,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
-import { Plus, Zap } from "lucide-react"
+import { Plus, Trash2, Zap } from "lucide-react"
 import type { AutomationNode } from "@/lib/automations/types"
 
 interface CanvasProps {
@@ -40,6 +39,7 @@ interface CanvasProps {
     onSelectNode: (id: string | null) => void
     onAddNodeRequest: () => void
     onUpdateNode: (id: string, patch: Partial<AutomationNode>) => void
+    onRemoveNode: (id: string) => void
     triggerLabel: string
     actionMeta: Record<string, { label: string; Icon: React.ComponentType<{ className?: string }> }>
 }
@@ -92,7 +92,7 @@ function ActionNode({ data }: NodeProps<Node<FlowNodeData>>) {
             <Handle
                 type="target"
                 position={Position.Top}
-                className="!bg-muted-foreground !w-2 !h-2"
+                className="!bg-muted-foreground !w-3 !h-3"
             />
             <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-[10px] font-semibold text-muted-foreground tabular-nums shrink-0">
@@ -152,15 +152,28 @@ function positionFor(node: AutomationNode, idx: number): { x: number; y: number 
     return node.position ?? { x: AUTO_LAYOUT_X, y: (idx + 1) * AUTO_LAYOUT_Y_STEP }
 }
 
+interface ContextMenu {
+    nodeId: string
+    x: number
+    y: number
+}
+
 export function AutomationCanvas({
     nodes,
     selectedNodeId,
     onSelectNode,
     onAddNodeRequest,
     onUpdateNode,
+    onRemoveNode,
     triggerLabel,
     actionMeta,
 }: CanvasProps) {
+    const containerRef = useRef<HTMLDivElement | null>(null)
+    const trashRef = useRef<HTMLDivElement | null>(null)
+    const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null)
+    const [draggingId, setDraggingId] = useState<string | null>(null)
+    const [trashHover, setTrashHover] = useState(false)
+
     Object.entries(actionMeta).forEach(([k, m]) => {
         ACTION_ICON_REGISTRY[k] = m.Icon
     })
@@ -176,7 +189,6 @@ export function AutomationCanvas({
             selectable: false,
         })
 
-        // Compute the lowest y to anchor the add-step button below everything
         let maxY = 0
         nodes.forEach((n, idx) => {
             const pos = positionFor(n, idx)
@@ -302,23 +314,34 @@ export function AutomationCanvas({
     }, [nodes])
 
     const [rfNodes, setRfNodes, onRfNodesChange] = useNodesState(flowNodes)
-    const [rfEdges, , onRfEdgesChange] = useEdgesState(flowEdges)
+    const [rfEdges, setRfEdges, onRfEdgesChange] = useEdgesState(flowEdges)
 
+    // Sync internal state when parent regenerates nodes/edges
     useEffect(() => {
         setRfNodes(flowNodes)
     }, [flowNodes, setRfNodes])
 
+    // ★ THE FIX: also sync edges. Without this, drag-to-connect appeared to
+    // succeed but the new edge vanished because rfEdges was stuck on the
+    // original snapshot from useEdgesState's initializer.
+    useEffect(() => {
+        setRfEdges(flowEdges)
+    }, [flowEdges, setRfEdges])
+
     const handleNodesChange = useCallback(
         (changes: NodeChange[]) => {
-            // Pass through to react-flow's internal state
             onRfNodesChange(changes)
-            // Persist position changes back to the parent on drag-end
             for (const c of changes) {
                 if (c.type === "position" && c.dragging === false && c.position) {
                     if (c.id === "__trigger" || c.id === "__add") continue
                     onUpdateNode(c.id, {
                         position: { x: c.position.x, y: c.position.y },
                     })
+                }
+                // Track ongoing drag for trash hover detection
+                if (c.type === "position") {
+                    if (c.dragging) setDraggingId(c.id)
+                    else setDraggingId(null)
                 }
             }
         },
@@ -328,6 +351,21 @@ export function AutomationCanvas({
     const handleNodeClick = useCallback(
         (_event: React.MouseEvent, node: Node) => {
             if (node.id === "__trigger" || node.id === "__add") return
+            setContextMenu(null)
+            onSelectNode(node.id)
+        },
+        [onSelectNode],
+    )
+
+    const handleNodeContextMenu = useCallback(
+        (event: React.MouseEvent, node: Node) => {
+            event.preventDefault()
+            if (node.id === "__trigger" || node.id === "__add") return
+            // Position relative to canvas container so the menu floats correctly
+            const rect = containerRef.current?.getBoundingClientRect()
+            const x = rect ? event.clientX - rect.left : event.clientX
+            const y = rect ? event.clientY - rect.top : event.clientY
+            setContextMenu({ nodeId: node.id, x, y })
             onSelectNode(node.id)
         },
         [onSelectNode],
@@ -335,10 +373,9 @@ export function AutomationCanvas({
 
     const handleConnect = useCallback(
         (conn: Connection) => {
-            // Drag-to-connect: only branch_if true/false handles are connectable.
-            // Map the source handle to trueNext / falseNext on the source node.
             if (!conn.source || !conn.target) return
             if (conn.source === "__trigger" || conn.target === "__add") return
+            if (conn.target === "__trigger") return
             if (conn.sourceHandle === "true") {
                 onUpdateNode(conn.source, {
                     trueNext: conn.target,
@@ -352,16 +389,78 @@ export function AutomationCanvas({
         [onUpdateNode],
     )
 
+    // Track mouse during drag to detect trash hover
+    const handleNodeDrag = useCallback((event: React.MouseEvent) => {
+        if (!draggingId) return
+        const trash = trashRef.current?.getBoundingClientRect()
+        if (!trash) return
+        const overTrash =
+            event.clientX >= trash.left &&
+            event.clientX <= trash.right &&
+            event.clientY >= trash.top &&
+            event.clientY <= trash.bottom
+        setTrashHover(overTrash)
+    }, [draggingId])
+
+    const handleNodeDragStop = useCallback(
+        (event: React.MouseEvent, node: Node) => {
+            const trash = trashRef.current?.getBoundingClientRect()
+            if (!trash) {
+                setTrashHover(false)
+                setDraggingId(null)
+                return
+            }
+            const overTrash =
+                event.clientX >= trash.left &&
+                event.clientX <= trash.right &&
+                event.clientY >= trash.top &&
+                event.clientY <= trash.bottom
+            if (overTrash && node.id !== "__trigger" && node.id !== "__add") {
+                onRemoveNode(node.id)
+                if (selectedNodeId === node.id) onSelectNode(null)
+            }
+            setTrashHover(false)
+            setDraggingId(null)
+        },
+        [onRemoveNode, onSelectNode, selectedNodeId],
+    )
+
+    // Keyboard delete when a node is selected
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== "Delete" && e.key !== "Backspace") return
+            const tag = (e.target as HTMLElement | null)?.tagName
+            if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return
+            if (selectedNodeId) {
+                e.preventDefault()
+                onRemoveNode(selectedNodeId)
+                onSelectNode(null)
+            }
+        }
+        window.addEventListener("keydown", onKey)
+        return () => window.removeEventListener("keydown", onKey)
+    }, [selectedNodeId, onRemoveNode, onSelectNode])
+
     return (
-        <div className="w-full h-full">
+        <div
+            ref={containerRef}
+            className="w-full h-full relative"
+            onMouseMove={handleNodeDrag}
+            onClick={() => setContextMenu(null)}
+        >
             <ReactFlow
                 nodes={rfNodes}
                 edges={rfEdges}
                 onNodesChange={handleNodesChange}
                 onEdgesChange={onRfEdgesChange}
                 onNodeClick={handleNodeClick}
-                onPaneClick={() => onSelectNode(null)}
+                onNodeContextMenu={handleNodeContextMenu}
+                onPaneClick={() => {
+                    onSelectNode(null)
+                    setContextMenu(null)
+                }}
                 onConnect={handleConnect}
+                onNodeDragStop={handleNodeDragStop}
                 nodeTypes={nodeTypes}
                 fitView
                 fitViewOptions={{ padding: 0.3, maxZoom: 1.1 }}
@@ -372,6 +471,47 @@ export function AutomationCanvas({
                 <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
                 <Controls showInteractive={false} />
             </ReactFlow>
+
+            {/* Trash drop zone — visible always but pulses when dragging */}
+            <div
+                ref={trashRef}
+                className={`absolute bottom-4 right-4 w-14 h-14 rounded-full border-2 flex items-center justify-center shadow-md transition-all z-10 pointer-events-none ${
+                    trashHover
+                        ? "bg-destructive border-destructive scale-110 ring-4 ring-destructive/30"
+                        : draggingId
+                          ? "bg-card border-destructive/50 border-dashed"
+                          : "bg-card/80 border-muted-foreground/30 opacity-50"
+                }`}
+                title="Drag a step here to delete"
+            >
+                <Trash2
+                    className={`w-5 h-5 transition-colors ${
+                        trashHover ? "text-white" : "text-muted-foreground"
+                    }`}
+                />
+            </div>
+
+            {/* Right-click context menu */}
+            {contextMenu && (
+                <div
+                    className="absolute z-50 min-w-[140px] rounded-md bg-popover border shadow-lg py-1"
+                    style={{ left: contextMenu.x, top: contextMenu.y }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <button
+                        type="button"
+                        onClick={() => {
+                            onRemoveNode(contextMenu.nodeId)
+                            if (selectedNodeId === contextMenu.nodeId) onSelectNode(null)
+                            setContextMenu(null)
+                        }}
+                        className="w-full text-left px-3 py-1.5 text-sm hover:bg-destructive hover:text-destructive-foreground flex items-center gap-2 text-destructive"
+                    >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete step
+                    </button>
+                </div>
+            )}
         </div>
     )
 }
