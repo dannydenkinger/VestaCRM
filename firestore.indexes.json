@@ -489,6 +489,14 @@
       ]
     },
     {
+      "collectionGroup": "automation_runs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "workspaceId", "order": "ASCENDING" },
+        { "fieldPath": "startedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "email_campaigns",
       "queryScope": "COLLECTION",
       "fields": [
