@@ -6,7 +6,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import { toast } from "sonner"
 import { ArrowRight, Loader2 } from "lucide-react"
 import { forkStarterAction } from "./actions"
-import type { AutomationStarter } from "@/lib/automations/starters"
 
 const CATEGORY_COLORS: Record<string, string> = {
     Onboarding: "bg-emerald-500/10 text-emerald-700",
@@ -17,10 +16,23 @@ const CATEGORY_COLORS: Record<string, string> = {
     Events: "bg-pink-500/10 text-pink-700",
 }
 
+/**
+ * Plain serializable starter — the original AutomationStarter type includes
+ * a `buildNodes` function which can't cross the server→client boundary.
+ * The server-side parent strips it before passing here; the function lives
+ * on the server and runs only when forkStarterAction looks the slug back up.
+ */
+export interface StarterSummary {
+    slug: string
+    name: string
+    description: string
+    category: string
+}
+
 export function StarterGrid({
     starters,
 }: {
-    starters: AutomationStarter[]
+    starters: StarterSummary[]
 }) {
     const router = useRouter()
     const [pendingSlug, setPendingSlug] = useState<string | null>(null)

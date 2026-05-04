@@ -65,7 +65,14 @@ export default async function AutomationsPage() {
                         paused copy you can edit before going live.
                     </p>
                 )}
-                <StarterGrid starters={STARTER_AUTOMATIONS} />
+                <StarterGrid
+                    starters={STARTER_AUTOMATIONS.map((s) => ({
+                        slug: s.slug,
+                        name: s.name,
+                        description: s.description,
+                        category: s.category,
+                    }))}
+                />
             </section>
         </div>
     )
