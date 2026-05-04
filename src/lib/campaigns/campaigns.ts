@@ -2,7 +2,7 @@ import { adminDb } from "@/lib/firebase-admin"
 import { sendEmail, SesIdentityNotReadyError } from "@/lib/ses/sender"
 import { InsufficientCreditsError } from "@/lib/credits/email-credits"
 import { logActivity } from "@/lib/activities/timeline"
-import { unionMemberIds } from "@/lib/lists/contact-lists"
+import { unionMembers } from "@/lib/lists/contact-lists"
 import type {
     CampaignAudienceType,
     CampaignStatus,
@@ -163,8 +163,13 @@ export async function deleteCampaign(workspaceId: string, id: string): Promise<v
 }
 
 interface AudienceContact {
+    /** Empty string for external (CSV-imported) emails — they have no contact doc. */
     id: string
     email: string
+    /** True for CSV-imported emails that aren't tied to a CRM contact. */
+    external?: boolean
+    /** Optional display name (used by personalization tokens for externals). */
+    name?: string
 }
 
 async function resolveContactsByIds(
@@ -211,8 +216,26 @@ async function resolveAudience(
     } else if (audienceType === "by_list") {
         const listIds = audienceValue ?? []
         if (listIds.length === 0) return []
-        const memberIds = await unionMemberIds(workspaceId, listIds, limit)
-        base = await resolveContactsByIds(workspaceId, memberIds)
+        // by_list now includes both CRM contacts AND external CSV-imported
+        // emails (those don't have a contact doc, so they bypass the contacts
+        // lookup and ride along as { id: "", email, external: true, name? }).
+        const { contactIds, externalEmails } = await unionMembers(
+            workspaceId,
+            listIds,
+            limit,
+        )
+        const crmContacts = await resolveContactsByIds(workspaceId, contactIds)
+        // Dedupe externals against any CRM contacts that share the same email
+        const knownEmails = new Set(crmContacts.map((c) => c.email.toLowerCase()))
+        const externals: AudienceContact[] = externalEmails
+            .filter((e) => !knownEmails.has(e.email.toLowerCase()))
+            .map((e) => ({
+                id: "",
+                email: e.email,
+                external: true,
+                name: e.name,
+            }))
+        base = [...crmContacts, ...externals]
     }
 
     if (audienceType === "by_tag") {
@@ -229,12 +252,20 @@ async function resolveAudience(
             .filter((c) => c.email && c.email.includes("@"))
     }
 
-    // Exclusion step: filter out any contacts that appear in the excludeListIds.
+    // Exclusion step: filter out any audience entries that appear in the
+    // excludeListIds. Excludes by contactId AND by lower-cased email so
+    // CSV-imported externals on the exclude list are honored too.
     if (excludeListIds && excludeListIds.length > 0) {
-        const excluded = new Set(
-            await unionMemberIds(workspaceId, excludeListIds, limit),
+        const excluded = await unionMembers(workspaceId, excludeListIds, limit)
+        const excludedIds = new Set(excluded.contactIds)
+        const excludedEmails = new Set(
+            excluded.externalEmails.map((e) => e.email.toLowerCase()),
         )
-        base = base.filter((c) => !excluded.has(c.id))
+        base = base.filter(
+            (c) =>
+                !excludedIds.has(c.id) &&
+                !excludedEmails.has((c.email ?? "").toLowerCase()),
+        )
     }
 
     return base
@@ -366,7 +397,9 @@ export async function sendCampaign(
                         to: contact.email,
                         subject: data.subject,
                         html: data.renderedHtml,
-                        contactId: contact.id,
+                        // External (CSV) members have no contact doc — pass
+                        // undefined so email_logs doesn't get a fake contactId.
+                        contactId: contact.external ? undefined : contact.id,
                         campaignId,
                         autoResolveContact: false,
                     }),
