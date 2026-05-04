@@ -1190,6 +1190,7 @@ export async function bulkAddTag(ids: string[], tagId: string) {
         const tagData = { tagId, name: tagDoc.data()?.name, color: tagDoc.data()?.color };
 
         const batch = db.batch();
+        const newlyTagged: string[] = [];
 
         // For each contact, add the tag if not already present
         for (const id of ids) {
@@ -1204,10 +1205,21 @@ export async function bulkAddTag(ids: string[], tagId: string) {
                     tags: [...existingTags, tagData],
                     updatedAt: new Date(),
                 });
+                newlyTagged.push(id);
             }
         }
 
         await batch.commit();
+
+        // Fire "tag_added" trigger for each contact that was newly tagged
+        for (const contactId of newlyTagged) {
+            fireTrigger({
+                workspaceId,
+                type: "tag_added",
+                contactId,
+                match: { tagId },
+            }).catch(() => {});
+        }
 
         logAudit(workspaceId, {
             userId: (session.user as any).id || "",

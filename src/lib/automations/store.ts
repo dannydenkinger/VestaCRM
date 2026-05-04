@@ -260,6 +260,30 @@ export async function updateRun(
 }
 
 /**
+ * Atomically claim a waiting run for execution. Returns the run if we won
+ * the race (status flipped waiting → running) or null if another worker
+ * got there first. Prevents double-execution when the cron retries or
+ * multiple workers process the same batch.
+ */
+export async function claimWaitingRun(
+    runId: string,
+): Promise<AutomationRun | null> {
+    const ref = adminDb.collection(RUNS).doc(runId)
+    return adminDb.runTransaction(async (tx) => {
+        const snap = await tx.get(ref)
+        if (!snap.exists) return null
+        const data = snap.data()!
+        if (data.status !== "waiting") return null
+        tx.update(ref, {
+            status: "running",
+            scheduledFor: null,
+            updatedAt: new Date(),
+        })
+        return mapRun(snap.id, { ...data, status: "running", scheduledFor: null })
+    })
+}
+
+/**
  * Has this contact already been enrolled in this automation?
  * Used to enforce single-enrollment (default behavior — most users expect
  * "don't email me twice if I sign up twice").

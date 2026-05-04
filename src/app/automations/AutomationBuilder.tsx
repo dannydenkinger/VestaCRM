@@ -20,11 +20,16 @@ import {
     ArrowLeft,
     ArrowRight,
     Clock,
+    GitBranch,
+    Globe,
     Loader2,
     Mail,
+    Pencil,
     Plus,
     Save,
+    StopCircle,
     Tag,
+    TestTube,
     Trash2,
     Users,
     Workflow,
@@ -32,6 +37,7 @@ import {
 } from "lucide-react"
 import {
     createAutomationAction,
+    enrollTestRunAction,
     updateAutomationAction,
 } from "./actions"
 import type {
@@ -85,10 +91,14 @@ const ACTION_PALETTE: Array<{
 }> = [
     { type: "send_email", label: "Send email", description: "Email the contact with custom subject + body.", Icon: Mail },
     { type: "wait", label: "Wait", description: "Pause for a number of minutes / hours / days.", Icon: Clock },
+    { type: "branch_if", label: "If / then", description: "Take a different path based on a condition.", Icon: GitBranch },
+    { type: "stop_if", label: "Stop if", description: "Exit early if a condition is true (e.g. unsubscribed).", Icon: StopCircle },
     { type: "add_tag", label: "Add tag", description: "Add a tag to the contact.", Icon: Tag },
     { type: "remove_tag", label: "Remove tag", description: "Remove a tag from the contact.", Icon: Tag },
     { type: "add_to_list", label: "Add to list", description: "Add the contact to a list.", Icon: Users },
     { type: "remove_from_list", label: "Remove from list", description: "Remove the contact from a list.", Icon: Users },
+    { type: "update_contact_field", label: "Update field", description: "Set a field on the contact (status, score, etc.).", Icon: Pencil },
+    { type: "webhook", label: "Webhook", description: "POST run context to an external URL.", Icon: Globe },
     { type: "end", label: "End", description: "Stop the automation here.", Icon: Workflow },
 ]
 
@@ -122,6 +132,16 @@ function defaultNodeFor(type: AutomationNode["type"]): AutomationNode {
                 trueNext: "",
                 falseNext: "",
             }
+        case "stop_if":
+            return {
+                id,
+                type,
+                condition: { field: "tag", targetId: "" },
+            }
+        case "update_contact_field":
+            return { id, type, fieldPath: "", value: "" }
+        case "webhook":
+            return { id, type, url: "" }
     }
 }
 
@@ -227,6 +247,9 @@ export function AutomationBuilder({
                         <span>Paused</span>
                     )}
                 </div>
+                {mode === "edit" && initial && (
+                    <TestEnrollButton automationId={initial.id} />
+                )}
                 <Button onClick={handleSave} disabled={isPending} size="sm">
                     {isPending ? (
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -483,6 +506,14 @@ function NodeCard({
                         <span className="text-sm font-medium truncate">
                             {meta?.label ?? node.type}
                         </span>
+                        <button
+                            type="button"
+                            onClick={() => navigator.clipboard?.writeText(node.id)}
+                            className="text-[10px] font-mono text-muted-foreground/60 hover:text-foreground bg-muted px-1.5 py-0.5 rounded shrink-0"
+                            title="Click to copy step id (use as branch target)"
+                        >
+                            {node.id}
+                        </button>
                     </div>
                     <Button
                         type="button"
@@ -694,7 +725,297 @@ function NodeBody({
         )
     }
 
+    if (node.type === "branch_if" || node.type === "stop_if") {
+        // Both share the condition picker; branch_if also needs true/false targets.
+        return (
+            <BranchEditor
+                node={node}
+                lists={lists}
+                tags={tags}
+                onChange={onChange}
+            />
+        )
+    }
+
+    if (node.type === "update_contact_field") {
+        return (
+            <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                    <Label className="text-xs">Field path</Label>
+                    <Input
+                        value={node.fieldPath}
+                        onChange={(e) => onChange({ fieldPath: e.target.value })}
+                        placeholder="status"
+                    />
+                    <p className="text-[10px] text-muted-foreground/70">
+                        e.g. <code>status</code>, <code>customFields.lead_score</code>
+                    </p>
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-xs">Value</Label>
+                    <Input
+                        value={String(node.value ?? "")}
+                        onChange={(e) => onChange({ value: e.target.value })}
+                        placeholder="Customer"
+                    />
+                    <p className="text-[10px] text-muted-foreground/70">
+                        Strings & numbers only in v1.
+                    </p>
+                </div>
+            </div>
+        )
+    }
+
+    if (node.type === "webhook") {
+        return (
+            <div className="space-y-2">
+                <div className="space-y-1">
+                    <Label className="text-xs">Webhook URL</Label>
+                    <Input
+                        value={node.url}
+                        onChange={(e) => onChange({ url: e.target.value })}
+                        placeholder="https://hooks.zapier.com/…"
+                        type="url"
+                    />
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-xs">Authorization header (optional)</Label>
+                    <Input
+                        value={node.authHeader ?? ""}
+                        onChange={(e) => onChange({ authHeader: e.target.value })}
+                        placeholder="Bearer …"
+                    />
+                </div>
+                <p className="text-[10px] text-muted-foreground/70 leading-snug">
+                    Sends a JSON POST with workspaceId, contactId, email,
+                    name, runId, triggerType. 5-second timeout.
+                </p>
+            </div>
+        )
+    }
+
     return null
+}
+
+// ── Branch / stop editor (shared) ───────────────────────────────────────
+
+const CONDITION_FIELDS: Array<{
+    value: "tag" | "list_membership" | "email_opened" | "email_clicked"
+    label: string
+}> = [
+    { value: "tag", label: "Contact has tag" },
+    { value: "list_membership", label: "Contact is on list" },
+    { value: "email_opened", label: "Contact opened campaign" },
+    { value: "email_clicked", label: "Contact clicked campaign" },
+]
+
+function BranchEditor({
+    node,
+    lists,
+    tags,
+    onChange,
+}: {
+    node: import("@/lib/automations/types").BranchIfNode | import("@/lib/automations/types").StopIfNode
+    lists: ListOpt[]
+    tags: TagOpt[]
+    onChange: (patch: Partial<AutomationNode>) => void
+}) {
+    const c = node.condition
+    return (
+        <div className="space-y-2">
+            <div className="space-y-1">
+                <Label className="text-xs">Condition</Label>
+                <Select
+                    value={c.field}
+                    onValueChange={(v) =>
+                        onChange({
+                            condition: {
+                                field: v as typeof c.field,
+                                targetId: "",
+                            },
+                        } as Partial<AutomationNode>)
+                    }
+                >
+                    <SelectTrigger>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {CONDITION_FIELDS.map((f) => (
+                            <SelectItem key={f.value} value={f.value}>
+                                {f.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+
+            {(c.field === "tag" || c.field === "list_membership") && (
+                <div className="space-y-1">
+                    <Label className="text-xs">
+                        {c.field === "tag" ? "Tag" : "List"}
+                    </Label>
+                    <Select
+                        value={c.targetId || ""}
+                        onValueChange={(v) =>
+                            onChange({
+                                condition: { ...c, targetId: v },
+                            } as Partial<AutomationNode>)
+                        }
+                    >
+                        <SelectTrigger>
+                            <SelectValue placeholder={`Pick a ${c.field === "tag" ? "tag" : "list"}`} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {(c.field === "tag" ? tags : lists).map((opt) => (
+                                <SelectItem key={opt.id} value={opt.id}>
+                                    {"color" in opt ? (
+                                        <span className="flex items-center gap-2">
+                                            <span
+                                                className="w-2 h-2 rounded-full"
+                                                style={{ backgroundColor: (opt as TagOpt).color }}
+                                            />
+                                            {opt.name}
+                                        </span>
+                                    ) : (
+                                        opt.name
+                                    )}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            )}
+
+            {(c.field === "email_opened" || c.field === "email_clicked") && (
+                <div className="space-y-1">
+                    <Label className="text-xs">Campaign ID</Label>
+                    <Input
+                        value={c.targetId || ""}
+                        onChange={(e) =>
+                            onChange({
+                                condition: { ...c, targetId: e.target.value },
+                            } as Partial<AutomationNode>)
+                        }
+                        placeholder="paste campaign id"
+                    />
+                    <p className="text-[10px] text-muted-foreground/70">
+                        Pull the id from the campaign URL.
+                    </p>
+                </div>
+            )}
+
+            {node.type === "branch_if" && (
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div className="space-y-1">
+                        <Label className="text-xs text-emerald-700">If TRUE → step id</Label>
+                        <Input
+                            value={node.trueNext}
+                            onChange={(e) =>
+                                onChange({ trueNext: e.target.value } as Partial<AutomationNode>)
+                            }
+                            placeholder="n…"
+                            className="font-mono text-xs"
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <Label className="text-xs text-red-700">If FALSE → step id</Label>
+                        <Input
+                            value={node.falseNext}
+                            onChange={(e) =>
+                                onChange({ falseNext: e.target.value } as Partial<AutomationNode>)
+                            }
+                            placeholder="n…"
+                            className="font-mono text-xs"
+                        />
+                    </div>
+                    <p className="col-span-2 text-[10px] text-muted-foreground/70 leading-snug">
+                        Each step has an id shown on its card (e.g. <code className="font-mono">n5xy3</code>). Paste it here to
+                        jump there. Leave blank to fall through to the next step.
+                    </p>
+                </div>
+            )}
+        </div>
+    )
+}
+
+// ── Test enrollment ─────────────────────────────────────────────────────
+
+function TestEnrollButton({ automationId }: { automationId: string }) {
+    const [open, setOpen] = useState(false)
+    const [email, setEmail] = useState("")
+    const [isPending, startTransition] = useTransition()
+
+    const handleSubmit = () => {
+        if (!email.includes("@")) {
+            toast.error("Enter a valid email")
+            return
+        }
+        startTransition(async () => {
+            const res = await enrollTestRunAction({ automationId, email })
+            if (!res.success) {
+                toast.error(res.error || "Test failed")
+                return
+            }
+            toast.success("Test run enrolled — check the run history below")
+            setEmail("")
+            setOpen(false)
+        })
+    }
+
+    if (!open) {
+        return (
+            <Button
+                onClick={() => setOpen(true)}
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+            >
+                <TestTube className="w-3.5 h-3.5" />
+                Test
+            </Button>
+        )
+    }
+
+    return (
+        <div className="flex items-center gap-1.5">
+            <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSubmit()
+                    if (e.key === "Escape") {
+                        setOpen(false)
+                        setEmail("")
+                    }
+                }}
+                placeholder="email to enroll"
+                className="h-8 text-xs w-56"
+                autoFocus
+                disabled={isPending}
+            />
+            <Button
+                onClick={handleSubmit}
+                disabled={isPending || !email.trim()}
+                size="sm"
+                className="h-8"
+            >
+                {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Run"}
+            </Button>
+            <Button
+                onClick={() => {
+                    setOpen(false)
+                    setEmail("")
+                }}
+                disabled={isPending}
+                size="sm"
+                variant="ghost"
+                className="h-8"
+            >
+                Cancel
+            </Button>
+        </div>
+    )
 }
 
 // ── Run history ─────────────────────────────────────────────────────────

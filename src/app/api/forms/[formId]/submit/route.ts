@@ -4,6 +4,7 @@ import { tenantDb } from "@/lib/tenant-db"
 import { rateLimit, getRateLimitKey } from "@/lib/rate-limit"
 import { sendTrackedEmail } from "@/lib/email"
 import { triggerSequence } from "@/lib/email-sequences"
+import { fireTrigger } from "@/lib/automations/triggers"
 import { determineAssignee } from "@/lib/auto-assign"
 
 function normalizeDateToYmd(input: unknown): string | null {
@@ -257,6 +258,17 @@ export async function POST(
                 sendEmail({ to: payload.email, subject, html }).catch(() => {})
             } catch {}
         }
+
+        // Fire unified-engine "form_submitted" trigger so any matching
+        // automation can pick up the lead (welcome series, lead notification, etc.)
+        fireTrigger({
+            workspaceId,
+            type: "form_submitted",
+            contactId,
+            contactEmail: payload.email,
+            match: { formId },
+            payload: { name: payload.name, opportunityId: opportunityId ?? null },
+        }).catch(() => {})
 
         return NextResponse.json({
             success: true,

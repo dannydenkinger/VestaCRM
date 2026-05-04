@@ -11,6 +11,7 @@ import { recordCommission } from "@/app/dashboard/commissions/actions";
 import { advanceReferralForStage, checkReferralConversion } from "@/app/dashboard/referrals/actions";
 import { executeStageAutomations } from "@/lib/stage-automations";
 import { triggerWorkflows } from "@/lib/workflow-engine";
+import { fireTrigger } from "@/lib/automations/triggers";
 import { softDelete, restoreItem, permanentlyDelete } from "@/lib/soft-delete";
 import { captureError } from "@/lib/error-tracking";
 import { getCurrentUserRole } from "@/app/settings/users/actions";
@@ -927,7 +928,7 @@ export async function updateOpportunity(id: string, data: {
                 executeStageAutomations(workspaceId, oppId, data.pipelineStageId, automationUserId).catch(() => {});
             } catch { /* ignore stage automation errors */ }
 
-            // Trigger workflow automations for stage change
+            // Trigger workflow automations for stage change (legacy)
             triggerWorkflows(workspaceId, {
                 type: "stage_changed",
                 data: {
@@ -940,6 +941,37 @@ export async function updateOpportunity(id: string, data: {
                     previousStageId: beforeData.pipelineStageId || "",
                     newStageId: data.pipelineStageId,
                     userId: currentUserId || "",
+                },
+            }).catch(() => {});
+
+            // Fire unified-engine "pipeline_stage_entered" trigger for the new stage
+            fireTrigger({
+                workspaceId,
+                type: "pipeline_stage_entered",
+                contactId: beforeData.contactId || data.contactId || "",
+                contactEmail: beforeData.email || undefined,
+                match: { stageId: data.pipelineStageId },
+                payload: {
+                    opportunityId: oppId,
+                    previousStageId: beforeData.pipelineStageId || "",
+                    newStageId: data.pipelineStageId,
+                },
+            }).catch(() => {});
+        }
+
+        // Fire "opportunity_won" when status flips to closed_won
+        if (
+            data.status === "closed_won" &&
+            beforeData.status !== "closed_won"
+        ) {
+            fireTrigger({
+                workspaceId,
+                type: "opportunity_won",
+                contactId: beforeData.contactId || data.contactId || "",
+                contactEmail: beforeData.email || undefined,
+                payload: {
+                    opportunityId: oppId,
+                    opportunityValue: Number(updateData.opportunityValue ?? beforeData.opportunityValue) || 0,
                 },
             }).catch(() => {});
         }

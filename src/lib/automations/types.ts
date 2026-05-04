@@ -66,6 +66,9 @@ export type ActionType =
     | "add_to_list"
     | "remove_from_list"
     | "branch_if"
+    | "stop_if"
+    | "update_contact_field"
+    | "webhook"
     | "end"
 
 export interface BaseNode {
@@ -132,6 +135,29 @@ export interface BranchIfNode extends BaseNode {
     falseNext: string
 }
 
+/** Exit the run early if the condition is true. Otherwise continue. */
+export interface StopIfNode extends BaseNode {
+    type: "stop_if"
+    condition: BranchCondition
+}
+
+/** Set a single field on the contact. */
+export interface UpdateContactFieldNode extends BaseNode {
+    type: "update_contact_field"
+    /** Field path on the contact doc. Supports nested via dots, e.g. "customFields.lead_score". */
+    fieldPath: string
+    /** Literal value to write (string/number/null — UI keeps this simple in v1). */
+    value: string | number | null
+}
+
+/** POST the run context to an arbitrary URL. The escape hatch for power users. */
+export interface WebhookNode extends BaseNode {
+    type: "webhook"
+    url: string
+    /** Optional Authorization header value (sent verbatim). */
+    authHeader?: string
+}
+
 export interface EndNode extends BaseNode {
     type: "end"
 }
@@ -144,6 +170,9 @@ export type AutomationNode =
     | AddToListNode
     | RemoveFromListNode
     | BranchIfNode
+    | StopIfNode
+    | UpdateContactFieldNode
+    | WebhookNode
     | EndNode
 
 // ── Automation envelope ───────────────────────────────────────────────────

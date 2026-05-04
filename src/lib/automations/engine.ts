@@ -9,6 +9,7 @@
 
 import {
     bumpAutomationStat,
+    claimWaitingRun,
     findDueWaitingRuns,
     getAutomation,
     getRun,
@@ -36,9 +37,20 @@ export interface AdvanceResult {
  *     will be picked up on the next tick)
  */
 export async function advanceRun(runId: string): Promise<AdvanceResult> {
-    const run = await getRun(runId)
+    let run = await getRun(runId)
     if (!run) return { runId, stepsExecuted: 0, finalStatus: "errored", error: "Run not found" }
-    if (run.status !== "running" && run.status !== "waiting") {
+
+    // Race-safe transition for waiting → running. If another worker (cron retry,
+    // concurrent invocation) already claimed this run, bail out immediately.
+    if (run.status === "waiting") {
+        const claimed = await claimWaitingRun(runId)
+        if (!claimed) {
+            return { runId, stepsExecuted: 0, finalStatus: "running" }
+        }
+        run = claimed
+    }
+
+    if (run.status !== "running") {
         return { runId, stepsExecuted: 0, finalStatus: run.status }
     }
 
@@ -67,11 +79,6 @@ export async function advanceRun(runId: string): Promise<AdvanceResult> {
     let steps = 0
     let lastError: string | undefined
 
-    // Lift to "running" if we were "waiting" (cron-resumed)
-    if (run.status === "waiting") {
-        await updateRun(runId, { status: "running", scheduledFor: null })
-    }
-
     while (steps < MAX_STEPS_PER_INVOCATION) {
         const node = automation.nodes[currentIdx]
         if (!node) {
@@ -97,6 +104,21 @@ export async function advanceRun(runId: string): Promise<AdvanceResult> {
 
         if (result.contextPatch) {
             context = { ...context, ...result.contextPatch }
+        }
+
+        // Soft errors (advance=true with an error string) are recorded for
+        // visibility but don't stop the run — e.g. send_email skipped because
+        // the recipient is suppressed.
+        if (result.error && result.advance) {
+            context = {
+                ...context,
+                lastNonFatalError: {
+                    nodeId: node.id,
+                    type: node.type,
+                    message: result.error,
+                    at: new Date().toISOString(),
+                },
+            }
         }
 
         if (result.error && !result.advance) {

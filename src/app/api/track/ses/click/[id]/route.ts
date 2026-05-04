@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { adminDb } from "@/lib/firebase-admin"
 import { verifyClickSignature } from "@/lib/email/tracking"
 import { logActivity } from "@/lib/activities/timeline"
+import { fireTrigger } from "@/lib/automations/triggers"
 
 export const dynamic = "force-dynamic"
 
@@ -68,5 +69,14 @@ async function recordClick(emailLogId: string, url: string): Promise<void> {
             },
             sourceRef: emailLogId,
         })
+
+        // Fire unified-engine "email_clicked" trigger
+        fireTrigger({
+            workspaceId: data.workspaceId as string,
+            type: "email_clicked",
+            contactId: data.contactId as string,
+            match: { campaignId: (data.campaignId as string) || undefined },
+            payload: { emailLogId, url },
+        }).catch(() => {})
     }
 }

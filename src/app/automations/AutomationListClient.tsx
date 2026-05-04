@@ -22,7 +22,10 @@ import {
     Clock,
     Tag,
     GitBranch,
+    Globe,
+    StopCircle,
     Users,
+    Workflow,
 } from "lucide-react"
 import {
     deleteAutomationAction,
@@ -51,7 +54,10 @@ const ACTION_ICONS: Record<ActionType, React.ComponentType<{ className?: string 
     add_to_list: Users,
     remove_from_list: Users,
     branch_if: GitBranch,
-    end: Loader2,
+    stop_if: StopCircle,
+    update_contact_field: Pencil,
+    webhook: Globe,
+    end: Workflow,
 }
 
 export function AutomationListClient({

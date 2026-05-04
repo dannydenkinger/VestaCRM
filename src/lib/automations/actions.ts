@@ -26,7 +26,10 @@ import type {
     RemoveFromListNode,
     RemoveTagNode,
     SendEmailNode,
+    StopIfNode,
+    UpdateContactFieldNode,
     WaitNode,
+    WebhookNode,
 } from "./types"
 
 export interface ActionContext {
@@ -71,10 +74,10 @@ async function handleSendEmail(
 ): Promise<ActionResult> {
     const to = ctx.contact?.email ?? (ctx.run.contactEmail || "")
     if (!to || !to.includes("@")) {
-        return { advance: true, error: undefined } // skip silently
+        return { advance: true, error: "no recipient email" }
     }
     try {
-        await sendEmail({
+        const result = await sendEmail({
             workspaceId: ctx.workspaceId,
             to,
             subject: node.subject,
@@ -86,13 +89,17 @@ async function handleSendEmail(
             campaignId: `automation:${ctx.automationId}`,
             autoResolveContact: false,
         })
+        // sendEmail returns { ok, error } for soft-fail (suppression, etc).
+        // Surface the soft fail in the run context but don't halt the run.
+        if (!result.ok) {
+            return { advance: true, error: result.error || "send skipped" }
+        }
         return { advance: true }
     } catch (err) {
         const message = err instanceof Error ? err.message : "send_email failed"
-        // Suppression / SES not ready / out of credits are not the engine's
-        // problem — log and advance so the rest of the run continues.
-        console.warn(`[automation:${ctx.automationId}] send_email skipped: ${message}`)
-        return { advance: true }
+        // Hard errors (SES misconfigured, credits) are NOT skipped silently
+        // anymore. Surface them so the run history shows what's wrong.
+        return { advance: true, error: message }
     }
 }
 
@@ -162,15 +169,89 @@ async function handleBranchIf(
     node: BranchIfNode,
     ctx: ActionContext,
 ): Promise<ActionResult> {
-    const truthy = await evaluateCondition(node, ctx)
+    const truthy = await evaluateCondition(node.condition, ctx)
     return { advance: true, jumpTo: truthy ? node.trueNext : node.falseNext }
 }
 
+async function handleStopIf(
+    node: StopIfNode,
+    ctx: ActionContext,
+): Promise<ActionResult> {
+    const truthy = await evaluateCondition(node.condition, ctx)
+    if (truthy) {
+        return { advance: true, end: true }
+    }
+    return { advance: true }
+}
+
+async function handleUpdateContactField(
+    node: UpdateContactFieldNode,
+    ctx: ActionContext,
+): Promise<ActionResult> {
+    if (!ctx.contact) return { advance: true, error: "no contact to update" }
+    const path = node.fieldPath?.trim()
+    if (!path) return { advance: true, error: "fieldPath required" }
+    // Block writes to sensitive system fields
+    const blocked = ["workspaceId", "id", "createdAt", "createdBy"]
+    if (blocked.includes(path) || blocked.some((b) => path.startsWith(b + "."))) {
+        return { advance: true, error: `cannot update ${path}` }
+    }
+    await adminDb
+        .collection("contacts")
+        .doc(ctx.contact.id)
+        .update({ [path]: node.value, updatedAt: new Date() })
+    return { advance: true }
+}
+
+async function handleWebhook(
+    node: WebhookNode,
+    ctx: ActionContext,
+): Promise<ActionResult> {
+    if (!node.url || !/^https?:\/\//.test(node.url)) {
+        return { advance: true, error: "webhook url must start with http(s)://" }
+    }
+    try {
+        const headers: Record<string, string> = { "content-type": "application/json" }
+        if (node.authHeader) headers["authorization"] = node.authHeader
+        const payload = {
+            workspaceId: ctx.workspaceId,
+            automationId: ctx.automationId,
+            runId: ctx.run.id,
+            contactId: ctx.contact?.id ?? null,
+            email: ctx.contact?.email ?? ctx.run.contactEmail ?? null,
+            firstName: ctx.contact?.firstName ?? null,
+            lastName: ctx.contact?.lastName ?? null,
+            triggerType: ctx.run.contextData?.triggerType ?? null,
+            firedAt: new Date().toISOString(),
+        }
+        // 5-second timeout — long enough for normal endpoints, short enough
+        // that a hung webhook doesn't tie up the engine.
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 5_000)
+        try {
+            const res = await fetch(node.url, {
+                method: "POST",
+                headers,
+                body: JSON.stringify(payload),
+                signal: controller.signal,
+            })
+            if (!res.ok) {
+                return { advance: true, error: `webhook ${res.status}` }
+            }
+        } finally {
+            clearTimeout(timeout)
+        }
+        return { advance: true }
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "webhook failed"
+        return { advance: true, error: message }
+    }
+}
+
 async function evaluateCondition(
-    node: BranchIfNode,
+    c: { field: string; targetId: string },
     ctx: ActionContext,
 ): Promise<boolean> {
-    const c = node.condition
     if (!ctx.contact) return false
 
     if (c.field === "tag") {
@@ -209,6 +290,9 @@ const HANDLERS: Record<ActionType, (node: AutomationNode, ctx: ActionContext) =>
     add_to_list: (n, c) => handleAddToList(n as AddToListNode, c),
     remove_from_list: (n, c) => handleRemoveFromList(n as RemoveFromListNode, c),
     branch_if: (n, c) => handleBranchIf(n as BranchIfNode, c),
+    stop_if: (n, c) => handleStopIf(n as StopIfNode, c),
+    update_contact_field: (n, c) => handleUpdateContactField(n as UpdateContactFieldNode, c),
+    webhook: (n, c) => handleWebhook(n as WebhookNode, c),
     end: async () => ({ advance: true, end: true }),
 }
 
