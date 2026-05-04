@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState, useTransition } from "react"
+import { useMemo, useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -50,6 +50,7 @@ import {
     enrollTestRunAction,
     updateAutomationAction,
 } from "./actions"
+import { AutomationCanvas } from "./AutomationCanvas"
 import type {
     Automation,
     AutomationNode,
@@ -221,6 +222,18 @@ export function AutomationBuilder({
     const [allowReEnroll, setAllowReEnroll] = useState(initial?.allowReEnroll ?? false)
     const [goal, setGoal] = useState<Automation["goal"] | null>(initial?.goal ?? null)
     const [showPalette, setShowPalette] = useState(false)
+    const [view, setView] = useState<"list" | "canvas">(() => {
+        if (typeof window === "undefined") return "list"
+        return (localStorage.getItem("vesta:automations:view") as "list" | "canvas") ?? "list"
+    })
+    const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+
+    const setViewPersisted = (next: "list" | "canvas") => {
+        setView(next)
+        try {
+            localStorage.setItem("vesta:automations:view", next)
+        } catch { /* ignore */ }
+    }
 
     const addNode = (type: AutomationNode["type"]) => {
         setNodes((prev) => [...prev, defaultNodeFor(type)])
@@ -296,6 +309,32 @@ export function AutomationBuilder({
                     disabled={isPending}
                 />
                 <div className="flex-1" />
+
+                <div className="flex items-center bg-muted rounded-md p-0.5 text-xs">
+                    <button
+                        type="button"
+                        onClick={() => setViewPersisted("list")}
+                        className={`px-2.5 py-1 rounded transition-colors ${
+                            view === "list"
+                                ? "bg-background shadow-sm font-medium"
+                                : "text-muted-foreground hover:text-foreground"
+                        }`}
+                    >
+                        List
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setViewPersisted("canvas")}
+                        className={`px-2.5 py-1 rounded transition-colors ${
+                            view === "canvas"
+                                ? "bg-background shadow-sm font-medium"
+                                : "text-muted-foreground hover:text-foreground"
+                        }`}
+                    >
+                        Canvas
+                    </button>
+                </div>
+
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Switch
                         checked={enabled}
@@ -322,7 +361,26 @@ export function AutomationBuilder({
                 </Button>
             </header>
 
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-hidden">
+                {view === "canvas" ? (
+                    <CanvasLayout
+                        nodes={nodes}
+                        selectedNodeId={selectedNodeId}
+                        setSelectedNodeId={setSelectedNodeId}
+                        showPalette={showPalette}
+                        setShowPalette={setShowPalette}
+                        addNode={addNode}
+                        removeNode={removeNode}
+                        updateNode={updateNode}
+                        trigger={trigger}
+                        setTrigger={setTrigger}
+                        lists={lists}
+                        tags={tags}
+                        templates={templates}
+                        users={users}
+                    />
+                ) : (
+                <div className="h-full overflow-y-auto">
                 <div className="max-w-2xl mx-auto py-8 px-4 space-y-3">
                     {/* Settings card — re-enroll, goal, webhook URL, bulk enroll */}
                     {mode === "edit" && initial && (
@@ -447,6 +505,164 @@ export function AutomationBuilder({
                 {mode === "edit" && recentRuns && recentRuns.length > 0 && (
                     <div className="max-w-2xl mx-auto pb-12 px-4">
                         <RunHistory runs={recentRuns} />
+                    </div>
+                )}
+                </div>
+                )}
+            </div>
+        </div>
+    )
+}
+
+// ── Canvas layout (split: ReactFlow + side panel) ──────────────────────
+
+interface CanvasLayoutProps {
+    nodes: AutomationNode[]
+    selectedNodeId: string | null
+    setSelectedNodeId: (id: string | null) => void
+    showPalette: boolean
+    setShowPalette: (b: boolean) => void
+    addNode: (type: AutomationNode["type"]) => void
+    removeNode: (id: string) => void
+    updateNode: (id: string, patch: Partial<AutomationNode>) => void
+    trigger: Trigger
+    setTrigger: (t: Trigger) => void
+    lists: ListOpt[]
+    tags: TagOpt[]
+    templates: TemplateOpt[]
+    users: UserOpt[]
+}
+
+function CanvasLayout({
+    nodes,
+    selectedNodeId,
+    setSelectedNodeId,
+    showPalette,
+    setShowPalette,
+    addNode,
+    removeNode,
+    updateNode,
+    trigger,
+    setTrigger,
+    lists,
+    tags,
+    templates,
+    users,
+}: CanvasLayoutProps) {
+    const selectedNode = nodes.find((n) => n.id === selectedNodeId) ?? null
+    const triggerLabel =
+        TRIGGER_OPTIONS.find((o) => o.value === trigger.type)?.label ?? trigger.type
+
+    const actionMeta = useMemo(() => {
+        const out: Record<string, { label: string; Icon: React.ComponentType<{ className?: string }> }> = {}
+        for (const a of ACTION_PALETTE) {
+            out[a.type] = { label: a.label, Icon: a.Icon }
+        }
+        return out
+    }, [])
+
+    return (
+        <div className="flex h-full">
+            <div className="flex-1 relative bg-muted/10">
+                <AutomationCanvas
+                    nodes={nodes}
+                    selectedNodeId={selectedNodeId}
+                    onSelectNode={setSelectedNodeId}
+                    onAddNodeRequest={() => setShowPalette(true)}
+                    triggerLabel={triggerLabel}
+                    actionMeta={actionMeta}
+                />
+                {showPalette && (
+                    <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-10 p-6">
+                        <Card className="max-w-md w-full">
+                            <CardContent className="py-4 space-y-2">
+                                <div className="flex items-center justify-between mb-2">
+                                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                                        Pick an action
+                                    </Label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPalette(false)}
+                                        className="text-xs text-muted-foreground hover:text-foreground"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-1.5 max-h-[60vh] overflow-y-auto pr-1">
+                                    {ACTION_PALETTE.map((a) => (
+                                        <button
+                                            key={a.type}
+                                            type="button"
+                                            onClick={() => {
+                                                addNode(a.type)
+                                                setShowPalette(false)
+                                            }}
+                                            className="text-left p-3 border rounded-md hover:bg-muted/40 hover:border-primary/30 transition-colors group"
+                                        >
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <a.Icon className="w-4 h-4 text-primary" />
+                                                <span className="text-sm font-medium group-hover:text-primary">
+                                                    {a.label}
+                                                </span>
+                                            </div>
+                                            <div className="text-[11px] text-muted-foreground line-clamp-2 leading-snug">
+                                                {a.description}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+            </div>
+
+            <div className="w-96 shrink-0 border-l bg-card overflow-y-auto">
+                {selectedNode ? (
+                    <div className="p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                                Edit step
+                            </div>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                    removeNode(selectedNode.id)
+                                    setSelectedNodeId(null)
+                                }}
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            >
+                                <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                        </div>
+                        <NodeBody
+                            node={selectedNode}
+                            lists={lists}
+                            tags={tags}
+                            templates={templates}
+                            users={users}
+                            onChange={(patch) => updateNode(selectedNode.id, patch)}
+                            allNodes={nodes}
+                        />
+                    </div>
+                ) : (
+                    <div className="p-4 space-y-3">
+                        <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                            Trigger
+                        </div>
+                        <TriggerCard
+                            trigger={trigger}
+                            onChange={setTrigger}
+                            lists={lists}
+                            tags={tags}
+                        />
+                        <p className="text-xs text-muted-foreground pt-4 leading-relaxed">
+                            Click a step in the canvas to edit it. Branch_if steps draw two
+                            outgoing arrows: green = TRUE, red = FALSE. Dashed lines mean
+                            &quot;fall through to the next step&quot;.
+                        </p>
                     </div>
                 )}
             </div>
