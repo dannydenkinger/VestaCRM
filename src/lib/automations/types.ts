@@ -43,6 +43,8 @@ export type TriggerType =
     | "contact_field_updated"
     | "sms_replied"
     | "appointment_booked"
+    | "birthday"
+    | "anniversary"
     | "webhook_in"
     | "manual"
 

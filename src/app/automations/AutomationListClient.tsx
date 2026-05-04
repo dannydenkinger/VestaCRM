@@ -53,6 +53,8 @@ const TRIGGER_LABELS: Record<TriggerType, string> = {
     contact_field_updated: "Contact field updated",
     sms_replied: "SMS replied",
     appointment_booked: "Appointment booked",
+    birthday: "Birthday",
+    anniversary: "Anniversary",
     webhook_in: "Webhook (external)",
     manual: "Manual / API",
 }

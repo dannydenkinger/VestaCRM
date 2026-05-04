@@ -30,6 +30,8 @@ const csrfExemptPrefixes = [
     "/api/forms/",       // Form submissions come from external sites
     "/api/cron/",        // Cron jobs authenticate via secret query param
     "/api/calendar/",    // Calendar feed is GET-only, public by design
+    "/api/v1/",          // Public REST API — auth via x-api-key / Bearer token
+    "/api/automations/", // Public webhook-in trigger — HMAC-signed token in URL
 ]
 
 /**

@@ -99,6 +99,8 @@ const TRIGGER_OPTIONS: Array<{ value: TriggerType; label: string; description: s
     { value: "contact_field_updated", label: "Contact field updated", description: "When a specific field on the contact changes." },
     { value: "sms_replied", label: "SMS replied", description: "When a contact sends an SMS to your Twilio number." },
     { value: "appointment_booked", label: "Appointment booked", description: "External scheduler (Calendly, Cal.com, Acuity) POSTs when a meeting is booked." },
+    { value: "birthday", label: "Birthday", description: "Fires daily for any contact whose birthday matches today (UTC)." },
+    { value: "anniversary", label: "Anniversary", description: "Fires daily for any contact whose anniversary matches today (UTC)." },
     { value: "webhook_in", label: "Webhook (external)", description: "External system POSTs to a unique URL to enroll a contact." },
     { value: "manual", label: "Manual / API", description: "Only triggered explicitly via an API call." },
 ]

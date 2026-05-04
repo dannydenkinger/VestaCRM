@@ -20,6 +20,7 @@ import { DataExport } from "./data/DataExport"
 import { CustomFieldsManager } from "./custom-fields/CustomFieldsManager"
 import { BrandingSettings } from "./branding/BrandingSettings"
 import { ApiKeyManager } from "./api-keys/ApiKeyManager"
+import { ApiDocs } from "./api-keys/ApiDocs"
 import { WebsiteFormEmbed } from "./api-keys/WebsiteFormEmbed"
 import { LeadFormsTab } from "./lead-forms/LeadFormsTab"
 import { ScheduledReports } from "./reports/ScheduledReports"
@@ -443,6 +444,7 @@ export default async function SettingsPage() {
                                     <TabsContent value="api-keys" className="space-y-6 mt-0">
                                         <WebsiteFormEmbed />
                                         <ApiKeyManager />
+                                        <ApiDocs />
                                     </TabsContent>
 
                                     <TabsContent value="integrations" className="space-y-6 mt-0">
