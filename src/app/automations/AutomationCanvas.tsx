@@ -623,7 +623,7 @@ export function AutomationCanvas({
                                 if (selectedNodeId === menu.nodeId) onSelectNode(null)
                                 setMenu(null)
                             }}
-                            className="w-full text-left px-3 py-1.5 text-sm hover:bg-destructive hover:text-destructive-foreground flex items-center gap-2 text-destructive"
+                            className="w-full text-left px-3 py-1.5 text-sm hover:bg-destructive/10 text-destructive flex items-center gap-2 transition-colors"
                         >
                             <Trash2 className="w-3.5 h-3.5" />
                             Delete step
@@ -635,7 +635,7 @@ export function AutomationCanvas({
                                 disconnectEdge(menu.sourceNodeId, menu.edgeKind)
                                 setMenu(null)
                             }}
-                            className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted flex items-center gap-2"
+                            className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted flex items-center gap-2 transition-colors"
                         >
                             <Unlink className="w-3.5 h-3.5" />
                             Disconnect{" "}
@@ -663,7 +663,7 @@ function pushBranchEdge(
 ): void {
     if (node.type !== "branch_if") return
     const colorByKind = kind === "true" ? "#16a34a" : "#dc2626"
-    const labelByKind = kind === "true" ? "TRUE" : "FALSE"
+    const labelByKind = kind === "true" ? "Yes" : "No"
     const handleId = kind
 
     let targetId: string | null
@@ -686,11 +686,21 @@ function pushBranchEdge(
         sourceHandle: handleId,
         target: targetId,
         type: "smoothstep",
-        label: isFallthrough ? `${labelByKind} → next` : labelByKind,
-        labelStyle: { fontSize: 10, fontWeight: 600, fill: colorByKind },
+        // Only show the Yes/No label when explicitly wired. Fallthrough edges
+        // stay clean — color hints which path it is, no noisy text.
+        label: isFallthrough ? undefined : labelByKind,
+        labelStyle: isFallthrough
+            ? undefined
+            : { fontSize: 10, fontWeight: 600, fill: colorByKind },
+        labelBgStyle: isFallthrough
+            ? undefined
+            : { fill: "#ffffff" },
+        labelBgPadding: isFallthrough ? undefined : [4, 6],
+        labelBgBorderRadius: isFallthrough ? undefined : 4,
         style: {
             stroke: colorByKind,
-            ...(isFallthrough ? { strokeDasharray: "4 4" } : {}),
+            strokeWidth: isFallthrough ? 1 : 2,
+            ...(isFallthrough ? { opacity: 0.5 } : {}),
         },
     })
 }

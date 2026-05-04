@@ -43,6 +43,7 @@ import {
     UserCheck,
     Users,
     Workflow,
+    X,
     Zap,
 } from "lucide-react"
 import {
@@ -255,8 +256,12 @@ export function AutomationBuilder({
     }
 
     const addNode = (type: AutomationNode["type"]) => {
-        setNodes((prev) => [...prev, defaultNodeFor(type)])
+        const newNode = defaultNodeFor(type)
+        setNodes((prev) => [...prev, newNode])
         setShowPalette(false)
+        // Auto-open the new step's editor in the side panel — GHL-style
+        // "step 1 of N: configure this" feel
+        setSelectedNodeId(newNode.id)
     }
 
     const updateNode = (id: string, patch: Partial<AutomationNode>) => {
@@ -583,6 +588,10 @@ function CanvasLayout({
         return out
     }, [])
 
+    const selectedMeta = selectedNode
+        ? ACTION_PALETTE.find((a) => a.type === selectedNode.type)
+        : null
+
     return (
         <div className="flex h-full">
             <div className="flex-1 relative bg-muted/10">
@@ -596,100 +605,279 @@ function CanvasLayout({
                     triggerLabel={triggerLabel}
                     actionMeta={actionMeta}
                 />
-                {showPalette && (
-                    <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-10 p-6">
-                        <Card className="max-w-md w-full">
-                            <CardContent className="py-4 space-y-2">
-                                <div className="flex items-center justify-between mb-2">
-                                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-                                        Pick an action
-                                    </Label>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPalette(false)}
-                                        className="text-xs text-muted-foreground hover:text-foreground"
-                                    >
-                                        Cancel
-                                    </button>
-                                </div>
-                                <div className="grid grid-cols-2 gap-1.5 max-h-[60vh] overflow-y-auto pr-1">
-                                    {ACTION_PALETTE.map((a) => (
-                                        <button
-                                            key={a.type}
-                                            type="button"
-                                            onClick={() => {
-                                                addNode(a.type)
-                                                setShowPalette(false)
-                                            }}
-                                            className="text-left p-3 border rounded-md hover:bg-muted/40 hover:border-primary/30 transition-colors group"
-                                        >
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <a.Icon className="w-4 h-4 text-primary" />
-                                                <span className="text-sm font-medium group-hover:text-primary">
-                                                    {a.label}
-                                                </span>
-                                            </div>
-                                            <div className="text-[11px] text-muted-foreground line-clamp-2 leading-snug">
-                                                {a.description}
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            </CardContent>
-                        </Card>
+
+                {/* Empty-state overlay over the canvas when no steps yet */}
+                {nodes.length === 0 && !showPalette && (
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <div className="text-center space-y-3 max-w-sm">
+                            <div className="text-sm font-medium text-foreground/80">
+                                Build your flow
+                            </div>
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                When the trigger fires, the steps you add here run in order.
+                                Click <strong>Add step</strong> on the canvas to start.
+                            </p>
+                        </div>
                     </div>
+                )}
+
+                {showPalette && (
+                    <ActionPaletteModal
+                        onPick={(type) => addNode(type)}
+                        onClose={() => setShowPalette(false)}
+                    />
                 )}
             </div>
 
-            <div className="w-96 shrink-0 border-l bg-card overflow-y-auto">
+            {/* Side panel — fills the right column. Scrolling body, sticky
+                header + footer so the primary actions are always visible. */}
+            <div className="w-[420px] shrink-0 border-l bg-card flex flex-col">
                 {selectedNode ? (
-                    <div className="p-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                            <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                                Edit step
+                    <>
+                        {/* Header */}
+                        <div className="px-4 py-3 border-b shrink-0 flex items-center gap-2">
+                            {selectedMeta?.Icon && (
+                                <div className="w-8 h-8 rounded-md bg-primary/10 text-primary flex items-center justify-center">
+                                    <selectedMeta.Icon className="w-4 h-4" />
+                                </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                                    Step {nodes.findIndex((n) => n.id === selectedNode.id) + 1}
+                                </div>
+                                <div className="text-sm font-semibold truncate">
+                                    {selectedMeta?.label ?? selectedNode.type}
+                                </div>
                             </div>
-                            <Button
+                            <button
                                 type="button"
-                                variant="ghost"
-                                size="icon"
+                                onClick={() => setSelectedNodeId(null)}
+                                className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted/50"
+                                title="Close panel"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                        {/* Body */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                            {selectedMeta?.description && (
+                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                    {selectedMeta.description}
+                                </p>
+                            )}
+                            <NodeBody
+                                node={selectedNode}
+                                lists={lists}
+                                tags={tags}
+                                templates={templates}
+                                users={users}
+                                onChange={(patch) => updateNode(selectedNode.id, patch)}
+                                allNodes={nodes}
+                            />
+                        </div>
+                        {/* Footer */}
+                        <div className="px-4 py-3 border-t shrink-0 flex items-center justify-between bg-muted/20">
+                            <button
+                                type="button"
                                 onClick={() => {
-                                    removeNode(selectedNode.id)
-                                    setSelectedNodeId(null)
+                                    if (
+                                        confirm("Delete this step? This can't be undone.")
+                                    ) {
+                                        removeNode(selectedNode.id)
+                                        setSelectedNodeId(null)
+                                    }
                                 }}
-                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1.5 transition-colors"
                             >
                                 <Trash2 className="w-3.5 h-3.5" />
+                                Delete step
+                            </button>
+                            <Button
+                                onClick={() => setSelectedNodeId(null)}
+                                size="sm"
+                            >
+                                Done
                             </Button>
                         </div>
-                        <NodeBody
-                            node={selectedNode}
-                            lists={lists}
-                            tags={tags}
-                            templates={templates}
-                            users={users}
-                            onChange={(patch) => updateNode(selectedNode.id, patch)}
-                            allNodes={nodes}
-                        />
-                    </div>
+                    </>
                 ) : (
-                    <div className="p-4 space-y-3">
-                        <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                            Trigger
+                    <>
+                        {/* Header */}
+                        <div className="px-4 py-3 border-b shrink-0 flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-md bg-primary/10 text-primary flex items-center justify-center">
+                                <Zap className="w-4 h-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                                    Trigger
+                                </div>
+                                <div className="text-sm font-semibold truncate">
+                                    {triggerLabel}
+                                </div>
+                            </div>
                         </div>
-                        <TriggerCard
-                            trigger={trigger}
-                            onChange={setTrigger}
-                            lists={lists}
-                            tags={tags}
-                        />
-                        <p className="text-xs text-muted-foreground pt-4 leading-relaxed">
-                            Click a step in the canvas to edit it. Branch_if steps draw two
-                            outgoing arrows: green = TRUE, red = FALSE. Dashed lines mean
-                            &quot;fall through to the next step&quot;.
-                        </p>
-                    </div>
+                        {/* Body */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                                The trigger is what starts the automation for a contact. Pick
+                                the event you want to react to.
+                            </p>
+                            <TriggerCard
+                                trigger={trigger}
+                                onChange={setTrigger}
+                                lists={lists}
+                                tags={tags}
+                            />
+                            <div className="pt-4 border-t space-y-1.5">
+                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                                    Tips
+                                </div>
+                                <ul className="text-xs text-muted-foreground leading-relaxed space-y-1 pl-4 list-disc">
+                                    <li>Click a step on the canvas to edit it here.</li>
+                                    <li>
+                                        Branches show <strong className="text-emerald-600">Yes</strong>{" "}
+                                        and <strong className="text-red-600">No</strong> labels for
+                                        their explicit paths.
+                                    </li>
+                                    <li>
+                                        Right-click an edge to disconnect it; right-click a step
+                                        for delete.
+                                    </li>
+                                    <li>
+                                        Use <strong>Clean up</strong> to auto-arrange the layout.
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </>
                 )}
             </div>
+        </div>
+    )
+}
+
+// ── Categorized action palette modal ────────────────────────────────────
+
+const PALETTE_CATEGORIES: Array<{ name: string; types: AutomationNode["type"][] }> = [
+    {
+        name: "Send",
+        types: ["send_email", "ai_send_email", "send_sms", "send_internal_email"],
+    },
+    {
+        name: "Wait",
+        types: ["wait", "wait_until", "wait_until_business_hours"],
+    },
+    {
+        name: "Logic",
+        types: ["branch_if", "stop_if", "end"],
+    },
+    {
+        name: "Update",
+        types: [
+            "update_contact_field",
+            "increment_field",
+            "assign_user",
+            "add_tag",
+            "remove_tag",
+            "add_to_list",
+            "remove_from_list",
+            "update_opportunity",
+        ],
+    },
+    {
+        name: "Other",
+        types: ["create_task", "webhook"],
+    },
+]
+
+function ActionPaletteModal({
+    onPick,
+    onClose,
+}: {
+    onPick: (type: AutomationNode["type"]) => void
+    onClose: () => void
+}) {
+    const [filter, setFilter] = useState("")
+    const lower = filter.trim().toLowerCase()
+
+    const matches = (a: typeof ACTION_PALETTE[number]): boolean => {
+        if (!lower) return true
+        return (
+            a.label.toLowerCase().includes(lower) ||
+            a.description.toLowerCase().includes(lower) ||
+            a.type.toLowerCase().includes(lower)
+        )
+    }
+
+    return (
+        <div
+            className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-start justify-center z-20 p-6 pt-16"
+            onClick={onClose}
+        >
+            <Card
+                className="max-w-lg w-full shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <CardContent className="py-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <div className="text-sm font-semibold">Add a step</div>
+                            <div className="text-xs text-muted-foreground">
+                                Pick what should happen next.
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted/50"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                    <Input
+                        autoFocus
+                        value={filter}
+                        onChange={(e) => setFilter(e.target.value)}
+                        placeholder="Filter actions…"
+                        className="h-9"
+                    />
+                    <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                        {PALETTE_CATEGORIES.map((cat) => {
+                            const items = ACTION_PALETTE.filter(
+                                (a) => cat.types.includes(a.type) && matches(a),
+                            )
+                            if (items.length === 0) return null
+                            return (
+                                <div key={cat.name} className="space-y-1.5">
+                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold px-1">
+                                        {cat.name}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-1.5">
+                                        {items.map((a) => (
+                                            <button
+                                                key={a.type}
+                                                type="button"
+                                                onClick={() => onPick(a.type)}
+                                                className="text-left p-2.5 border rounded-md hover:bg-muted/40 hover:border-primary/40 transition-colors group"
+                                            >
+                                                <div className="flex items-center gap-1.5 mb-0.5">
+                                                    <a.Icon className="w-3.5 h-3.5 text-primary" />
+                                                    <span className="text-xs font-medium group-hover:text-primary">
+                                                        {a.label}
+                                                    </span>
+                                                </div>
+                                                <div className="text-[10px] text-muted-foreground line-clamp-2 leading-snug">
+                                                    {a.description}
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     )
 }
